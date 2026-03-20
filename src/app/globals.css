@@ -1,26 +1,47 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Core palette (design tokens) */
+  --rv-bg: #0c0e11;
+
+  --rv-text: #f9f9fd;
+  --rv-text-dim: #aaabaf;
+
+  --rv-lime: #cafd00;
+  --rv-lime-soft: #f3ffca;
+  --rv-orange: #ff7441;
+  --rv-cyan: #00e3fd;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: var(--rv-bg);
+  --color-foreground: var(--rv-text);
+
+  /* Accent tokens */
+  --color-lime-100: var(--rv-lime-soft);
+  --color-lime-200: var(--rv-lime-soft);
+  --color-lime-300: var(--rv-lime);
+  --color-lime-400: var(--rv-lime);
+
+  --color-orange-300: var(--rv-orange);
+  --color-cyan-300: var(--rv-cyan);
+
+  /* Fonts (from next/font variables) */
+  --font-display: var(--font-display);
+  --font-sans: var(--font-body);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  text-rendering: geometricPrecision;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--rv-bg);
+  color: var(--rv-text);
+  font-family: var(--font-body), ui-sans-serif, system-ui, -apple-system,
+    Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+}
+
+.font-display {
+  font-family: var(--font-display), ui-sans-serif, system-ui;
 }
