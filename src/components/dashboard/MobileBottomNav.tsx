@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Compass, House, User, Users, Swipe } from "lucide-react";
+import { Compass, House, User, Users, ArrowUpDown } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
@@ -12,7 +12,7 @@ type Item = {
 
 const items: Item[] = [
   { key: "home", label: "Home", href: "/dashboard", icon: House },
-  { key: "swipe", label: "Swipe", href: "/swipe", icon: Swipe },
+  { key: "swipe", label: "Swipe", href: "/swipe", icon: ArrowUpDown },
   { key: "groups", label: "Groups", href: "/groups", icon: Users },
   { key: "explore", label: "Explore", href: "/explore", icon: Compass },
   { key: "profile", label: "Profile", href: "/profile", icon: User },

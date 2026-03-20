@@ -14,7 +14,9 @@ const credentialsSchema = z.object({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
-  session: { strategy: "database" },
+  // In serverless environments (Vercel), JWT sessions avoid extra DB writes/reads.
+  // We still use the PrismaAdapter to persist Users + Accounts.
+  session: { strategy: "jwt" },
   providers: [
     Google({
       clientId: process.env.GOOGLE_CLIENT_ID,
@@ -58,10 +60,15 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     signIn: "/login",
   },
   callbacks: {
-    async session({ session, user }) {
+    async jwt({ token, user }) {
+      // Persist user id onto the token on sign-in.
+      if (user?.id) token.sub = user.id;
+      return token;
+    },
+    async session({ session, token }) {
       // Make userId available client-side for convenience.
       if (session.user) {
-        (session.user as { id?: string }).id = user.id;
+        (session.user as { id?: string }).id = token.sub ?? undefined;
       }
       return session;
     },

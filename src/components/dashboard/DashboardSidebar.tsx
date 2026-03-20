@@ -2,7 +2,7 @@ import Link from "next/link";
 import {
   Shield,
   LayoutDashboard,
-  Swipe,
+  ArrowUpDown,
   Users,
   Compass,
   User,
@@ -21,7 +21,7 @@ function iconForKey(key: DashboardNavItem["key"]) {
     case "dashboard":
       return LayoutDashboard;
     case "swipe":
-      return Swipe;
+      return ArrowUpDown;
     case "groups":
       return Users;
     case "discovery":
