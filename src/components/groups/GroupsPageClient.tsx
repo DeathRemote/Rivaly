@@ -89,7 +89,7 @@ export function GroupsPageClient({
               ))}
             </div>
           ) : (
-            <EmptyState />
+            <EmptyState onCreate={() => setCreateOpen(true)} />
           )
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
