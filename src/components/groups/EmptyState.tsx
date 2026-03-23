@@ -4,7 +4,13 @@ import Link from "next/link";
 
 import { cn } from "@/lib/cn";
 
-export function EmptyState({ onCreate }: { onCreate?: () => void }) {
+export function EmptyState({
+  onCreate,
+  onJoin,
+}: {
+  onCreate?: () => void;
+  onJoin?: () => void;
+}) {
   return (
     <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-10 text-center shadow-[0px_24px_48px_rgba(0,0,0,0.35)]">
       <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-lime-300/10 blur-[110px]" />
@@ -22,16 +28,30 @@ export function EmptyState({ onCreate }: { onCreate?: () => void }) {
         </p>
 
         <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
-          <Link
-            href="/groups/join"
-            className={cn(
-              "inline-flex items-center justify-center rounded-xl border border-white/10 bg-black/20 px-6 py-3",
-              "text-xs font-black uppercase tracking-[0.22em] text-white/80",
-              "transition hover:bg-white/5 hover:text-lime-100",
-            )}
-          >
-            Join Group
-          </Link>
+          {onJoin ? (
+            <button
+              type="button"
+              onClick={onJoin}
+              className={cn(
+                "inline-flex items-center justify-center rounded-xl border border-white/10 bg-black/20 px-6 py-3",
+                "text-xs font-black uppercase tracking-[0.22em] text-white/80",
+                "transition hover:bg-white/5 hover:text-lime-100",
+              )}
+            >
+              Join Group
+            </button>
+          ) : (
+            <Link
+              href="/groups?join=1"
+              className={cn(
+                "inline-flex items-center justify-center rounded-xl border border-white/10 bg-black/20 px-6 py-3",
+                "text-xs font-black uppercase tracking-[0.22em] text-white/80",
+                "transition hover:bg-white/5 hover:text-lime-100",
+              )}
+            >
+              Join Group
+            </Link>
+          )}
           {onCreate ? (
             <button
               type="button"

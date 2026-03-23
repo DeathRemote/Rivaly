@@ -14,7 +14,7 @@ type TabKey = "my" | "public";
 export default async function GroupsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; create?: string }>;
+  searchParams: Promise<{ tab?: string; create?: string; join?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login?callbackUrl=/groups");
@@ -22,6 +22,7 @@ export default async function GroupsPage({
   const sp = await searchParams;
   const tab = (sp.tab === "public" ? "public" : "my") as TabKey;
   const create = sp.create === "1";
+  const join = sp.join === "1";
 
   const ownerEmail = process.env.OWNER_EMAIL;
   const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
@@ -113,7 +114,13 @@ export default async function GroupsPage({
       activeKey="groups"
       user={user}
     >
-      <GroupsPageClient tab={tab} hasGroups={hasGroups} groups={groups} initialCreateOpen={create} />
+      <GroupsPageClient
+        tab={tab}
+        hasGroups={hasGroups}
+        groups={groups}
+        initialCreateOpen={create}
+        initialJoinOpen={join}
+      />
     </DashboardLayout>
   );
 }

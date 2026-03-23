@@ -8,6 +8,7 @@ import { cn } from "@/lib/cn";
 import { EmptyState } from "@/components/groups/EmptyState";
 import { GroupCard, type GroupCardData } from "@/components/groups/GroupCard";
 import { CreateGroupModal } from "@/components/groups/CreateGroupModal";
+import { JoinGroupModal } from "@/components/groups/JoinGroupModal";
 
 type TabKey = "my" | "public";
 
@@ -16,13 +17,16 @@ export function GroupsPageClient({
   hasGroups,
   groups,
   initialCreateOpen,
+  initialJoinOpen,
 }: {
   tab: TabKey;
   hasGroups: boolean;
   groups: GroupCardData[];
   initialCreateOpen?: boolean;
+  initialJoinOpen?: boolean;
 }) {
   const [createOpen, setCreateOpen] = useState(Boolean(initialCreateOpen));
+  const [joinOpen, setJoinOpen] = useState(Boolean(initialJoinOpen));
 
   const title = useMemo(() => {
     return tab === "my" ? "My Groups" : "Public Groups";
@@ -55,8 +59,9 @@ export function GroupsPageClient({
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/groups/join"
+            <button
+              type="button"
+              onClick={() => setJoinOpen(true)}
               className={cn(
                 "inline-flex items-center justify-center rounded-xl border border-white/10 bg-black/20 px-4 py-3",
                 "text-xs font-black uppercase tracking-[0.22em] text-white/80",
@@ -64,7 +69,7 @@ export function GroupsPageClient({
               )}
             >
               Join Group
-            </Link>
+            </button>
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
@@ -89,7 +94,7 @@ export function GroupsPageClient({
               ))}
             </div>
           ) : (
-            <EmptyState onCreate={() => setCreateOpen(true)} />
+            <EmptyState onJoin={() => setJoinOpen(true)} onCreate={() => setCreateOpen(true)} />
           )
         ) : (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
@@ -101,6 +106,7 @@ export function GroupsPageClient({
       </div>
 
       <CreateGroupModal open={createOpen} onClose={() => setCreateOpen(false)} />
+      <JoinGroupModal open={joinOpen} onClose={() => setJoinOpen(false)} />
     </>
   );
 }
