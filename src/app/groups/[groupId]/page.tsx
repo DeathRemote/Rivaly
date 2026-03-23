@@ -156,6 +156,7 @@ export default async function GroupDetailsPage({
         </div>
       ) : (
         <GroupMatchesTab
+          groupId={group.id}
           phaseType={"LEAGUE" satisfies PhaseType}
           matches={mockMatches("LEAGUE")}
         />

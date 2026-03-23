@@ -10,9 +10,11 @@ import { MatchSection } from "@/components/groups/matches/MatchSection";
 import { MatchesEmptyState } from "@/components/groups/matches/MatchesEmptyState";
 
 export function GroupMatchesTab({
+  groupId,
   phaseType,
   matches,
 }: {
+  groupId: string;
   phaseType: PhaseType;
   matches: MatchListItem[];
 }) {
@@ -66,6 +68,8 @@ export function GroupMatchesTab({
               title={s.label}
               subtitle={phaseType === "LEAGUE" ? "Your weekly slate." : undefined}
               matches={s.items}
+              groupId={groupId}
+              phaseType={phaseType}
             />
           ))}
         </div>

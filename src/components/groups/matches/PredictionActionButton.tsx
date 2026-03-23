@@ -9,26 +9,37 @@ import type { MatchListItem } from "@/components/groups/matches/types";
 
 export function PredictionActionButton({
   match,
+  onClick,
 }: {
   match: MatchListItem;
+  onClick: () => void;
 }) {
   const now = useNow();
   const lockAt = Date.parse(match.lockAt);
   const kickoffAt = Date.parse(match.kickoffAt);
 
   const state = useMemo(() => {
-    if (match.status === "FINAL") return { label: "View result", disabled: false, tone: "dim" as const };
-    if (now >= lockAt) return { label: "Locked", disabled: true, tone: "dim" as const };
-    if (match.userPrediction?.status === "PREDICTED") return { label: "Edit prediction", disabled: false, tone: "lime" as const };
-    return { label: "Predict now", disabled: false, tone: "orange" as const };
+    if (match.status === "FINAL") {
+      return { label: "View result", sub: "Final", disabled: false, tone: "dim" as const };
+    }
+    if (now >= lockAt) {
+      return { label: "Locked", sub: "Prediction closed", disabled: true, tone: "dim" as const };
+    }
+    if (match.userPrediction?.status === "PREDICTED") {
+      return { label: "Edit score", sub: "Exact score", disabled: false, tone: "lime" as const };
+    }
+    return { label: "Predict score", sub: "Exact score", disabled: false, tone: "orange" as const };
   }, [match.status, match.userPrediction?.status, lockAt, now]);
 
-  const sub = now < lockAt ? formatCountdown(lockAt - now) : now < kickoffAt ? "Kickoff soon" : "In play";
+  const countdown = now < lockAt ? formatCountdown(lockAt - now) : now < kickoffAt ? "Kickoff soon" : "In play";
 
   return (
     <button
       type="button"
       disabled={state.disabled}
+      onClick={() => {
+        if (!state.disabled) onClick();
+      }}
       className={cn(
         "w-full rounded-2xl py-4",
         "text-xs font-black uppercase tracking-[0.22em]",
@@ -43,8 +54,13 @@ export function PredictionActionButton({
       )}
     >
       <div>{state.label}</div>
-      <div className={cn("mt-1 text-[10px] font-black tracking-[0.18em]", state.tone === "dim" ? "text-white/30" : "text-black/50")}>
-        {sub}
+      <div
+        className={cn(
+          "mt-1 text-[10px] font-black tracking-[0.18em]",
+          state.tone === "dim" ? "text-white/30" : "text-black/50",
+        )}
+      >
+        {state.sub} • {countdown}
       </div>
     </button>
   );

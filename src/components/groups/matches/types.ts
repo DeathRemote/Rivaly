@@ -9,7 +9,7 @@ export type MatchPredictionStatus =
   | "COMPLETED";
 
 export type MatchListItem = {
-  id: string;
+  id: string; // matchKey (stable id for predictions)
   phaseType: PhaseType;
   phaseLabel: string; // e.g. "Gameweek 12" / "Group A" / "Quarterfinal"
   kickoffAt: string; // ISO
@@ -21,7 +21,10 @@ export type MatchListItem = {
   competitionLabel?: string;
   userPrediction?: {
     status: MatchPredictionStatus;
-    summary?: string; // e.g. "Home win" / "2-1"
+    summary?: string; // e.g. "2-1"
+    homeScore?: number;
+    awayScore?: number;
+    source?: "QUICK_PICK" | "SCORE";
     updatedAt?: string;
   };
   result?: {

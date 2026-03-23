@@ -36,7 +36,7 @@ export function mockMatches(phaseType: PhaseType): MatchListItem[] {
       home: { name: "Real Madrid" },
       away: { name: "Barcelona" },
       competitionLabel: "Champions League",
-      userPrediction: { status: "PREDICTED", summary: "Home win", updatedAt: isoPlus(-2) },
+      userPrediction: { status: "PREDICTED", summary: "2-1", homeScore: 2, awayScore: 1, source: "SCORE", updatedAt: isoPlus(-2) },
     },
     {
       id: "m3",
@@ -49,7 +49,7 @@ export function mockMatches(phaseType: PhaseType): MatchListItem[] {
       home: { name: "Liverpool" },
       away: { name: "PSG" },
       competitionLabel: "Champions League",
-      userPrediction: { status: "LOCKED", summary: "2-1" },
+      userPrediction: { status: "LOCKED", summary: "2-1", homeScore: 2, awayScore: 1, source: "QUICK_PICK" },
     },
     {
       id: "m4",
@@ -62,7 +62,7 @@ export function mockMatches(phaseType: PhaseType): MatchListItem[] {
       home: { name: "Bayern" },
       away: { name: "Dortmund" },
       competitionLabel: "Champions League",
-      userPrediction: { status: "COMPLETED", summary: "Away win" },
+      userPrediction: { status: "COMPLETED", summary: "0-3", homeScore: 0, awayScore: 3, source: "SCORE" },
       result: { homeScore: 1, awayScore: 2 },
     },
   ];
