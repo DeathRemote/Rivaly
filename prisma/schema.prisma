@@ -14,9 +14,17 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+enum UserRole {
+  USER
+  ADMIN
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
+  username      String?   @unique
+  country       String?
+  role          UserRole  @default(USER)
   email         String?   @unique
   image         String?
   emailVerified DateTime?
@@ -24,12 +32,17 @@ model User {
   accounts Account[]
   sessions Session[]
 
+  // Groups
+  createdGroups    Group[]       @relation("UserCreatedGroups")
+  groupMemberships GroupMember[]
+
   // Optional: only present for users who sign up with email+password.
   password UserPassword?
 
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   passwordResetTokens PasswordResetToken[]
+  groupPredictions    GroupPrediction[]
 }
 
 model Account {
@@ -88,4 +101,85 @@ model PasswordResetToken {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+enum GroupVisibility {
+  PRIVATE
+  PUBLIC
+}
+
+enum GroupMemberRole {
+  MEMBER
+  ADMIN
+}
+
+enum Sport {
+  SOCCER
+  BASKETBALL
+  TENNIS
+  ESPORTS
+}
+
+model Group {
+  id          String          @id @default(cuid())
+  name        String
+  sport       Sport
+  competition String
+  inviteCode  String          @unique
+  visibility  GroupVisibility @default(PRIVATE)
+
+  createdById String
+  createdBy   User   @relation("UserCreatedGroups", fields: [createdById], references: [id], onDelete: Cascade)
+
+  members GroupMember[]
+
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  groupPredictions GroupPrediction[]
+
+  @@index([visibility])
+  @@index([createdById])
+  @@index([sport])
+}
+
+model GroupMember {
+  id        String          @id @default(cuid())
+  groupId   String
+  userId    String
+  role      GroupMemberRole @default(MEMBER)
+  points    Int             @default(0)
+  createdAt DateTime        @default(now())
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([userId])
+  @@index([groupId])
+}
+
+enum PredictionSource {
+  QUICK_PICK
+  SCORE
+}
+
+model GroupPrediction {
+  id        String           @id @default(cuid())
+  groupId   String
+  userId    String
+  matchKey  String
+  homeScore Int
+  awayScore Int
+  source    PredictionSource @default(SCORE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId, matchKey])
+  @@index([groupId])
+  @@index([userId])
+  @@index([matchKey])
 }

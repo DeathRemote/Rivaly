@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
@@ -15,7 +17,16 @@ export default async function LoginPage({
 
   return (
     <div className="min-h-screen bg-[#0c0e11] text-[#f9f9fd] flex items-center justify-center p-6">
-      <AuthCard callbackUrl={callbackUrl ?? "/dashboard"} />
+      <div className="w-full max-w-md">
+        <Link
+          href="/"
+          className="mb-4 inline-flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-white/50 hover:text-lime-100"
+        >
+          <span aria-hidden>‹</span>
+          Back to landing
+        </Link>
+        <AuthCard callbackUrl={callbackUrl ?? "/dashboard"} />
+      </div>
     </div>
   );
 }

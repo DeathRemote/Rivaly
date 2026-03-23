@@ -1,4 +1,5 @@
 import NextAuth from "next-auth";
+import type { JWT } from "next-auth/jwt";
 import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -11,6 +12,24 @@ const credentialsSchema = z.object({
   email: z.string().email(),
   password: z.string().min(8),
 });
+
+type RivalyRole = "USER" | "ADMIN";
+
+type RivalyJWT = JWT & {
+  role?: RivalyRole;
+  username?: string | null;
+  country?: string | null;
+};
+
+type RivalySessionUser = {
+  id?: string;
+  name?: string | null;
+  email?: string | null;
+  image?: string | null;
+  role?: RivalyRole;
+  username?: string | null;
+  country?: string | null;
+};
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   adapter: PrismaAdapter(prisma),
@@ -61,14 +80,40 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
   callbacks: {
     async jwt({ token, user }) {
+      const t = token as RivalyJWT;
+
       // Persist user id onto the token on sign-in.
-      if (user?.id) token.sub = user.id;
-      return token;
+      if (user?.id) t.sub = user.id;
+
+      // Populate extra fields onto the JWT so we can use them in Server Components
+      // without extra DB roundtrips.
+      if (t.sub && (!t.role || !t.username || !t.country)) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: t.sub },
+          select: { role: true, username: true, country: true, name: true, email: true, image: true },
+        });
+
+        if (dbUser) {
+          t.role = dbUser.role as RivalyRole;
+          t.username = dbUser.username;
+          t.country = dbUser.country;
+          // Keep basics in sync as well.
+          t.name = dbUser.name ?? t.name;
+          t.email = dbUser.email ?? t.email;
+          t.picture = dbUser.image ?? t.picture;
+        }
+      }
+
+      return t;
     },
     async session({ session, token }) {
-      // Make userId available client-side for convenience.
+      const t = token as RivalyJWT;
       if (session.user) {
-        (session.user as { id?: string }).id = token.sub ?? undefined;
+        const u = session.user as RivalySessionUser;
+        u.id = t.sub ?? undefined;
+        u.role = t.role;
+        u.username = t.username;
+        u.country = t.country;
       }
       return session;
     },
@@ -102,6 +147,9 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      role?: RivalyRole;
+      username?: string | null;
+      country?: string | null;
     };
   }
 }

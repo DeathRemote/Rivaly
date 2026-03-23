@@ -44,14 +44,8 @@ export function Navbar() {
         </nav>
 
         <div className="flex items-center gap-3">
-          <Button href="/login" variant="secondary" size="sm" className="hidden sm:inline-flex">
+          <Button href="/login" variant="primary" size="sm">
             Log in
-          </Button>
-          <Button href="/login" variant="primary" size="sm" className="hidden sm:inline-flex">
-            Get started
-          </Button>
-          <Button href="/login" variant="primary" size="sm" className="sm:hidden">
-            Start
           </Button>
         </div>
       </Container>

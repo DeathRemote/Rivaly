@@ -24,8 +24,12 @@ export default async function DashboardPage() {
     redirect("/login?callbackUrl=/dashboard");
   }
 
+  const ownerEmail = process.env.OWNER_EMAIL;
+  const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
+  const isAdmin = isOwner || session.user.role === "ADMIN";
+
   const user = {
-    name: session.user.name ?? "Kinetic Player",
+    name: session.user.username ?? session.user.name ?? "Kinetic Player",
     image: session.user.image ?? null,
     rankLabel: "Pro",
   };
@@ -33,7 +37,7 @@ export default async function DashboardPage() {
   return (
     <DashboardLayout
       topNavItems={topNavItems}
-      sideNavItems={sideNavItems}
+      sideNavItems={sideNavItems.filter((item) => (item.key === "admin" ? isAdmin : true))}
       activeKey="dashboard"
       user={user}
     >

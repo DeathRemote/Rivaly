@@ -1,9 +1,9 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Bell } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import type { DashboardNavItem } from "@/features/dashboard/mock";
+import { UserMenu } from "@/components/dashboard/UserMenu";
 
 export function DashboardTopNav({
   activeKey,
@@ -55,11 +55,7 @@ export function DashboardTopNav({
             <Bell className="h-5 w-5" />
           </button>
 
-          <div className="relative h-8 w-8 overflow-hidden rounded-full border border-white/10 bg-white/10">
-            {user.image ? (
-              <Image src={user.image} alt={user.name} fill className="object-cover" />
-            ) : null}
-          </div>
+          <UserMenu user={user} />
         </div>
       </div>
     </header>
