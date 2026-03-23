@@ -12,6 +12,9 @@ import { type LeaderboardRowData } from "@/components/groups/LeaderboardRow";
 import { GroupMatchCard, type GroupMatch } from "@/components/groups/GroupMatchCard";
 import { RecentResultCard } from "@/components/groups/RecentResultCard";
 import { GroupMomentumCard } from "@/components/groups/GroupMomentumCard";
+import { GroupMatchesTab } from "@/components/groups/matches/GroupMatchesTab";
+import type { PhaseType } from "@/components/groups/matches/types";
+import { mockMatches } from "@/components/groups/matches/mock";
 
 import { topNavItems, sideNavItems } from "@/features/dashboard/mock";
 
@@ -152,9 +155,10 @@ export default async function GroupDetailsPage({
           </div>
         </div>
       ) : (
-        <div className="rounded-2xl border border-white/10 bg-white/5 p-8 text-white/60">
-          Matches tab coming next.
-        </div>
+        <GroupMatchesTab
+          phaseType={"LEAGUE" satisfies PhaseType}
+          matches={mockMatches("LEAGUE")}
+        />
       )}
     </DashboardLayout>
   );
