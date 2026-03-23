@@ -17,9 +17,6 @@ export function GroupTabs({ groupId, active }: { groupId: string; active: GroupT
       <Tab href={`${base}?tab=matches`} active={active === "matches"}>
         Matches
       </Tab>
-      {/* placeholders for future */}
-      <span className="pb-4 font-display text-lg font-black text-white/15">•</span>
-      <span className="pb-4 font-display text-lg font-black text-white/15">•</span>
     </div>
   );
 }
