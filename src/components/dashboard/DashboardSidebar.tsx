@@ -47,7 +47,7 @@ export function DashboardSidebar({
   user: { name: string; image: string | null; rankLabel: string };
 }) {
   return (
-    <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-72 lg:flex-col lg:bg-black lg:pt-20">
+    <aside className="hidden lg:fixed lg:inset-y-0 lg:left-0 lg:z-40 lg:flex lg:w-72 lg:flex-col lg:bg-background lg:pt-20">
       <div className="px-6 mb-8">
         <UserBadge name={user.name} rankLabel={user.rankLabel} image={user.image} />
       </div>

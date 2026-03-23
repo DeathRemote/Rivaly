@@ -16,7 +16,7 @@ export function DashboardTopNav({
 }) {
   return (
     <header className="fixed top-0 z-50 w-full bg-white/5 shadow-[0px_24px_48px_rgba(0,0,0,0.4)]">
-      <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-6">
+      <div className="flex h-16 w-full items-center justify-between px-6">
         <div className="flex items-center gap-8">
           <Link
             href="/dashboard"
