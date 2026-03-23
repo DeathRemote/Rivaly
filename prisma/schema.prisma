@@ -32,6 +32,10 @@ model User {
   accounts Account[]
   sessions Session[]
 
+  // Groups
+  createdGroups    Group[]       @relation("UserCreatedGroups")
+  groupMemberships GroupMember[]
+
   // Optional: only present for users who sign up with email+password.
   password UserPassword?
 
@@ -115,7 +119,7 @@ model Group {
   visibility  GroupVisibility @default(PRIVATE)
 
   createdById String
-  createdBy   User            @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdBy   User            @relation("UserCreatedGroups", fields: [createdById], references: [id], onDelete: Cascade)
 
   members     GroupMember[]
 
