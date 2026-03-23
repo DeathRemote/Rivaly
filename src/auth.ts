@@ -63,12 +63,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       // Persist user id onto the token on sign-in.
       if (user?.id) token.sub = user.id;
+
+      // Populate extra fields onto the JWT so we can use them in Server Components
+      // without extra DB roundtrips.
+      if (token.sub && (!token.role || !token.username || !token.country)) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { role: true, username: true, country: true, name: true, email: true, image: true },
+        });
+
+        if (dbUser) {
+          (token as any).role = dbUser.role;
+          (token as any).username = dbUser.username;
+          (token as any).country = dbUser.country;
+          // Keep basics in sync as well.
+          token.name = dbUser.name ?? token.name;
+          token.email = dbUser.email ?? token.email;
+          token.picture = dbUser.image ?? token.picture;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
-      // Make userId available client-side for convenience.
       if (session.user) {
-        (session.user as { id?: string }).id = token.sub ?? undefined;
+        (session.user as any).id = token.sub ?? undefined;
+        (session.user as any).role = (token as any).role;
+        (session.user as any).username = (token as any).username;
+        (session.user as any).country = (token as any).country;
       }
       return session;
     },
@@ -102,6 +124,9 @@ declare module "next-auth" {
       name?: string | null;
       email?: string | null;
       image?: string | null;
+      role?: "USER" | "ADMIN";
+      username?: string | null;
+      country?: string | null;
     };
   }
 }

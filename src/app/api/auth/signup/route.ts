@@ -5,7 +5,12 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
 const schema = z.object({
-  name: z.string().min(1).max(80).optional().or(z.literal("")),
+  username: z
+    .string()
+    .min(3)
+    .max(24)
+    .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
+  country: z.string().length(2),
   email: z.string().email(),
   password: z.string().min(8).max(200),
 });
@@ -17,11 +22,19 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Invalid input" }, { status: 400 });
   }
 
-  const { name, email, password } = parsed.data;
+  const { username, country, email, password } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
+  const normalizedUsername = username.trim();
+  const normalizedCountry = country.trim().toUpperCase();
+
+  const existingByEmail = await prisma.user.findUnique({ where: { email } });
+  if (existingByEmail) {
     return NextResponse.json({ error: "Account already exists" }, { status: 409 });
+  }
+
+  const existingByUsername = await prisma.user.findUnique({ where: { username: normalizedUsername } });
+  if (existingByUsername) {
+    return NextResponse.json({ error: "Username already taken" }, { status: 409 });
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
@@ -29,7 +42,10 @@ export async function POST(req: Request) {
   const user = await prisma.user.create({
     data: {
       email,
-      name: name?.trim() || null,
+      username: normalizedUsername,
+      country: normalizedCountry,
+      // Use username as the default display name for now.
+      name: normalizedUsername,
       password: {
         create: { passwordHash },
       },

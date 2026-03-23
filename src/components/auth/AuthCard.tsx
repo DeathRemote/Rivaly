@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
+import { countries } from "@/lib/countries";
+
 type Mode = "login" | "signup";
 
 function cx(...classes: Array<string | false | undefined>) {
@@ -26,14 +28,15 @@ export function AuthCard({ callbackUrl }: { callbackUrl: string }) {
     const form = new FormData(e.currentTarget);
     const email = String(form.get("email") || "").trim();
     const password = String(form.get("password") || "");
-    const name = String(form.get("name") || "").trim();
+    const username = String(form.get("username") || "").trim();
+    const country = String(form.get("country") || "").trim().toUpperCase();
 
     try {
       if (mode === "signup") {
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ email, password, name }),
+          body: JSON.stringify({ email, password, username, country }),
         });
 
         if (!res.ok) {
@@ -115,17 +118,41 @@ export function AuthCard({ callbackUrl }: { callbackUrl: string }) {
 
         <form onSubmit={onCredentialsSubmit} className="space-y-4">
           {mode === "signup" ? (
-            <div className="space-y-1">
-              <label className="px-1 text-[10px] font-bold uppercase tracking-widest text-white/60">
-                Name
-              </label>
-              <input
-                name="name"
-                placeholder="Your name"
-                className="h-12 w-full rounded-xl bg-black/40 px-4 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#beee00]/25"
-                autoComplete="name"
-              />
-            </div>
+            <>
+              <div className="space-y-1">
+                <label className="px-1 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                  Username
+                </label>
+                <input
+                  name="username"
+                  placeholder="e.g. aladin"
+                  className="h-12 w-full rounded-xl bg-black/40 px-4 text-white placeholder:text-white/30 focus:outline-none focus:ring-2 focus:ring-[#beee00]/25"
+                  autoComplete="username"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="px-1 text-[10px] font-bold uppercase tracking-widest text-white/60">
+                  Country
+                </label>
+                <select
+                  name="country"
+                  defaultValue=""
+                  className="h-12 w-full rounded-xl bg-black/40 px-4 text-white focus:outline-none focus:ring-2 focus:ring-[#beee00]/25"
+                  required
+                >
+                  <option value="" disabled className="bg-black">
+                    Select your country
+                  </option>
+                  {countries.map((c) => (
+                    <option key={c.code} value={c.code} className="bg-black">
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </>
           ) : null}
 
           <div className="space-y-1">
