@@ -15,6 +15,7 @@ import { GroupMomentumCard } from "@/components/groups/GroupMomentumCard";
 import { GroupMatchesTab } from "@/components/groups/matches/GroupMatchesTab";
 import type { PhaseType } from "@/components/groups/matches/types";
 import { mockMatches } from "@/components/groups/matches/mock";
+import type { MatchListItem } from "@/components/groups/matches/types";
 
 import { topNavItems, sideNavItems } from "@/features/dashboard/mock";
 
@@ -106,6 +107,39 @@ export default async function GroupDetailsPage({
 
   const upcomingMatches: GroupMatch[] = mockUpcomingMatches(group.sport);
 
+  // Matches tab: merge saved group-scoped predictions into match list items so refreshes
+  // always reflect the real DB state.
+  const baseMatches = mockMatches("LEAGUE");
+  const baseMatchKeys = baseMatches.map((m) => m.id);
+
+  const predictions = await prisma.groupPrediction.findMany({
+    where: {
+      groupId: group.id,
+      userId,
+      matchKey: { in: baseMatchKeys },
+    },
+    select: { matchKey: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+  });
+
+  const predictionByKey = new Map(predictions.map((p) => [p.matchKey, p] as const));
+
+  const matchesForTab: MatchListItem[] = baseMatches.map((m) => {
+    const p = predictionByKey.get(m.id);
+    if (!p) return m;
+
+    return {
+      ...m,
+      userPrediction: {
+        status: m.status === "FINAL" ? "COMPLETED" : "PREDICTED",
+        summary: `${p.homeScore}-${p.awayScore}`,
+        homeScore: p.homeScore,
+        awayScore: p.awayScore,
+        source: p.source,
+        updatedAt: p.updatedAt.toISOString(),
+      },
+    };
+  });
+
   return (
     <DashboardLayout
       topNavItems={topNavItems.map((i) => (i.key === "groups" ? { ...i, href: "/groups" } : i))}
@@ -158,7 +192,7 @@ export default async function GroupDetailsPage({
         <GroupMatchesTab
           groupId={group.id}
           phaseType={"LEAGUE" satisfies PhaseType}
-          matches={mockMatches("LEAGUE")}
+          matches={matchesForTab}
         />
       )}
     </DashboardLayout>
