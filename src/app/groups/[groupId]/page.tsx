@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { AccessDenied } from "@/components/groups/AccessDenied";
-import { GroupHero } from "@/components/groups/GroupHero";
+import { GroupDetailsClient } from "@/components/groups/GroupDetailsClient";
 import { GroupTabs, type GroupTabKey } from "@/components/groups/GroupTabs";
 import { GroupLeaderboard } from "@/components/groups/GroupLeaderboard";
 import { type LeaderboardRowData } from "@/components/groups/LeaderboardRow";
@@ -112,7 +112,7 @@ export default async function GroupDetailsPage({
       activeKey="groups"
       user={user}
     >
-      <GroupHero
+      <GroupDetailsClient
         group={{
           name: group.name,
           competition: group.competition,
@@ -120,6 +120,7 @@ export default async function GroupDetailsPage({
           memberCount: group._count.members,
           description: null,
         }}
+        inviteCode={group.inviteCode}
       />
 
       <GroupTabs groupId={group.id} active={tab} />
