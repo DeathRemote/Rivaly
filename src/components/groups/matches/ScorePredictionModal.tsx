@@ -27,6 +27,9 @@ export function ScorePredictionModal({
   const [away, setAway] = useState(initialAway);
   const [error, setError] = useState<string | null>(null);
 
+  // This component is remounted with a changing `key` from the parent when opening,
+  // so the inputs initialize from the latest saved prediction without effects.
+
   const canSave = useMemo(() => {
     return !disabled && !pending && Number.isInteger(home) && Number.isInteger(away) && home >= 0 && away >= 0;
   }, [disabled, pending, home, away]);

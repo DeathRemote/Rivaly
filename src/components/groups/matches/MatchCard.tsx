@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+// Navigation refresh is not needed; we keep local prediction state for immediate UI updates.
 
 import { cn } from "@/lib/cn";
 import type { MatchListItem, PhaseType } from "@/components/groups/matches/types";
@@ -20,12 +20,15 @@ export function MatchCard({
   groupId: string;
   phaseType: PhaseType;
 }) {
-  const router = useRouter();
+  // Local prediction state only (no router refresh).
   const [pending, startTransition] = useTransition();
   const [openScore, setOpenScore] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
+  const [prediction, setPrediction] = useState(match.userPrediction ?? null);
 
   const now = useNow();
+
+  // Note: prediction state is owned locally (updated on save) to avoid full refresh.
 
   const kickoff = useMemo(() => new Date(match.kickoffAt), [match.kickoffAt]);
   const lockAt = useMemo(() => new Date(match.lockAt), [match.lockAt]);
@@ -35,8 +38,14 @@ export function MatchCard({
     return now >= lockAt.getTime();
   }, [match.status, lockAt, now]);
 
-  const currentHome = match.userPrediction?.homeScore ?? 0;
-  const currentAway = match.userPrediction?.awayScore ?? 0;
+  const hasPrediction = Boolean(
+    prediction &&
+      typeof prediction.homeScore === "number" &&
+      typeof prediction.awayScore === "number",
+  );
+
+  const currentHome = prediction?.homeScore ?? 0;
+  const currentAway = prediction?.awayScore ?? 0;
 
   async function saveScore({
     homeScore,
@@ -63,11 +72,18 @@ export function MatchCard({
       throw new Error(res.error);
     }
 
-    router.refresh();
+    setPrediction({
+      status: "PREDICTED",
+      summary: `${res.prediction.homeScore}-${res.prediction.awayScore}`,
+      homeScore: res.prediction.homeScore,
+      awayScore: res.prediction.awayScore,
+      source: res.prediction.source,
+      updatedAt: res.prediction.updatedAt,
+    });
   }
 
   const quickPickSelected = (home: number, away: number) =>
-    match.userPrediction?.homeScore === home && match.userPrediction?.awayScore === away;
+    prediction?.homeScore === home && prediction?.awayScore === away;
 
   return (
     <article className="relative overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-6">
@@ -106,20 +122,42 @@ export function MatchCard({
             <span className="text-white/20">•</span>
             <span>Locks {lockAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
 
-            {match.userPrediction?.summary ? (
+            {hasPrediction ? (
               <>
                 <span className="text-white/20">•</span>
-                <span className="text-lime-200/70">Your pick: {match.userPrediction.summary}</span>
+                <span className="text-lime-200/70">Saved</span>
               </>
             ) : null}
           </div>
         </div>
 
         <MatchStatusBadge
-          status={match.userPrediction?.status ?? "NOT_PREDICTED"}
+          status={match.status === "FINAL" ? "COMPLETED" : hasPrediction ? "PREDICTED" : "NOT_PREDICTED"}
           matchStatus={match.status}
         />
       </div>
+
+      {hasPrediction ? (
+        <div className="mt-5 rounded-2xl border border-white/10 bg-black/25 px-5 py-4">
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+            Your prediction
+          </div>
+          <div className="mt-2 flex items-center justify-between">
+            <span className="font-display text-sm font-black italic text-white/80">
+              {match.home.name}
+            </span>
+            <span className="font-display text-3xl font-black text-lime-100">
+              {prediction?.homeScore} <span className="text-white/20">–</span> {prediction?.awayScore}
+            </span>
+            <span className="font-display text-sm font-black italic text-white/80">
+              {match.away.name}
+            </span>
+          </div>
+          <div className="mt-2 text-[10px] font-black uppercase tracking-[0.22em] text-white/35">
+            {prediction?.source === "QUICK_PICK" ? "Quick pick" : "Exact score"}
+          </div>
+        </div>
+      ) : null}
 
       {inlineError ? (
         <div className="mt-5 rounded-2xl border border-[#ff7351]/30 bg-[#d53d18]/10 px-4 py-3 text-sm text-[#ffd2c8]">
@@ -144,7 +182,7 @@ export function MatchCard({
 
       <div className="mt-6">
         <PredictionActionButton
-          match={match}
+          match={{ ...match, userPrediction: prediction ?? undefined }}
           onClick={() => {
             if (locked) return;
             setOpenScore(true);
@@ -230,6 +268,7 @@ export function MatchCard({
       </div>
 
       <ScorePredictionModal
+        key={`${match.id}:${openScore ? "open" : "closed"}:${currentHome}-${currentAway}`}
         open={openScore}
         onClose={() => setOpenScore(false)}
         title={`${match.home.name} vs ${match.away.name}`}

@@ -25,11 +25,16 @@ export function PredictionActionButton({
     if (now >= lockAt) {
       return { label: "Locked", sub: "Prediction closed", disabled: true, tone: "dim" as const };
     }
-    if (match.userPrediction?.status === "PREDICTED") {
+    const hasPrediction =
+      typeof match.userPrediction?.homeScore === "number" &&
+      typeof match.userPrediction?.awayScore === "number";
+
+    if (hasPrediction) {
       return { label: "Edit score", sub: "Exact score", disabled: false, tone: "lime" as const };
     }
+
     return { label: "Predict score", sub: "Exact score", disabled: false, tone: "orange" as const };
-  }, [match.status, match.userPrediction?.status, lockAt, now]);
+  }, [match.status, match.userPrediction?.homeScore, match.userPrediction?.awayScore, lockAt, now]);
 
   const countdown = now < lockAt ? formatCountdown(lockAt - now) : now < kickoffAt ? "Kickoff soon" : "In play";
 
