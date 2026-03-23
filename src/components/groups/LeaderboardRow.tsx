@@ -23,10 +23,10 @@ export function LeaderboardRow({ row }: { row: LeaderboardRowData }) {
       <div
         className={cn(
           "col-span-1 font-display text-xl font-black italic",
-          row.rank <= 3
-            ? "text-lime-200"
-            : row.isYou
-              ? "text-[#2a3400]" // darker so it stays readable on lime highlight
+          row.isYou
+            ? "text-[#1e2600]" // always dark on highlighted row (even if rank is 01/02/03)
+            : row.rank <= 3
+              ? "text-lime-200"
               : "text-white/40",
         )}
       >
