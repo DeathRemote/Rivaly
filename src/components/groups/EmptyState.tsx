@@ -31,7 +31,7 @@ export function EmptyState() {
             Join Group
           </Link>
           <Link
-            href="/groups/create"
+            href="/groups?create=1"
             className={cn(
               "inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-[#f3ffca] to-[#beee00] px-6 py-3",
               "text-xs font-black uppercase tracking-[0.22em] text-[#3a4a00]",

@@ -112,10 +112,19 @@ enum GroupMemberRole {
   ADMIN
 }
 
+enum Sport {
+  SOCCER
+  BASKETBALL
+  TENNIS
+  ESPORTS
+}
+
 model Group {
   id          String          @id @default(cuid())
   name        String
+  sport       Sport
   competition String
+  inviteCode  String          @unique
   visibility  GroupVisibility @default(PRIVATE)
 
   createdById String
@@ -128,19 +137,21 @@ model Group {
 
   @@index([visibility])
   @@index([createdById])
+  @@index([sport])
 }
 
 model GroupMember {
-  groupId  String
-  userId   String
-  role     GroupMemberRole @default(MEMBER)
-  points   Int             @default(0)
-  joinedAt DateTime        @default(now())
+  id        String          @id @default(cuid())
+  groupId   String
+  userId    String
+  role      GroupMemberRole @default(MEMBER)
+  points    Int             @default(0)
+  createdAt DateTime        @default(now())
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  @@id([groupId, userId])
+  @@unique([groupId, userId])
   @@index([userId])
   @@index([groupId])
 }
