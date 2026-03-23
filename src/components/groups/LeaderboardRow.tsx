@@ -23,7 +23,11 @@ export function LeaderboardRow({ row }: { row: LeaderboardRowData }) {
       <div
         className={cn(
           "col-span-1 font-display text-xl font-black italic",
-          row.rank <= 3 ? "text-lime-200" : row.isYou ? "text-[#3a4a00]" : "text-white/40",
+          row.rank <= 3
+            ? "text-lime-200"
+            : row.isYou
+              ? "text-[#2a3400]" // darker so it stays readable on lime highlight
+              : "text-white/40",
         )}
       >
         {String(row.rank).padStart(2, "0")}
