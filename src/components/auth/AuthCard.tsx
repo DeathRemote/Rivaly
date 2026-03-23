@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
 type Mode = "login" | "signup";
@@ -10,6 +11,7 @@ function cx(...classes: Array<string | false | undefined>) {
 }
 
 export function AuthCard({ callbackUrl }: { callbackUrl: string }) {
+  const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -44,11 +46,23 @@ export function AuthCard({ callbackUrl }: { callbackUrl: string }) {
         email,
         password,
         callbackUrl,
-        redirect: true,
+        redirect: false,
       });
 
-      // If redirect=false, we would handle result?.error here.
-      if (result?.error) setError("Invalid email or password");
+      // next-auth v5's `signIn` typing can sometimes resolve to `never` depending on
+      // provider typing/augmentation. Use a runtime-safe narrowing instead of
+      // relying on TS inference here.
+      if (result && typeof result === "object" && "error" in result && (result as any).error) {
+        setError("Invalid email or password");
+        return;
+      }
+
+      // Successful sign-in: navigate manually.
+      const url =
+        result && typeof result === "object" && "url" in result
+          ? ((result as any).url as string | null | undefined)
+          : undefined;
+      router.push(url || callbackUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
