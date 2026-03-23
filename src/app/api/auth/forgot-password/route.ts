@@ -42,7 +42,6 @@ export async function POST(req: Request) {
   const resetUrl = `${origin}/reset-password?token=${rawToken}`;
 
   if (process.env.NODE_ENV !== "production") {
-    // eslint-disable-next-line no-console
     console.log("[Rivaly] Password reset link:", resetUrl);
   }
 

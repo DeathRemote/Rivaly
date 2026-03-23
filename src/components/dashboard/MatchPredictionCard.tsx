@@ -1,20 +1,14 @@
 import { cn } from "@/lib/cn";
-import { Bolt, Shield, Star, Trophy } from "lucide-react";
+import { Bolt, Star, Trophy } from "lucide-react";
 
 import type { MatchCard } from "@/features/dashboard/mock";
 import { PrimaryCTAButton } from "@/components/dashboard/PrimaryCTAButton";
 
-function sportIcon(sport: MatchCard["left"]["sport"]) {
-  switch (sport) {
-    case "basketball":
-      return Trophy;
-    case "tennis":
-      return Star;
-    case "soccer":
-    default:
-      return Bolt;
-  }
-}
+const SPORT_ICONS: Record<MatchCard["left"]["sport"], React.ComponentType<{ className?: string }>> = {
+  basketball: Trophy,
+  tennis: Star,
+  soccer: Bolt,
+};
 
 export function MatchPredictionCard({ match }: { match: MatchCard }) {
   const badgeClass =
@@ -38,8 +32,8 @@ export function MatchPredictionCard({ match }: { match: MatchCard }) {
         ? "bg-orange-300"
         : "bg-cyan-300";
 
-  const LeftIcon = sportIcon(match.left.sport);
-  const RightIcon = sportIcon(match.right.sport);
+  const LeftIcon = SPORT_ICONS[match.left.sport];
+  const RightIcon = SPORT_ICONS[match.right.sport];
 
   return (
     <article className="group relative overflow-hidden rounded-xl bg-white/5 hover:-translate-y-1 transition duration-300">

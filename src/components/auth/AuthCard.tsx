@@ -18,7 +18,7 @@ export function AuthCard({ callbackUrl }: { callbackUrl: string }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
-  const title = useMemo(() => (mode === "login" ? "Login" : "Create account"), [mode]);
+  useMemo(() => (mode === "login" ? "Login" : "Create account"), [mode]);
 
   async function onCredentialsSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -53,19 +53,17 @@ export function AuthCard({ callbackUrl }: { callbackUrl: string }) {
       });
 
       // next-auth v5's `signIn` typing can sometimes resolve to `never` depending on
-      // provider typing/augmentation. Use a runtime-safe narrowing instead of
-      // relying on TS inference here.
-      if (result && typeof result === "object" && "error" in result && (result as any).error) {
+      // provider typing/augmentation. Use an explicit runtime shape here.
+      type CredentialsSignInResult = { error?: string; url?: string | null };
+      const r = result as unknown as CredentialsSignInResult | undefined | null;
+
+      if (r?.error) {
         setError("Invalid email or password");
         return;
       }
 
       // Successful sign-in: navigate manually.
-      const url =
-        result && typeof result === "object" && "url" in result
-          ? ((result as any).url as string | null | undefined)
-          : undefined;
-      router.push(url || callbackUrl);
+      router.push(r?.url || callbackUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
