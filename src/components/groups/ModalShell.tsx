@@ -12,6 +12,7 @@ export function ModalShell({
   children,
   footer,
   variant = "default",
+  showClose = true,
 }: {
   open: boolean;
   title: string;
@@ -20,6 +21,7 @@ export function ModalShell({
   children: React.ReactNode;
   footer?: React.ReactNode;
   variant?: "default" | "centered";
+  showClose?: boolean;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -71,14 +73,16 @@ export function ModalShell({
           </div>
         ) : (
           <>
-            <button
-              type="button"
-              onClick={onClose}
-              className="absolute right-5 top-5 z-10 h-10 w-10 rounded-full border border-white/10 bg-black/20 text-white/60 hover:text-white hover:bg-white/5"
-              aria-label="Close"
-            >
-              ×
-            </button>
+            {showClose ? (
+              <button
+                type="button"
+                onClick={onClose}
+                className="absolute right-5 top-5 z-10 h-10 w-10 rounded-full border border-white/10 bg-black/20 text-white/60 hover:text-white hover:bg-white/5"
+                aria-label="Close"
+              >
+                ×
+              </button>
+            ) : null}
             <div className="sr-only">
               <h2>{title}</h2>
               {subtitle ? <p>{subtitle}</p> : null}
