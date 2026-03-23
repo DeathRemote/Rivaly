@@ -11,6 +11,7 @@ export function ModalShell({
   onClose,
   children,
   footer,
+  variant = "default",
 }: {
   open: boolean;
   title: string;
@@ -18,6 +19,7 @@ export function ModalShell({
   onClose: () => void;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  variant?: "default" | "centered";
 }) {
   useEffect(() => {
     if (!open) return;
@@ -40,35 +42,57 @@ export function ModalShell({
 
       <div
         className={cn(
-          "relative w-full max-w-2xl overflow-hidden rounded-2xl",
+          "relative w-full overflow-hidden",
+          variant === "default" ? "max-w-2xl rounded-2xl" : "max-w-lg rounded-[2rem]",
           "border border-white/10 bg-[#12151a]/90 backdrop-blur-xl",
           "shadow-[0_48px_96px_rgba(0,0,0,0.6)]",
         )}
       >
-        <div className="flex items-start justify-between gap-6 border-b border-white/10 bg-white/5 p-6 sm:p-8">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.28em] text-lime-200/80">
-              Initiate Group
+        {variant === "default" ? (
+          <div className="flex items-start justify-between gap-6 border-b border-white/10 bg-white/5 p-6 sm:p-8">
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.28em] text-lime-200/80">
+                Initiate Group
+              </div>
+              <h2 className="mt-1 font-display text-3xl font-black tracking-tight text-white">
+                {title}
+              </h2>
+              {subtitle ? <p className="mt-2 text-sm text-white/60">{subtitle}</p> : null}
             </div>
-            <h2 className="mt-1 font-display text-3xl font-black tracking-tight text-white">
-              {title}
-            </h2>
-            {subtitle ? <p className="mt-2 text-sm text-white/60">{subtitle}</p> : null}
+
+            <button
+              type="button"
+              onClick={onClose}
+              className="h-10 w-10 rounded-full border border-white/10 bg-black/20 text-white/60 hover:text-white hover:bg-white/5"
+              aria-label="Close"
+            >
+              ×
+            </button>
           </div>
+        ) : (
+          <>
+            <button
+              type="button"
+              onClick={onClose}
+              className="absolute right-5 top-5 z-10 h-10 w-10 rounded-full border border-white/10 bg-black/20 text-white/60 hover:text-white hover:bg-white/5"
+              aria-label="Close"
+            >
+              ×
+            </button>
+            <div className="sr-only">
+              <h2>{title}</h2>
+              {subtitle ? <p>{subtitle}</p> : null}
+            </div>
+          </>
+        )}
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="h-10 w-10 rounded-full border border-white/10 bg-black/20 text-white/60 hover:text-white hover:bg-white/5"
-            aria-label="Close"
-          >
-            ×
-          </button>
-        </div>
+        <div className={cn(variant === "default" ? "p-6 sm:p-8" : "p-8 sm:p-10")}>{children}</div>
 
-        <div className="p-6 sm:p-8">{children}</div>
-
-        {footer ? <div className="px-6 pb-6 sm:px-8 sm:pb-8">{footer}</div> : null}
+        {footer ? (
+          <div className={cn(variant === "default" ? "px-6 pb-6 sm:px-8 sm:pb-8" : "px-8 pb-8 sm:px-10 sm:pb-10")}>
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>
   );
