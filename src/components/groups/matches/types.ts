@@ -33,4 +33,7 @@ export type MatchListItem = {
   };
 };
 
-export type MatchesView = "upcoming" | "locked" | "completed";
+// upcoming   = within prediction window (visibleAt <= now < lockAt)
+// schedule   = future fixtures not currently in prediction window (too early or already locked)
+// completed  = played/past
+export type MatchesView = "upcoming" | "schedule" | "completed";

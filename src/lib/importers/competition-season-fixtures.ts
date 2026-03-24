@@ -57,7 +57,23 @@ export async function importCompetitionSeasonFixtures(opts: {
     update: {},
   });
 
-  const events = await client.listEventsForLeagueSeason(leagueId, seasonLabel);
+  // NOTE: `eventsseason.php` can be incomplete/limited depending on league + API plan.
+  // To ensure we ingest the whole season, we fetch round-by-round and stop when empty.
+  const eventsById = new Map<string, Awaited<ReturnType<typeof client.listEventsForLeagueSeason>>[number]>();
+
+  for (let round = 1; round <= 60; round++) {
+    const roundEvents = await client.listEventsForLeagueSeasonRound(leagueId, seasonLabel, round);
+    if (!roundEvents.length) break;
+    for (const e of roundEvents) eventsById.set(e.idEvent, e);
+  }
+
+  // Fallback: if round fetching yielded nothing (some leagues don't support rounds), try season endpoint.
+  if (eventsById.size === 0) {
+    const seasonEvents = await client.listEventsForLeagueSeason(leagueId, seasonLabel);
+    for (const e of seasonEvents) eventsById.set(e.idEvent, e);
+  }
+
+  const events = [...eventsById.values()];
 
   let created = 0;
   let updated = 0;

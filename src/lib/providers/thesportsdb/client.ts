@@ -22,6 +22,10 @@ const EventsSeasonResponseSchema = z.object({
   events: z.array(TheSportsDbEventSchema).nullable().optional(),
 });
 
+const EventsRoundResponseSchema = z.object({
+  events: z.array(TheSportsDbEventSchema).nullable().optional(),
+});
+
 const SeasonSchema = z.object({
   strSeason: z.string().min(1),
   idSeason: z.string().optional().nullable(),
@@ -53,6 +57,13 @@ export class TheSportsDbClient {
     const url = `${this.baseUrl}/${this.apiKey}/eventsseason.php?id=${encodeURIComponent(leagueId)}&s=${encodeURIComponent(seasonLabel)}`;
     const json = await this.fetchJson(url);
     const parsed = EventsSeasonResponseSchema.parse(json);
+    return parsed.events ?? [];
+  }
+
+  async listEventsForLeagueSeasonRound(leagueId: string, seasonLabel: string, round: number) {
+    const url = `${this.baseUrl}/${this.apiKey}/eventsround.php?id=${encodeURIComponent(leagueId)}&r=${encodeURIComponent(String(round))}&s=${encodeURIComponent(seasonLabel)}`;
+    const json = await this.fetchJson(url);
+    const parsed = EventsRoundResponseSchema.parse(json);
     return parsed.events ?? [];
   }
 

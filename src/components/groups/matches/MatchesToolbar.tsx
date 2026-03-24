@@ -32,8 +32,8 @@ export function MatchesToolbar({
           <Pill active={view === "upcoming"} onClick={() => onViewChange("upcoming")}>
             Upcoming
           </Pill>
-          <Pill active={view === "locked"} onClick={() => onViewChange("locked")}>
-            Locked
+          <Pill active={view === "schedule"} onClick={() => onViewChange("schedule")}>
+            Schedule
           </Pill>
           <Pill active={view === "completed"} onClick={() => onViewChange("completed")}>
             Completed
