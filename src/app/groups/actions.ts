@@ -87,14 +87,15 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
         select: { id: true, inviteCode: true, competitionSeasonId: true },
       });
 
-      // Ensure fixtures exist in DB.
-      // Important: only do the heavy import the *first* time a season is used.
+      // Ensure fixtures + table exist in DB.
+      // Important: only do the heavy imports the *first* time a season is used.
       if (sport === "SOCCER" && created.competitionSeasonId) {
-        const existing = await prisma.match.count({
-          where: { competitionSeasonId: created.competitionSeasonId },
-        });
+        const [matchCount, tableCount] = await Promise.all([
+          prisma.match.count({ where: { competitionSeasonId: created.competitionSeasonId } }),
+          prisma.standingsRow.count({ where: { competitionSeasonId: created.competitionSeasonId } }),
+        ]);
 
-        if (existing === 0) {
+        if (matchCount === 0) {
           const { importCompetitionSeasonFixtures } = await import(
             "@/lib/importers/competition-season-fixtures"
           );
@@ -103,10 +104,22 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
               competitionSeasonId: created.competitionSeasonId,
             });
           } catch (err) {
-            // Group creation should succeed even if the provider is rate-limiting.
-            // A manual re-import can be triggered later.
             console.warn(
               "[fixtures] import failed during group creation:",
+              err instanceof Error ? err.message : err,
+            );
+          }
+        }
+
+        if (tableCount === 0) {
+          const { syncCompetitionSeasonStandings } = await import(
+            "@/lib/importers/competition-season-standings"
+          );
+          try {
+            await syncCompetitionSeasonStandings({ competitionSeasonId: created.competitionSeasonId });
+          } catch (err) {
+            console.warn(
+              "[standings] sync failed during group creation:",
               err instanceof Error ? err.message : err,
             );
           }

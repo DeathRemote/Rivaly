@@ -13,9 +13,11 @@ import { GroupMatchCard, type GroupMatch } from "@/components/groups/GroupMatchC
 import { RecentResultCard } from "@/components/groups/RecentResultCard";
 import { GroupMomentumCard } from "@/components/groups/GroupMomentumCard";
 import { GroupMatchesTab } from "@/components/groups/matches/GroupMatchesTab";
+import { GroupTableTab } from "@/components/groups/GroupTableTab";
 import type { PhaseType } from "@/components/groups/matches/types";
 import type { MatchListItem } from "@/components/groups/matches/types";
 import { getMatchesForGroup } from "@/app/groups/[groupId]/matches/data";
+import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 
 import { topNavItems, sideNavItems } from "@/features/dashboard/mock";
 
@@ -32,7 +34,10 @@ export default async function GroupDetailsPage({
   if (!userId) redirect("/login?callbackUrl=/groups");
 
   const { groupId } = await params;
-  const tab = ((await searchParams).tab === "matches" ? "matches" : "leaderboard") as GroupTabKey;
+  const tabParam = (await searchParams).tab;
+  const tab = (
+    tabParam === "matches" ? "matches" : tabParam === "table" ? "table" : "leaderboard"
+  ) as GroupTabKey;
 
   const group = await prisma.group.findUnique({
     where: { id: groupId },
@@ -107,6 +112,42 @@ export default async function GroupDetailsPage({
   });
 
   const upcomingMatches: GroupMatch[] = mockUpcomingMatches(group.sport);
+
+  // Table tab: ensure standings exist (and are reasonably fresh) for the linked competition season.
+  if (tab === "table" && group.competitionSeasonId) {
+    const [rowsCount, seasonMeta, latestFinishedMatch] = await Promise.all([
+      prisma.standingsRow.count({
+        where: { competitionSeasonId: group.competitionSeasonId },
+      }),
+      prisma.competitionSeason.findUnique({
+        where: { id: group.competitionSeasonId },
+        select: { standingsUpdatedAt: true },
+      }),
+      prisma.match.findFirst({
+        where: {
+          competitionSeasonId: group.competitionSeasonId,
+          status: "FINISHED",
+        },
+        orderBy: { updatedAt: "desc" },
+        select: { updatedAt: true },
+      }),
+    ]);
+
+    const needsInitial = rowsCount === 0;
+    const needsRefresh =
+      Boolean(seasonMeta?.standingsUpdatedAt) &&
+      Boolean(latestFinishedMatch?.updatedAt) &&
+      latestFinishedMatch!.updatedAt > seasonMeta!.standingsUpdatedAt!;
+
+    if (needsInitial || needsRefresh) {
+      try {
+        await syncCompetitionSeasonStandings({ competitionSeasonId: group.competitionSeasonId });
+      } catch (err) {
+        // Don't block the page; table may show stale/empty with a message.
+        console.warn("[standings] sync failed:", err instanceof Error ? err.message : err);
+      }
+    }
+  }
 
   // Matches tab: merge saved group-scoped predictions into match list items so refreshes
   // always reflect the real DB state.
@@ -194,12 +235,14 @@ export default async function GroupDetailsPage({
             <GroupMomentumCard />
           </div>
         </div>
-      ) : (
+      ) : tab === "matches" ? (
         <GroupMatchesTab
           groupId={group.id}
           phaseType={"LEAGUE" satisfies PhaseType}
           matches={matchesForTab}
         />
+      ) : (
+        <GroupTableTab competitionSeasonId={group.competitionSeasonId ?? ""} />
       )}
     </DashboardLayout>
   );

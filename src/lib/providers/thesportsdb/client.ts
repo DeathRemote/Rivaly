@@ -31,6 +31,24 @@ const SeasonSchema = z.object({
   idSeason: z.string().optional().nullable(),
 });
 
+const TableRowSchema = z.object({
+  intRank: z.coerce.number(),
+  idTeam: z.string().min(1),
+  strTeam: z.string().min(1),
+  intPlayed: z.coerce.number(),
+  intWin: z.coerce.number(),
+  intDraw: z.coerce.number(),
+  intLoss: z.coerce.number(),
+  intGoalDifference: z.coerce.number().optional().nullable(),
+  intPoints: z.coerce.number(),
+});
+
+const LookupTableResponseSchema = z.object({
+  table: z.array(TableRowSchema).nullable().optional(),
+});
+
+export type TheSportsDbTableRow = z.infer<typeof TableRowSchema>;
+
 const SeasonsResponseSchema = z.object({
   seasons: z.array(SeasonSchema).nullable().optional(),
 });
@@ -67,6 +85,13 @@ export class TheSportsDbClient {
     const json = await this.fetchJson(url);
     const parsed = EventsRoundResponseSchema.parse(json);
     return parsed.events ?? [];
+  }
+
+  async lookupLeagueTable(leagueId: string, seasonLabel: string) {
+    const url = `${this.baseUrl}/${this.apiKey}/lookuptable.php?l=${encodeURIComponent(leagueId)}&s=${encodeURIComponent(seasonLabel)}`;
+    const json = await this.fetchJson(url);
+    const parsed = LookupTableResponseSchema.parse(json);
+    return parsed.table ?? [];
   }
 
   private async fetchJson(url: string) {

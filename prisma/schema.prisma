@@ -235,9 +235,13 @@ model CompetitionSeason {
   startsAt         DateTime?
   endsAt           DateTime?
 
+  // Standings sync metadata
+  standingsUpdatedAt DateTime?
+
   competition      Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   phases           CompetitionPhase[]
   matches          Match[]
+  standingsRows    StandingsRow[]
   groups           Group[]
 
   createdAt        DateTime @default(now())
@@ -308,4 +312,34 @@ model Match {
 
   @@unique([provider, providerMatchId])
   @@index([competitionSeasonId, kickoffAt])
+}
+
+model StandingsRow {
+  id                  String @id @default(cuid())
+  competitionSeasonId String
+  competitionPhaseId  String?
+
+  teamId              String
+
+  position            Int
+  played              Int
+  wins                Int
+  draws               Int
+  losses              Int
+  goalDifference      Int
+  points              Int
+
+  provider            Provider?
+  providerTeamId      String?
+
+  competitionSeason   CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  competitionPhase    CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
+  team                Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([competitionSeasonId, teamId])
+  @@unique([provider, providerTeamId])
+  @@index([competitionSeasonId, position])
 }
