@@ -301,6 +301,11 @@ model Match {
   visibleAt            DateTime?
   lockAt               DateTime?
 
+  // Result + processing
+  result               MatchResult?
+  finalizedAt          DateTime?
+  processedAt          DateTime?
+
   competitionSeason    CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
   competitionPhase     CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
 
@@ -312,6 +317,51 @@ model Match {
 
   @@unique([provider, providerMatchId])
   @@index([competitionSeasonId, kickoffAt])
+  @@index([status, kickoffAt])
+}
+
+model MatchResult {
+  id          String @id @default(cuid())
+  matchId     String @unique
+  homeScore   Int
+  awayScore   Int
+
+  provider    Provider?
+  providerEventId String?
+
+  match       Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum PointsEventType {
+  PREDICTION_SCORED
+}
+
+model PointsEvent {
+  id        String @id @default(cuid())
+  type      PointsEventType @default(PREDICTION_SCORED)
+
+  groupId   String
+  userId    String
+  matchId   String
+
+  points    Int
+
+  reason    String?
+  meta      Json?
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([groupId, userId, matchId, type])
+  @@index([groupId, createdAt])
+  @@index([userId, createdAt])
+  @@index([matchId])
 }
 
 model StandingsRow {

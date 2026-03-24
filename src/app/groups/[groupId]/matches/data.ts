@@ -47,6 +47,7 @@ export async function getMatchesForGroup({
       homeTeam: true,
       awayTeam: true,
       competitionPhase: true,
+      result: true,
     },
     orderBy: { kickoffAt: "asc" },
   });
@@ -67,6 +68,10 @@ export async function getMatchesForGroup({
       home: { name: m.homeTeam.name, shortName: m.homeTeam.shortName ?? undefined },
       away: { name: m.awayTeam.name, shortName: m.awayTeam.shortName ?? undefined },
       competitionLabel: season ? `${season.competition.name} ${season.seasonLabel}` : undefined,
+      result:
+        m.result && m.status === "FINISHED"
+          ? { homeScore: m.result.homeScore, awayScore: m.result.awayScore }
+          : undefined,
     } satisfies MatchListItem;
   });
 }

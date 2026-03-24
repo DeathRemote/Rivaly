@@ -11,6 +11,9 @@ const TheSportsDbEventSchema = z.object({
   strHomeTeam: z.string().optional().nullable(),
   strAwayTeam: z.string().optional().nullable(),
 
+  intHomeScore: z.coerce.number().optional().nullable(),
+  intAwayScore: z.coerce.number().optional().nullable(),
+
   dateEvent: z.string().optional().nullable(),
   strTime: z.string().optional().nullable(),
   strTimestamp: z.string().optional().nullable(),
@@ -92,6 +95,13 @@ export class TheSportsDbClient {
     const json = await this.fetchJson(url);
     const parsed = LookupTableResponseSchema.parse(json);
     return parsed.table ?? [];
+  }
+
+  async lookupEvent(eventId: string) {
+    const url = `${this.baseUrl}/${this.apiKey}/lookupevent.php?id=${encodeURIComponent(eventId)}`;
+    const json = await this.fetchJson(url);
+    const parsed = z.object({ events: z.array(TheSportsDbEventSchema).nullable().optional() }).parse(json);
+    return parsed.events?.[0] ?? null;
   }
 
   private async fetchJson(url: string) {
