@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/jobs/matches/sync?token=6tMbCGz/C++FMNlHOPWaEKlu5BtgLLtHEYR5Z8cbZlo=",
+      "path": "/api/jobs/matches/sync?token=rivaly_job_8Nq4vLm2Tx7pRc5Wd9HyK1",
       "schedule": "*/5 * * * *"
     }
   ]
