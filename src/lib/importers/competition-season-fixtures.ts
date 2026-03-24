@@ -57,41 +57,53 @@ export async function importCompetitionSeasonFixtures(opts: {
     update: {},
   });
 
-  // NOTE: `eventsseason.php` can be incomplete/limited depending on league + API plan.
-  // To ensure we ingest the whole season, we fetch round-by-round and stop when empty.
-  const eventsById = new Map<string, Awaited<ReturnType<typeof client.listEventsForLeagueSeason>>[number]>();
+  // Prefer season-wide endpoint first (single request).
+  // With premium keys, this should return the full season and avoids many round requests.
+  const eventsById = new Map<
+    string,
+    Awaited<ReturnType<typeof client.listEventsForLeagueSeason>>[number]
+  >();
 
-  for (let round = 1; round <= 60; round++) {
-    // TheSportsDB test key can rate-limit / return HTML. We retry a few times and stop gracefully.
-    let roundEvents: Awaited<ReturnType<typeof client.listEventsForLeagueSeasonRound>> = [];
+  const seasonEvents = await client.listEventsForLeagueSeason(leagueId, seasonLabel);
+  for (const e of seasonEvents) eventsById.set(e.idEvent, e);
 
-    for (let attempt = 1; attempt <= 3; attempt++) {
-      try {
-        roundEvents = await client.listEventsForLeagueSeasonRound(leagueId, seasonLabel, round);
-        break;
-      } catch (err) {
-        if (attempt === 3) {
-          throw new Error(
-            `[fixtures] eventsround failed at round=${round} after ${attempt} attempts: ` +
-              (err instanceof Error ? err.message : String(err)),
-          );
+  // If it looks truncated, attempt round-walk as a best-effort fallback.
+  // Some keys/endpoints may return 404 for eventsround; in that case we keep seasonEvents.
+  if (eventsById.size < 100) {
+    for (let round = 1; round <= 60; round++) {
+      let roundEvents: Awaited<ReturnType<typeof client.listEventsForLeagueSeasonRound>> = [];
+
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          roundEvents = await client.listEventsForLeagueSeasonRound(leagueId, seasonLabel, round);
+          break;
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+
+          // If the endpoint itself is missing/blocked (404), don't fail the whole import.
+          if (msg.includes(" 404 ") || msg.includes("404 Not Found")) {
+            roundEvents = [];
+            break;
+          }
+
+          if (attempt === 3) {
+            throw new Error(
+              `[fixtures] eventsround failed at round=${round} after ${attempt} attempts: ${msg}`,
+            );
+          }
+
+          await new Promise((r) => setTimeout(r, 400 * attempt));
         }
-        await new Promise((r) => setTimeout(r, 400 * attempt));
       }
+
+      // If round endpoint is unavailable (404), we stop trying rounds.
+      if (round === 1 && roundEvents.length === 0 && eventsById.size > 0) break;
+
+      if (!roundEvents.length) break;
+      for (const e of roundEvents) eventsById.set(e.idEvent, e);
+
+      await new Promise((r) => setTimeout(r, 150));
     }
-
-    if (!roundEvents.length) break;
-
-    for (const e of roundEvents) eventsById.set(e.idEvent, e);
-
-    // Small throttle to reduce rate-limit issues with free keys.
-    await new Promise((r) => setTimeout(r, 150));
-  }
-
-  // Fallback: if round fetching yielded nothing (some leagues don't support rounds), try season endpoint.
-  if (eventsById.size === 0) {
-    const seasonEvents = await client.listEventsForLeagueSeason(leagueId, seasonLabel);
-    for (const e of seasonEvents) eventsById.set(e.idEvent, e);
   }
 
   const events = [...eventsById.values()];
