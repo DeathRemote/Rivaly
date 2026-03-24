@@ -256,8 +256,11 @@ export async function deleteGroupAction(input: DeleteGroupInput): Promise<Delete
   if (!parsed.success) return { ok: false, error: "Invalid input." };
 
   const ownerEmail = process.env.OWNER_EMAIL;
-  const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
-  const isAdmin = isOwner || session.user.role === "ADMIN";
+  const userEmail = session?.user?.email;
+  const userRole = session?.user?.role;
+
+  const isOwner = Boolean(ownerEmail && userEmail && userEmail === ownerEmail);
+  const isAdmin = isOwner || userRole === "ADMIN";
 
   const group = await prisma.group.findUnique({
     where: { id: parsed.data.groupId },
