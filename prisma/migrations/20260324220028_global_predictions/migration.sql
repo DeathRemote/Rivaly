@@ -27,7 +27,12 @@ DO $$ BEGIN
     REFERENCES "Match"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
--- 3) Backfill from old group-scoped predictions (keep the latest per user+match)
+-- 3) Uniqueness + indexes (must exist before using ON CONFLICT)
+CREATE UNIQUE INDEX IF NOT EXISTS "Prediction_userId_matchId_key" ON "Prediction"("userId", "matchId");
+CREATE INDEX IF NOT EXISTS "Prediction_userId_idx" ON "Prediction"("userId");
+CREATE INDEX IF NOT EXISTS "Prediction_matchId_idx" ON "Prediction"("matchId");
+
+-- 4) Backfill from old group-scoped predictions (keep the latest per user+match)
 INSERT INTO "Prediction" ("id", "userId", "matchId", "homeScore", "awayScore", "source", "createdAt", "updatedAt")
 SELECT
   gp."id" AS "id",
@@ -44,11 +49,6 @@ FROM (
   ORDER BY "userId", "matchKey", "updatedAt" DESC
 ) gp
 ON CONFLICT ("userId", "matchId") DO NOTHING;
-
--- 4) Unique constraint
-CREATE UNIQUE INDEX IF NOT EXISTS "Prediction_userId_matchId_key" ON "Prediction"("userId", "matchId");
-CREATE INDEX IF NOT EXISTS "Prediction_userId_idx" ON "Prediction"("userId");
-CREATE INDEX IF NOT EXISTS "Prediction_matchId_idx" ON "Prediction"("matchId");
 
 -- 5) Drop old table
 DROP TABLE IF EXISTS "GroupPrediction";
