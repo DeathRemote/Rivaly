@@ -262,6 +262,7 @@ model CompetitionPhase {
 
   competitionSeason  CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
   matches            Match[]
+  standingsRows      StandingsRow[]
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -279,6 +280,7 @@ model Team {
 
   homeMatches     Match[]  @relation("HomeTeam")
   awayMatches     Match[]  @relation("AwayTeam")
+  standingsRows   StandingsRow[]
 
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
