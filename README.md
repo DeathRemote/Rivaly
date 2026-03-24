@@ -1,5 +1,5 @@
 # Rivaly
-
+# Need to update readme
 Sport predicting app with friends.
 
 ## Getting started
