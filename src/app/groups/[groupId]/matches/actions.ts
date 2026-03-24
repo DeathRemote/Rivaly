@@ -50,13 +50,53 @@ export async function saveGroupPredictionAction(
   });
   if (!membership) return { ok: false, error: "You are not a member of this group." };
 
-  // Match lookup (server-side source of truth for lock times)
+  // Match lookup (server-side source of truth for eligibility + lock times)
   const matches = await getMatchesForGroup({ groupId, phaseType: phaseType as PhaseType });
   const match = matches.find((m) => m.id === matchKey);
   if (!match) return { ok: false, error: "Match not found." };
 
   const now = Date.now();
+
+  const isCompleted = match.status === "FINAL";
+  if (isCompleted) return { ok: false, error: "This match is completed." };
+
+  const visibleAt = Date.parse(match.visibleAt);
   const lockAt = Date.parse(match.lockAt);
+
+  const inStandardKickoffWindow =
+    Number.isFinite(visibleAt) && Number.isFinite(lockAt) && visibleAt <= now && now < lockAt;
+
+  // Preseason special: if nothing is currently open, allow predictions for the first weekend bucket.
+  let allow = inStandardKickoffWindow;
+
+  if (!allow) {
+    const anyOpen = matches.some((m) => {
+      if (m.status === "FINAL") return false;
+      const v = Date.parse(m.visibleAt);
+      const l = Date.parse(m.lockAt);
+      return Number.isFinite(v) && Number.isFinite(l) && v <= now && now < l;
+    });
+
+    if (!anyOpen) {
+      const future = matches
+        .filter((m) => m.status !== "FINAL")
+        .map((m) => ({ id: m.id, t: Date.parse(m.kickoffAt) }))
+        .filter((x) => Number.isFinite(x.t) && x.t > now)
+        .sort((a, b) => a.t - b.t);
+
+      const first = future[0];
+      if (first) {
+        const spanMs = 72 * 60 * 60 * 1000;
+        const end = first.t + spanMs;
+        allow = future.some((x) => x.id === match.id && x.t <= end);
+      }
+    }
+  }
+
+  if (!allow) {
+    return { ok: false, error: "Predictions are only allowed for matches in the Kickoff tab." };
+  }
+
   if (Number.isFinite(lockAt) && now >= lockAt) {
     return { ok: false, error: "Predictions are locked for this match." };
   }

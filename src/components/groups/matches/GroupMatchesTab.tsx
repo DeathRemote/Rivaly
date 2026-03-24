@@ -9,6 +9,9 @@ import { MatchesToolbar } from "@/components/groups/matches/MatchesToolbar";
 import { MatchSection } from "@/components/groups/matches/MatchSection";
 import { MatchesEmptyState } from "@/components/groups/matches/MatchesEmptyState";
 
+const UPCOMING_WINDOW_DAYS_STEP = 7;
+const PRESEASON_KICKOFF_SPAN_HOURS = 72; // "first weekend" bucket
+
 export function GroupMatchesTab({
   groupId,
   phaseType,
@@ -23,28 +26,68 @@ export function GroupMatchesTab({
   const now = useNow();
 
   const filtered = useMemo(() => {
-    if (view === "completed") {
-      return matches.filter((m) => m.status === "FINAL");
-    }
+    const completed = matches.filter((m) => m.status === "FINAL");
+    const notCompleted = matches.filter((m) => m.status !== "FINAL");
 
-    const inKickoffWindow = (m: MatchListItem) => {
-      if (m.status === "FINAL") return false;
+    const inStandardKickoffWindow = (m: MatchListItem) => {
       const visibleAt = Date.parse(m.visibleAt);
       const lockAt = Date.parse(m.lockAt);
-      return Number.isFinite(visibleAt) && Number.isFinite(lockAt) && visibleAt <= now && now < lockAt;
+      return (
+        Number.isFinite(visibleAt) &&
+        Number.isFinite(lockAt) &&
+        visibleAt <= now &&
+        now < lockAt
+      );
     };
 
+    // Kickoff tab:
+    // - normally: matches currently open for prediction (visibleAt <= now < lockAt)
+    // - preseason special: if none are open, show the first weekend bucket so users can start early
+    const standardKickoff = notCompleted.filter(inStandardKickoffWindow);
+
+    const kickoffMatches = (() => {
+      if (standardKickoff.length > 0) return standardKickoff;
+
+      // Preseason fallback: take earliest future kickoff and include all matches in the next ~72h.
+      const future = notCompleted
+        .map((m) => ({ m, t: Date.parse(m.kickoffAt) }))
+        .filter((x) => Number.isFinite(x.t) && x.t > now)
+        .sort((a, b) => a.t - b.t);
+
+      const first = future[0];
+      if (!first) return [] as MatchListItem[];
+
+      const spanMs = PRESEASON_KICKOFF_SPAN_HOURS * 60 * 60 * 1000;
+      const end = first.t + spanMs;
+
+      return future.filter((x) => x.t <= end).map((x) => x.m);
+    })();
+
+    if (view === "completed") return completed;
+
     if (view === "kickoff") {
-      return matches.filter(inKickoffWindow);
+      return kickoffMatches;
     }
 
-    // upcoming: all future matches NOT in kickoff window
-    return matches.filter((m) => {
-      if (m.status === "FINAL") return false;
-      const kickoff = Date.parse(m.kickoffAt);
-      if (!Number.isFinite(kickoff) || kickoff <= now) return false;
-      return !inKickoffWindow(m);
-    });
+    // Upcoming tab: future matches NOT in kickoff, grouped by rolling time window.
+    const kickoffIds = new Set(kickoffMatches.map((m) => m.id));
+
+    const upcomingPool = notCompleted
+      .map((m) => ({ m, t: Date.parse(m.kickoffAt) }))
+      .filter((x) => Number.isFinite(x.t) && x.t > now && !kickoffIds.has(x.m.id))
+      .sort((a, b) => a.t - b.t);
+
+    if (upcomingPool.length === 0) return [];
+
+    // Expand window: 7d, 14d, 21d... until we find matches.
+    for (let days = UPCOMING_WINDOW_DAYS_STEP; days <= 365; days += UPCOMING_WINDOW_DAYS_STEP) {
+      const end = now + days * 24 * 60 * 60 * 1000;
+      const within = upcomingPool.filter((x) => x.t <= end).map((x) => x.m);
+      if (within.length > 0) return within;
+    }
+
+    // Fallback: show all future matches.
+    return upcomingPool.map((x) => x.m);
   }, [matches, view, now]);
 
   const sections = useMemo(() => {
@@ -72,9 +115,11 @@ export function GroupMatchesTab({
                 : "No kickoff matches right now"
           }
           subtitle={
-            view === "upcoming"
-              ? "Fixtures will appear when they enter the prediction window."
-              : "Check back soon—more matches will populate here."
+            view === "kickoff"
+              ? "These matches are open for prediction right now."
+              : view === "upcoming"
+                ? "Future fixtures imported into Rivaly (prediction opens closer to kickoff)."
+                : "Check back soon—results will appear here once matches finish."
           }
         />
       ) : (
