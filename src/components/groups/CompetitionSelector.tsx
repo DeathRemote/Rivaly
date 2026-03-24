@@ -1,10 +1,20 @@
 "use client";
 
+import { useEffect, useState } from "react";
+
 import { cn } from "@/lib/cn";
 
 type Sport = "SOCCER" | "BASKETBALL" | "TENNIS" | "ESPORTS";
 
-const COMPETITIONS: Record<Sport, string[]> = {
+type CompetitionSeasonOption = {
+  id: string;
+  name: string;
+  seasonLabel: string;
+  sport: Sport;
+  country?: string | null;
+};
+
+const FALLBACK_COMPETITIONS: Record<Sport, string[]> = {
   SOCCER: ["Premier League", "Champions League", "La Liga", "Serie A", "Bundesliga"],
   BASKETBALL: ["NBA", "EuroLeague"],
   TENNIS: ["ATP", "WTA", "Grand Slams"],
@@ -19,10 +29,45 @@ export function CompetitionSelector({
 }: {
   sport: Sport | "";
   value: string;
-  onChange: (competition: string) => void;
+  onChange: (competitionSeasonId: string) => void;
   error?: string;
 }) {
-  const options = sport ? COMPETITIONS[sport] : [];
+  const [options, setOptions] = useState<CompetitionSeasonOption[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const fallbackOptions = sport ? FALLBACK_COMPETITIONS[sport] : [];
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function load() {
+      if (!sport) {
+        setOptions([]);
+        return;
+      }
+
+      // For now, only soccer competitions are backed by canonical seasons.
+      if (sport !== "SOCCER") {
+        setOptions([]);
+        return;
+      }
+
+      setLoading(true);
+      try {
+        const res = await fetch(`/api/competition-seasons?sport=${sport}`);
+        const json = await res.json();
+        if (cancelled) return;
+        if (json?.ok) setOptions(json.seasons as CompetitionSeasonOption[]);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [sport]);
 
   return (
     <div className="space-y-3">
@@ -42,13 +87,26 @@ export function CompetitionSelector({
           )}
         >
           <option value="" disabled>
-            {sport ? "Select competition" : "Pick a sport first"}
+            {!sport
+              ? "Pick a sport first"
+              : sport === "SOCCER"
+                ? loading
+                  ? "Loading competitions…"
+                  : "Select competition"
+                : "Select competition"}
           </option>
-          {options.map((c) => (
-            <option key={c} value={c} className="bg-black">
-              {c}
-            </option>
-          ))}
+
+          {sport === "SOCCER"
+            ? options.map((s) => (
+                <option key={s.id} value={s.id} className="bg-black">
+                  {s.name} {s.seasonLabel}
+                </option>
+              ))
+            : fallbackOptions.map((c) => (
+                <option key={c} value={c} className="bg-black">
+                  {c}
+                </option>
+              ))}
         </select>
         <span className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-white/40">
           ▾

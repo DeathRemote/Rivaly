@@ -14,7 +14,8 @@ type Sport = "SOCCER" | "BASKETBALL" | "TENNIS" | "ESPORTS";
 type FormState = {
   name: string;
   sport: Sport | "";
-  competition: string;
+  // For SOCCER: this is a CompetitionSeason id. For other sports: a free-text label.
+  competitionSelection: string;
 };
 
 type Errors = Partial<Record<keyof FormState, string>> & { form?: string };
@@ -22,24 +23,31 @@ type Errors = Partial<Record<keyof FormState, string>> & { form?: string };
 export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [state, setState] = useState<FormState>({ name: "", sport: "", competition: "" });
+  const [state, setState] = useState<FormState>({ name: "", sport: "", competitionSelection: "" });
   const [errors, setErrors] = useState<Errors>({});
   const [result, setResult] = useState<CreateGroupResult | null>(null);
 
   const canSubmit = useMemo(() => {
-    return (
-      state.name.trim().length >= 3 &&
-      Boolean(state.sport) &&
-      state.competition.trim().length >= 2 &&
-      !pending
-    );
+    const hasCompetition =
+      state.sport === "SOCCER"
+        ? Boolean(state.competitionSelection)
+        : state.competitionSelection.trim().length >= 2;
+
+    return state.name.trim().length >= 3 && Boolean(state.sport) && hasCompetition && !pending;
   }, [state, pending]);
 
   function validate(next: FormState): Errors {
     const e: Errors = {};
     if (next.name.trim().length < 3) e.name = "Group name must be at least 3 characters.";
     if (!next.sport) e.sport = "Select a sport.";
-    if (next.competition.trim().length < 2) e.competition = "Select a competition.";
+
+    const ok =
+      next.sport === "SOCCER"
+        ? Boolean(next.competitionSelection)
+        : next.competitionSelection.trim().length >= 2;
+
+    if (!ok) e.competitionSelection = "Select a competition.";
+
     return e;
   }
 
@@ -54,7 +62,9 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
       const res = await createGroupAction({
         name: state.name,
         sport: state.sport as Sport,
-        competition: state.competition,
+        ...(state.sport === "SOCCER"
+          ? { competitionSeasonId: state.competitionSelection }
+          : { competition: state.competitionSelection }),
       });
       setResult(res);
       if (res.ok) {
@@ -65,7 +75,7 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
   }
 
   function resetAndClose() {
-    setState({ name: "", sport: "", competition: "" });
+    setState({ name: "", sport: "", competitionSelection: "" });
     setErrors({});
     setResult(null);
     onClose();
@@ -198,7 +208,7 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
           <SportSelector
             value={state.sport}
             onChange={(sport) => {
-              setState((s) => ({ ...s, sport, competition: "" }));
+              setState((s) => ({ ...s, sport, competitionSelection: "" }));
               setErrors((prev) => ({ ...prev, sport: undefined }));
             }}
             error={errors.sport}
@@ -206,12 +216,12 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
 
           <CompetitionSelector
             sport={state.sport}
-            value={state.competition}
-            onChange={(competition) => {
-              setState((s) => ({ ...s, competition }));
-              setErrors((prev) => ({ ...prev, competition: undefined }));
+            value={state.competitionSelection}
+            onChange={(competitionSelection) => {
+              setState((s) => ({ ...s, competitionSelection }));
+              setErrors((prev) => ({ ...prev, competitionSelection: undefined }));
             }}
-            error={errors.competition}
+            error={errors.competitionSelection}
           />
 
           {result?.ok === false ? (

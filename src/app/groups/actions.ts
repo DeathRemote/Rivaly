@@ -7,11 +7,33 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { generateInviteCode } from "@/lib/group-code";
 
-const createGroupSchema = z.object({
-  name: z.string().trim().min(3).max(60),
-  sport: z.enum(["SOCCER", "BASKETBALL", "TENNIS", "ESPORTS"]),
-  competition: z.string().trim().min(2).max(60),
-});
+const createGroupSchema = z
+  .object({
+    name: z.string().trim().min(3).max(60),
+    sport: z.enum(["SOCCER", "BASKETBALL", "TENNIS", "ESPORTS"]),
+    // For SOCCER we use canonical seasons; for other sports we keep free-text until ingested.
+    competitionSeasonId: z.string().trim().min(1).optional(),
+    competition: z.string().trim().min(2).max(60).optional(),
+  })
+  .superRefine((val, ctx) => {
+    if (val.sport === "SOCCER") {
+      if (!val.competitionSeasonId) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["competitionSeasonId"],
+          message: "Select a competition season.",
+        });
+      }
+    } else {
+      if (!val.competition) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["competition"],
+          message: "Select a competition.",
+        });
+      }
+    }
+  });
 
 export type CreateGroupInput = z.infer<typeof createGroupSchema>;
 
@@ -27,7 +49,7 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
   const parsed = createGroupSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input." };
 
-  const { name, sport, competition } = parsed.data;
+  const { name, sport, competitionSeasonId, competition } = parsed.data;
 
   // Generate a short, uppercase invite code server-side.
   // Ensure uniqueness using the DB unique constraint, retrying on collisions.
@@ -35,27 +57,43 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
     const inviteCode = generateInviteCode(8);
 
     try {
-      const created = await prisma.$transaction(async (tx) => {
-        const group = await tx.group.create({
-          data: {
-            name,
-            sport,
-            competition,
-            inviteCode,
-            createdById: userId,
-            members: {
-              create: {
-                userId,
-                role: "ADMIN",
-                points: 0,
-              },
+      let competitionLabel = competition ?? "";
+
+      if (sport === "SOCCER") {
+        const season = await prisma.competitionSeason.findFirst({
+          where: { id: competitionSeasonId, published: true },
+          include: { competition: true },
+        });
+        if (!season) return { ok: false, error: "Selected competition season not found." };
+        competitionLabel = `${season.competition.name} ${season.seasonLabel}`;
+      }
+
+      const created = await prisma.group.create({
+        data: {
+          name,
+          sport,
+          competition: competitionLabel,
+          competitionSeasonId: sport === "SOCCER" ? competitionSeasonId : null,
+          inviteCode,
+          createdById: userId,
+          members: {
+            create: {
+              userId,
+              role: "ADMIN",
+              points: 0,
             },
           },
-          select: { id: true, inviteCode: true },
-        });
-
-        return group;
+        },
+        select: { id: true, inviteCode: true, competitionSeasonId: true },
       });
+
+      // Ensure fixtures exist (idempotent, safe to rerun).
+      if (sport === "SOCCER" && created.competitionSeasonId) {
+        const { importCompetitionSeasonFixtures } = await import(
+          "@/lib/importers/competition-season-fixtures"
+        );
+        await importCompetitionSeasonFixtures({ competitionSeasonId: created.competitionSeasonId });
+      }
 
       revalidatePath("/groups");
       return { ok: true, groupId: created.id, inviteCode: created.inviteCode };

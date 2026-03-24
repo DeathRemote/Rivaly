@@ -14,8 +14,8 @@ import { RecentResultCard } from "@/components/groups/RecentResultCard";
 import { GroupMomentumCard } from "@/components/groups/GroupMomentumCard";
 import { GroupMatchesTab } from "@/components/groups/matches/GroupMatchesTab";
 import type { PhaseType } from "@/components/groups/matches/types";
-import { mockMatches } from "@/components/groups/matches/mock";
 import type { MatchListItem } from "@/components/groups/matches/types";
+import { getMatchesForGroup } from "@/app/groups/[groupId]/matches/data";
 
 import { topNavItems, sideNavItems } from "@/features/dashboard/mock";
 
@@ -41,6 +41,7 @@ export default async function GroupDetailsPage({
       name: true,
       sport: true,
       competition: true,
+      competitionSeasonId: true,
       inviteCode: true,
       createdById: true,
       createdBy: {
@@ -109,7 +110,10 @@ export default async function GroupDetailsPage({
 
   // Matches tab: merge saved group-scoped predictions into match list items so refreshes
   // always reflect the real DB state.
-  const baseMatches = mockMatches("LEAGUE");
+  const baseMatches = await getMatchesForGroup({
+    groupId: group.id,
+    phaseType: "LEAGUE" satisfies PhaseType,
+  });
   const baseMatchKeys = baseMatches.map((m) => m.id);
 
   const predictions = await prisma.groupPrediction.findMany({

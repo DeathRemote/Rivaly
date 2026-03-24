@@ -1,0 +1,157 @@
+import { prisma } from "@/lib/prisma";
+import { Provider } from "@prisma/client";
+
+import { TheSportsDbClient } from "@/lib/providers/thesportsdb/client";
+import { mapTheSportsDbEventToDomain } from "@/lib/importers/thesportsdb/map";
+
+export async function importCompetitionSeasonFixtures(opts: {
+  competitionSeasonId: string;
+  provider?: Provider; // defaults to season.provider
+  dryRun?: boolean;
+}) {
+  const season = await prisma.competitionSeason.findUnique({
+    where: { id: opts.competitionSeasonId },
+    include: { competition: true },
+  });
+
+  if (!season) throw new Error("CompetitionSeason not found");
+
+  const provider = opts.provider ?? season.provider;
+  if (provider !== Provider.THESPORTSDB) {
+    throw new Error(`Unsupported provider for fixture import: ${provider ?? "<null>"}`);
+  }
+
+  const leagueId = season.competition.providerLeagueId;
+  if (!leagueId) throw new Error("Missing competition.providerLeagueId (TheSportsDB league id)");
+
+  const seasonLabel = season.seasonLabel;
+
+  const client = new TheSportsDbClient();
+
+  // Ensure providerSeasonId is stored when discoverable.
+  const seasons = await client.listSeasonsForLeague(leagueId);
+  const providerSeasonId = seasons.find((s) => s.strSeason === seasonLabel)?.idSeason ?? null;
+
+  if (providerSeasonId && season.providerSeasonId !== providerSeasonId) {
+    if (!opts.dryRun) {
+      await prisma.competitionSeason.update({
+        where: { id: season.id },
+        data: { provider: Provider.THESPORTSDB, providerSeasonId },
+      });
+    }
+  }
+
+  // For now: single phase.
+  const phase = await prisma.competitionPhase.upsert({
+    where: {
+      competitionSeasonId_name: {
+        competitionSeasonId: season.id,
+        name: "Regular Season",
+      },
+    },
+    create: {
+      competitionSeasonId: season.id,
+      name: "Regular Season",
+      order: 1,
+    },
+    update: {},
+  });
+
+  const events = await client.listEventsForLeagueSeason(leagueId, seasonLabel);
+
+  let created = 0;
+  let updated = 0;
+
+  for (const e of events) {
+    const mapped = mapTheSportsDbEventToDomain(e);
+
+    const [homeTeam, awayTeam] = await Promise.all([
+      prisma.team.upsert({
+        where: {
+          provider_providerTeamId: {
+            provider: mapped.homeTeam.provider,
+            providerTeamId: mapped.homeTeam.providerTeamId,
+          },
+        },
+        create: {
+          provider: mapped.homeTeam.provider,
+          providerTeamId: mapped.homeTeam.providerTeamId,
+          name: mapped.homeTeam.name,
+        },
+        update: { name: mapped.homeTeam.name },
+      }),
+      prisma.team.upsert({
+        where: {
+          provider_providerTeamId: {
+            provider: mapped.awayTeam.provider,
+            providerTeamId: mapped.awayTeam.providerTeamId,
+          },
+        },
+        create: {
+          provider: mapped.awayTeam.provider,
+          providerTeamId: mapped.awayTeam.providerTeamId,
+          name: mapped.awayTeam.name,
+        },
+        update: { name: mapped.awayTeam.name },
+      }),
+    ]);
+
+    // Default prediction policy placeholders (can be overridden later)
+    const visibleAt = new Date(mapped.kickoffAt.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const lockAt = mapped.kickoffAt;
+
+    const existing = await prisma.match.findUnique({
+      where: {
+        provider_providerMatchId: {
+          provider: mapped.provider,
+          providerMatchId: mapped.providerMatchId,
+        },
+      },
+      select: { id: true },
+    });
+
+    if (opts.dryRun) continue;
+
+    if (!existing) {
+      await prisma.match.create({
+        data: {
+          competitionSeasonId: season.id,
+          competitionPhaseId: phase.id,
+          homeTeamId: homeTeam.id,
+          awayTeamId: awayTeam.id,
+          kickoffAt: mapped.kickoffAt,
+          status: mapped.status,
+          provider: mapped.provider,
+          providerMatchId: mapped.providerMatchId,
+          visibleAt,
+          lockAt,
+        },
+      });
+      created++;
+    } else {
+      await prisma.match.update({
+        where: { id: existing.id },
+        data: {
+          competitionSeasonId: season.id,
+          competitionPhaseId: phase.id,
+          homeTeamId: homeTeam.id,
+          awayTeamId: awayTeam.id,
+          kickoffAt: mapped.kickoffAt,
+          status: mapped.status,
+          visibleAt,
+          lockAt,
+        },
+      });
+      updated++;
+    }
+  }
+
+  return {
+    provider,
+    leagueId,
+    seasonLabel,
+    totalEvents: events.length,
+    created,
+    updated,
+  };
+}

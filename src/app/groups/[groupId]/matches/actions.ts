@@ -51,7 +51,7 @@ export async function saveGroupPredictionAction(
   if (!membership) return { ok: false, error: "You are not a member of this group." };
 
   // Match lookup (server-side source of truth for lock times)
-  const matches = getMatchesForGroup({ phaseType: phaseType as PhaseType });
+  const matches = await getMatchesForGroup({ groupId, phaseType: phaseType as PhaseType });
   const match = matches.find((m) => m.id === matchKey);
   if (!match) return { ok: false, error: "Match not found." };
 
