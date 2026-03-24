@@ -62,9 +62,33 @@ export async function importCompetitionSeasonFixtures(opts: {
   const eventsById = new Map<string, Awaited<ReturnType<typeof client.listEventsForLeagueSeason>>[number]>();
 
   for (let round = 1; round <= 60; round++) {
-    const roundEvents = await client.listEventsForLeagueSeasonRound(leagueId, seasonLabel, round);
+    // TheSportsDB test key can rate-limit / return HTML. We retry a few times and stop gracefully.
+    let roundEvents: Awaited<ReturnType<typeof client.listEventsForLeagueSeasonRound>> = [];
+
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        roundEvents = await client.listEventsForLeagueSeasonRound(leagueId, seasonLabel, round);
+        break;
+      } catch (err) {
+        if (attempt === 3) {
+          // Stop the round-walk and use what we have.
+          console.warn(
+            `[fixtures] eventsround failed at round=${round} after ${attempt} attempts:`,
+            err instanceof Error ? err.message : err,
+          );
+          roundEvents = [];
+        } else {
+          await new Promise((r) => setTimeout(r, 400 * attempt));
+        }
+      }
+    }
+
     if (!roundEvents.length) break;
+
     for (const e of roundEvents) eventsById.set(e.idEvent, e);
+
+    // Small throttle to reduce rate-limit issues with free keys.
+    await new Promise((r) => setTimeout(r, 150));
   }
 
   // Fallback: if round fetching yielded nothing (some leagues don't support rounds), try season endpoint.
@@ -113,7 +137,8 @@ export async function importCompetitionSeasonFixtures(opts: {
     ]);
 
     // Default prediction policy placeholders (can be overridden later)
-    const visibleAt = new Date(mapped.kickoffAt.getTime() - 30 * 24 * 60 * 60 * 1000);
+    // Kickoff window: last 7 days before kickoff.
+    const visibleAt = new Date(mapped.kickoffAt.getTime() - 7 * 24 * 60 * 60 * 1000);
     const lockAt = mapped.kickoffAt;
 
     const existing = await prisma.match.findUnique({

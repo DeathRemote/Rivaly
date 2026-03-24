@@ -74,11 +74,23 @@ export class TheSportsDbClient {
       cache: "no-store",
     });
 
+    const contentType = res.headers.get("content-type") ?? "";
+    const text = await res.text().catch(() => "");
+
     if (!res.ok) {
-      const text = await res.text().catch(() => "");
-      throw new Error(`TheSportsDB request failed: ${res.status} ${res.statusText} :: ${text.slice(0, 300)}`);
+      throw new Error(
+        `TheSportsDB request failed: ${res.status} ${res.statusText} :: ${text.slice(0, 300)}`,
+      );
     }
 
-    return res.json();
+    // Sometimes free/test keys get an HTML page; fail fast with a clear error.
+    if (!contentType.includes("application/json") || text.trim().startsWith("<")) {
+      throw new Error(
+        `TheSportsDB returned non-JSON (content-type=${contentType || "<none>"}). ` +
+          `Likely rate-limited or blocked. Response starts: ${text.slice(0, 80)}`,
+      );
+    }
+
+    return JSON.parse(text);
   }
 }
