@@ -42,8 +42,10 @@ export class TheSportsDbClient {
   private readonly baseUrl: string;
 
   constructor(opts?: { apiKey?: string; baseUrl?: string }) {
-    this.apiKey = opts?.apiKey ?? process.env.THE_SPORTS_DB_API_KEY ?? "3";
-    this.baseUrl = opts?.baseUrl ?? "https://www.thesportsdb.com/api/v1/json";
+    // NOTE: env vars often pick up accidental whitespace; trim to avoid 404s from malformed URLs.
+    // TheSportsDB free key in docs is 123. We default to that for local dev.
+    this.apiKey = (opts?.apiKey ?? process.env.THE_SPORTS_DB_API_KEY ?? "123").trim();
+    this.baseUrl = (opts?.baseUrl ?? "https://www.thesportsdb.com/api/v1/json").trim();
   }
 
   async listSeasonsForLeague(leagueId: string) {
@@ -68,29 +70,50 @@ export class TheSportsDbClient {
   }
 
   private async fetchJson(url: string) {
-    const res = await fetch(url, {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      cache: "no-store",
-    });
+    // Cloudflare rate limits aggressively on free/test keys.
+    // We retry with a small exponential backoff on 429.
+    for (let attempt = 1; attempt <= 5; attempt++) {
+      if (process.env.THESPORTSDB_DEBUG === "1") {
+        // Don't log API key separately; the URL contains it in v1.
+        console.log(`[TheSportsDB] GET ${url}`);
+      }
 
-    const contentType = res.headers.get("content-type") ?? "";
-    const text = await res.text().catch(() => "");
+      const res = await fetch(url, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
 
-    if (!res.ok) {
-      throw new Error(
-        `TheSportsDB request failed: ${res.status} ${res.statusText} :: ${text.slice(0, 300)}`,
-      );
+      const contentType = res.headers.get("content-type") ?? "";
+      const text = await res.text().catch(() => "");
+
+      if (!res.ok) {
+        if (res.status === 429 && attempt < 5) {
+          const retryAfterHeader = res.headers.get("retry-after");
+          const retryAfterSeconds = retryAfterHeader ? Number(retryAfterHeader) : NaN;
+          const sleepMs = Number.isFinite(retryAfterSeconds)
+            ? Math.max(1000, retryAfterSeconds * 1000)
+            : 800 * attempt * attempt;
+          await new Promise((r) => setTimeout(r, sleepMs));
+          continue;
+        }
+
+        throw new Error(
+          `TheSportsDB request failed: ${res.status} ${res.statusText} :: ${text.slice(0, 300)}`,
+        );
+      }
+
+      // Sometimes free/test keys get an HTML page; fail fast with a clear error.
+      if (!contentType.includes("application/json") || text.trim().startsWith("<")) {
+        throw new Error(
+          `TheSportsDB returned non-JSON (content-type=${contentType || "<none>"}). ` +
+            `Likely rate-limited or blocked. Response starts: ${text.slice(0, 80)}`,
+        );
+      }
+
+      return JSON.parse(text);
     }
 
-    // Sometimes free/test keys get an HTML page; fail fast with a clear error.
-    if (!contentType.includes("application/json") || text.trim().startsWith("<")) {
-      throw new Error(
-        `TheSportsDB returned non-JSON (content-type=${contentType || "<none>"}). ` +
-          `Likely rate-limited or blocked. Response starts: ${text.slice(0, 80)}`,
-      );
-    }
-
-    return JSON.parse(text);
+    throw new Error("TheSportsDB request failed after retries");
   }
 }
