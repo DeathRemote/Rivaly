@@ -71,15 +71,12 @@ export async function importCompetitionSeasonFixtures(opts: {
         break;
       } catch (err) {
         if (attempt === 3) {
-          // Stop the round-walk and use what we have.
-          console.warn(
-            `[fixtures] eventsround failed at round=${round} after ${attempt} attempts:`,
-            err instanceof Error ? err.message : err,
+          throw new Error(
+            `[fixtures] eventsround failed at round=${round} after ${attempt} attempts: ` +
+              (err instanceof Error ? err.message : String(err)),
           );
-          roundEvents = [];
-        } else {
-          await new Promise((r) => setTimeout(r, 400 * attempt));
         }
+        await new Promise((r) => setTimeout(r, 400 * attempt));
       }
     }
 

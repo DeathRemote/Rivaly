@@ -98,7 +98,18 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
           const { importCompetitionSeasonFixtures } = await import(
             "@/lib/importers/competition-season-fixtures"
           );
-          await importCompetitionSeasonFixtures({ competitionSeasonId: created.competitionSeasonId });
+          try {
+            await importCompetitionSeasonFixtures({
+              competitionSeasonId: created.competitionSeasonId,
+            });
+          } catch (err) {
+            // Group creation should succeed even if the provider is rate-limiting.
+            // A manual re-import can be triggered later.
+            console.warn(
+              "[fixtures] import failed during group creation:",
+              err instanceof Error ? err.message : err,
+            );
+          }
         }
       }
 
