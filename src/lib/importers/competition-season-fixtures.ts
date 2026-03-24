@@ -148,7 +148,8 @@ export async function importCompetitionSeasonFixtures(opts: {
     // Default prediction policy placeholders (can be overridden later)
     // Kickoff window: last 7 days before kickoff.
     const visibleAt = new Date(mapped.kickoffAt.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const lockAt = mapped.kickoffAt;
+    // Predictions lock 3 hours before kickoff.
+    const lockAt = new Date(mapped.kickoffAt.getTime() - 3 * 60 * 60 * 1000);
 
     const existing = await prisma.match.findUnique({
       where: {
