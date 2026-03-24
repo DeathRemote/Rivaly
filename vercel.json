@@ -1,3 +1,8 @@
 {
-  "crons": []
+  "crons": [
+    {
+      "path": "/api/jobs/matches/sync?token=6tMbCGz/C++FMNlHOPWaEKlu5BtgLLtHEYR5Z8cbZlo=",
+      "schedule": "*/5 * * * *"
+    }
+  ]
 }
