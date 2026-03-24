@@ -87,12 +87,19 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
         select: { id: true, inviteCode: true, competitionSeasonId: true },
       });
 
-      // Ensure fixtures exist (idempotent, safe to rerun).
+      // Ensure fixtures exist in DB.
+      // Important: only do the heavy import the *first* time a season is used.
       if (sport === "SOCCER" && created.competitionSeasonId) {
-        const { importCompetitionSeasonFixtures } = await import(
-          "@/lib/importers/competition-season-fixtures"
-        );
-        await importCompetitionSeasonFixtures({ competitionSeasonId: created.competitionSeasonId });
+        const existing = await prisma.match.count({
+          where: { competitionSeasonId: created.competitionSeasonId },
+        });
+
+        if (existing === 0) {
+          const { importCompetitionSeasonFixtures } = await import(
+            "@/lib/importers/competition-season-fixtures"
+          );
+          await importCompetitionSeasonFixtures({ competitionSeasonId: created.competitionSeasonId });
+        }
       }
 
       revalidatePath("/groups");
@@ -167,4 +174,83 @@ export async function joinGroupAction(input: JoinGroupInput): Promise<JoinGroupR
 
     return { ok: false, error: "Failed to join group. Please try again." };
   }
+}
+
+const leaveGroupSchema = z.object({
+  groupId: z.string().min(1),
+});
+
+export type LeaveGroupInput = z.infer<typeof leaveGroupSchema>;
+export type LeaveGroupResult = { ok: true } | { ok: false; error: string };
+
+export async function leaveGroupAction(input: LeaveGroupInput): Promise<LeaveGroupResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "You must be logged in." };
+
+  const parsed = leaveGroupSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+
+  const group = await prisma.group.findUnique({
+    where: { id: parsed.data.groupId },
+    select: { id: true, createdById: true },
+  });
+
+  if (!group) return { ok: false, error: "Group not found." };
+  if (group.createdById === userId) {
+    return { ok: false, error: "Group owner can’t leave. Delete the group instead." };
+  }
+
+  // Remove membership and any predictions for this group (so the user has no remaining obligations).
+  await prisma.$transaction([
+    prisma.groupPrediction.deleteMany({
+      where: { groupId: group.id, userId },
+    }),
+    prisma.groupMember.deleteMany({
+      where: { groupId: group.id, userId },
+    }),
+  ]);
+
+  revalidatePath("/groups");
+
+  return { ok: true };
+}
+
+const deleteGroupSchema = z.object({
+  groupId: z.string().min(1),
+});
+
+export type DeleteGroupInput = z.infer<typeof deleteGroupSchema>;
+export type DeleteGroupResult = { ok: true } | { ok: false; error: string };
+
+export async function deleteGroupAction(input: DeleteGroupInput): Promise<DeleteGroupResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "You must be logged in." };
+
+  const parsed = deleteGroupSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+
+  const ownerEmail = process.env.OWNER_EMAIL;
+  const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
+  const isAdmin = isOwner || session.user.role === "ADMIN";
+
+  const group = await prisma.group.findUnique({
+    where: { id: parsed.data.groupId },
+    select: { id: true, createdById: true },
+  });
+
+  if (!group) return { ok: false, error: "Group not found." };
+
+  if (group.createdById !== userId && !isAdmin) {
+    return { ok: false, error: "Only the group owner can delete this group." };
+  }
+
+  // Cascade will remove GroupMember + GroupPrediction due to FK onDelete: Cascade.
+  // NOTE: We do NOT delete competition season fixtures here because they are shared.
+  await prisma.group.delete({ where: { id: group.id } });
+
+  revalidatePath("/groups");
+
+  return { ok: true };
 }

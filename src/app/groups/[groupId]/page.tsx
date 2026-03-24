@@ -154,6 +154,8 @@ export default async function GroupDetailsPage({
       user={user}
     >
       <GroupDetailsClient
+        groupId={group.id}
+        canDelete={group.createdById === userId || isAdmin}
         group={{
           name: group.name,
           competition: group.competition,
