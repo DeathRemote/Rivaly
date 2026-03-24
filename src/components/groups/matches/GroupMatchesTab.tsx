@@ -18,38 +18,32 @@ export function GroupMatchesTab({
   phaseType: PhaseType;
   matches: MatchListItem[];
 }) {
-  const [view, setView] = useState<MatchesView>("upcoming");
+  const [view, setView] = useState<MatchesView>("kickoff");
 
   const now = useNow();
 
   const filtered = useMemo(() => {
     if (view === "completed") {
-      return matches.filter((m) => {
-        const kickoff = Date.parse(m.kickoffAt);
-        return m.status === "FINAL" || (Number.isFinite(kickoff) && kickoff <= now);
-      });
+      return matches.filter((m) => m.status === "FINAL");
     }
 
-    if (view === "upcoming") {
-      return matches.filter((m) => {
-        if (m.status === "FINAL") return false;
-        const visibleAt = Date.parse(m.visibleAt);
-        const lockAt = Date.parse(m.lockAt);
-        return Number.isFinite(visibleAt) && Number.isFinite(lockAt) && visibleAt <= now && now < lockAt;
-      });
+    const inKickoffWindow = (m: MatchListItem) => {
+      if (m.status === "FINAL") return false;
+      const visibleAt = Date.parse(m.visibleAt);
+      const lockAt = Date.parse(m.lockAt);
+      return Number.isFinite(visibleAt) && Number.isFinite(lockAt) && visibleAt <= now && now < lockAt;
+    };
+
+    if (view === "kickoff") {
+      return matches.filter(inKickoffWindow);
     }
 
-    // schedule: show future fixtures (including those not yet visible and those already locked)
+    // upcoming: all future matches NOT in kickoff window
     return matches.filter((m) => {
       if (m.status === "FINAL") return false;
       const kickoff = Date.parse(m.kickoffAt);
       if (!Number.isFinite(kickoff) || kickoff <= now) return false;
-
-      const visibleAt = Date.parse(m.visibleAt);
-      const lockAt = Date.parse(m.lockAt);
-
-      // Too early for predictions OR already locked but still in the future.
-      return (Number.isFinite(visibleAt) && now < visibleAt) || (Number.isFinite(lockAt) && now >= lockAt);
+      return !inKickoffWindow(m);
     });
   }, [matches, view, now]);
 
@@ -73,9 +67,9 @@ export function GroupMatchesTab({
           title={
             view === "completed"
               ? "No completed matches yet"
-              : view === "schedule"
-                ? "No scheduled matches"
-                : "No upcoming matches"
+              : view === "upcoming"
+                ? "No upcoming matches"
+                : "No kickoff matches right now"
           }
           subtitle={
             view === "upcoming"

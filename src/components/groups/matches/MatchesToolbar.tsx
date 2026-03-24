@@ -29,11 +29,11 @@ export function MatchesToolbar({
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <div className="flex items-center gap-2 rounded-2xl bg-black/30 p-1">
+          <Pill active={view === "kickoff"} onClick={() => onViewChange("kickoff")}>
+            Kickoff
+          </Pill>
           <Pill active={view === "upcoming"} onClick={() => onViewChange("upcoming")}>
             Upcoming
-          </Pill>
-          <Pill active={view === "schedule"} onClick={() => onViewChange("schedule")}>
-            Schedule
           </Pill>
           <Pill active={view === "completed"} onClick={() => onViewChange("completed")}>
             Completed
