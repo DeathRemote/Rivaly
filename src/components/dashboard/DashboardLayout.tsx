@@ -22,11 +22,11 @@ export function DashboardLayout({
       <DashboardTopNav activeKey={activeKey} items={topNavItems} user={user} />
       <DashboardSidebar activeKey={activeKey} items={sideNavItems} user={user} />
 
-      <main className="lg:ml-72 pt-24 pb-32 px-6">
+      <main className="lg:ml-72 pt-6 lg:pt-24 pb-32 px-6">
         <div className="mx-auto w-full max-w-7xl">{children}</div>
       </main>
 
-      <MobileBottomNav activeKey="home" />
+      <MobileBottomNav />
 
       <div className="lg:hidden fixed bottom-24 right-6 z-40">
         <button

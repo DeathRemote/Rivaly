@@ -10,7 +10,7 @@ import { getMatchesForGroup } from "@/app/groups/[groupId]/matches/data";
 
 const savePredictionSchema = z.object({
   groupId: z.string().min(1),
-  matchKey: z.string().min(1).max(64),
+  matchId: z.string().min(1).max(64),
   phaseType: z.enum(["LEAGUE", "GROUP_STAGE", "KNOCKOUT"]),
   homeScore: z.number().int().min(0).max(99),
   awayScore: z.number().int().min(0).max(99),
@@ -22,7 +22,7 @@ export type SavePredictionResult =
   | {
       ok: true;
       prediction: {
-        matchKey: string;
+        matchId: string;
         homeScore: number;
         awayScore: number;
         source: "QUICK_PICK" | "SCORE";
@@ -41,7 +41,7 @@ export async function saveGroupPredictionAction(
   const parsed = savePredictionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input." };
 
-  const { groupId, matchKey, phaseType, homeScore, awayScore, source } = parsed.data;
+  const { groupId, matchId, phaseType, homeScore, awayScore, source } = parsed.data;
 
   // Membership check
   const membership = await prisma.groupMember.findUnique({
@@ -52,7 +52,7 @@ export async function saveGroupPredictionAction(
 
   // Match lookup (server-side source of truth for eligibility + lock times)
   const matches = await getMatchesForGroup({ groupId, phaseType: phaseType as PhaseType });
-  const match = matches.find((m) => m.id === matchKey);
+  const match = matches.find((m) => m.id === matchId);
   if (!match) return { ok: false, error: "Match not found." };
 
   const now = Date.now();
@@ -101,12 +101,11 @@ export async function saveGroupPredictionAction(
     return { ok: false, error: "Predictions are locked for this match." };
   }
 
-  const p = await prisma.groupPrediction.upsert({
-    where: { groupId_userId_matchKey: { groupId, userId, matchKey } },
+  const p = await prisma.prediction.upsert({
+    where: { userId_matchId: { userId, matchId } },
     create: {
-      groupId,
       userId,
-      matchKey,
+      matchId,
       homeScore,
       awayScore,
       source,
@@ -116,7 +115,7 @@ export async function saveGroupPredictionAction(
       awayScore,
       source,
     },
-    select: { matchKey: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+    select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
   });
 
   revalidatePath(`/groups/${groupId}`);
@@ -124,7 +123,7 @@ export async function saveGroupPredictionAction(
   return {
     ok: true,
     prediction: {
-      matchKey: p.matchKey,
+      matchId: p.matchId,
       homeScore: p.homeScore,
       awayScore: p.awayScore,
       source: p.source,

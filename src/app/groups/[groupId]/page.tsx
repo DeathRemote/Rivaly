@@ -157,16 +157,17 @@ export default async function GroupDetailsPage({
   });
   const baseMatchKeys = baseMatches.map((m) => m.id);
 
-  const predictions = await prisma.groupPrediction.findMany({
+  const predictions = await prisma.prediction.findMany({
     where: {
-      groupId: group.id,
       userId,
-      matchKey: { in: baseMatchKeys },
+      matchId: { in: baseMatchKeys },
     },
-    select: { matchKey: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+    select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
   });
 
-  const predictionByKey = new Map(predictions.map((p) => [p.matchKey, p] as const));
+  const predictionByKey = new Map<string, (typeof predictions)[number]>(
+    predictions.map((p) => [p.matchId, p] as const),
+  );
 
   const matchesForTab: MatchListItem[] = baseMatches.map((m) => {
     const p = predictionByKey.get(m.id);

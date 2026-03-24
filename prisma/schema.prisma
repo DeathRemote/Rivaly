@@ -7,11 +7,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
-  url       = env("DATABASE_URL")
-  // Optional but recommended for serverless: use a pooled URL for runtime and a direct URL for migrations.
-  // In Supabase, DATABASE_URL can point at the pooler (PgBouncer) and DIRECT_URL at the direct connection.
-  directUrl = env("DIRECT_URL")
+  provider = "postgresql"
 }
 
 enum UserRole {
@@ -42,7 +38,7 @@ model User {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   passwordResetTokens PasswordResetToken[]
-  groupPredictions    GroupPrediction[]
+  predictions         Prediction[]
   pointsEvents        PointsEvent[]
 }
 
@@ -154,9 +150,8 @@ model Group {
   members GroupMember[]
   pointsEvents PointsEvent[]
 
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  groupPredictions GroupPrediction[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([visibility])
   @@index([createdById])
@@ -185,11 +180,10 @@ enum PredictionSource {
   SCORE
 }
 
-model GroupPrediction {
+model Prediction {
   id        String           @id @default(cuid())
-  groupId   String
   userId    String
-  matchKey  String
+  matchId   String
   homeScore Int
   awayScore Int
   source    PredictionSource @default(SCORE)
@@ -197,13 +191,12 @@ model GroupPrediction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
-  @@unique([groupId, userId, matchKey])
-  @@index([groupId])
+  @@unique([userId, matchId])
   @@index([userId])
-  @@index([matchKey])
+  @@index([matchId])
 }
 
 model Competition {
@@ -310,6 +303,7 @@ model Match {
   finalizedAt          DateTime?
   processedAt          DateTime?
   pointsEvents         PointsEvent[]
+  predictions          Prediction[]
 
   competitionSeason    CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
   competitionPhase     CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)

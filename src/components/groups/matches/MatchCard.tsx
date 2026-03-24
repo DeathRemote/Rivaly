@@ -69,7 +69,7 @@ export function MatchCard({
 
     const res = await saveGroupPredictionAction({
       groupId,
-      matchKey: match.id,
+      matchId: match.id,
       phaseType,
       homeScore,
       awayScore,

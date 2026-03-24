@@ -33,7 +33,7 @@ export function GroupDetailsClient({
         onPredict={
           <a
             href={`/groups/${groupId}/swipe`}
-            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-[#f3ffca] to-[#beee00] px-7 py-3 text-xs font-black uppercase tracking-[0.22em] text-[#3a4a00] shadow-[0_0_20px_rgba(202,253,0,0.25)] transition hover:shadow-[0_0_30px_rgba(202,253,0,0.4)] active:scale-[0.99]"
+            className="inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-[#f3ffca] to-[#beee00] px-5 py-2.5 sm:px-7 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-[#3a4a00] shadow-[0_0_20px_rgba(202,253,0,0.25)] transition hover:shadow-[0_0_30px_rgba(202,253,0,0.4)] active:scale-[0.99]"
           >
             Make Predictions
           </a>
@@ -43,7 +43,7 @@ export function GroupDetailsClient({
             <button
               type="button"
               onClick={() => setOpen(true)}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-6 py-3 text-xs font-black uppercase tracking-[0.22em] text-white/80 transition hover:bg-white/5 hover:text-lime-100"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-5 py-2.5 sm:px-6 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-white/80 transition hover:bg-white/5 hover:text-lime-100"
             >
               Invite Friends
             </button>
@@ -54,9 +54,9 @@ export function GroupDetailsClient({
                 disabled={pending}
                 onClick={() => setConfirmDeleteOpen(true)}
                 className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-xl px-6 py-3",
+                  "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-2.5 sm:px-6 sm:py-3",
                   "border border-red-500/30 bg-red-500/10",
-                  "text-xs font-black uppercase tracking-[0.22em] text-red-200",
+                  "text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-red-200",
                   "transition hover:bg-red-500/15",
                   pending && "opacity-60 cursor-not-allowed",
                 )}
@@ -69,8 +69,8 @@ export function GroupDetailsClient({
                 disabled={pending}
                 onClick={() => setConfirmLeaveOpen(true)}
                 className={cn(
-                  "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-6 py-3",
-                  "text-xs font-black uppercase tracking-[0.22em] text-white/70",
+                  "inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-5 py-2.5 sm:px-6 sm:py-3",
+                  "text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-white/70",
                   "transition hover:bg-white/5 hover:text-white",
                   pending && "opacity-60 cursor-not-allowed",
                 )}
@@ -93,7 +93,7 @@ export function GroupDetailsClient({
         open={confirmLeaveOpen}
         onClose={() => setConfirmLeaveOpen(false)}
         title={`Leave ${group.name}?`}
-        subtitle="You will be removed from this group and your predictions in this group will be deleted."
+        subtitle="You will be removed from this group. Your match predictions are saved globally and won’t be deleted."
         confirmWord="LEAVE"
         confirmLabel="Leave group"
         confirmTone="neutral"
@@ -116,7 +116,7 @@ export function GroupDetailsClient({
         open={confirmDeleteOpen}
         onClose={() => setConfirmDeleteOpen(false)}
         title={`Delete ${group.name}?`}
-        subtitle="This deletes the group, removes all members, and deletes all predictions in this group. Season fixtures stay."
+        subtitle="This deletes the group and removes all members. Season fixtures stay. (Your match predictions are global and won’t be deleted.)"
         confirmWord="DELETE"
         confirmLabel="Delete group"
         confirmTone="danger"

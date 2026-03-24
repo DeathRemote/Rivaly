@@ -9,7 +9,7 @@ export type MatchPredictionStatus =
   | "COMPLETED";
 
 export type MatchListItem = {
-  id: string; // matchKey (stable id for predictions)
+  id: string; // matchId (stable id for predictions)
   phaseType: PhaseType;
   phaseLabel: string; // e.g. "Gameweek 12" / "Group A" / "Quarterfinal"
   kickoffAt: string; // ISO
