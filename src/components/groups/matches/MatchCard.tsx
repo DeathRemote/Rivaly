@@ -31,12 +31,21 @@ export function MatchCard({
   // Note: prediction state is owned locally (updated on save) to avoid full refresh.
 
   const kickoff = useMemo(() => new Date(match.kickoffAt), [match.kickoffAt]);
+  const visibleAt = useMemo(() => new Date(match.visibleAt), [match.visibleAt]);
   const lockAt = useMemo(() => new Date(match.lockAt), [match.lockAt]);
 
+  const openForPrediction = useMemo(() => {
+    if (match.status === "FINAL") return false;
+    return now >= visibleAt.getTime() && now < lockAt.getTime();
+  }, [match.status, visibleAt, lockAt, now]);
+
+  // For UI: disable prediction interactions when not open or when locked/final.
   const locked = useMemo(() => {
     if (match.status === "FINAL") return true;
-    return now >= lockAt.getTime();
-  }, [match.status, lockAt, now]);
+    if (now >= lockAt.getTime()) return true;
+    if (now < visibleAt.getTime()) return true;
+    return false;
+  }, [match.status, visibleAt, lockAt, now]);
 
   const hasPrediction = Boolean(
     prediction &&
@@ -120,7 +129,14 @@ export function MatchCard({
               })}
             </span>
             <span className="text-white/20">•</span>
-            <span>Locks {lockAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+            {openForPrediction ? (
+              <span>Locks {lockAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}</span>
+            ) : (
+              <span className="inline-flex items-center gap-2">
+                <span className="text-white/20">🔒</span>
+                Opens {visibleAt.toLocaleString(undefined, { month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
 
             {hasPrediction ? (
               <>

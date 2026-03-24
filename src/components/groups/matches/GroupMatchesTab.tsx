@@ -9,7 +9,6 @@ import { MatchesToolbar } from "@/components/groups/matches/MatchesToolbar";
 import { MatchSection } from "@/components/groups/matches/MatchSection";
 import { MatchesEmptyState } from "@/components/groups/matches/MatchesEmptyState";
 
-const UPCOMING_WINDOW_DAYS_STEP = 7;
 const PRESEASON_KICKOFF_SPAN_HOURS = 72; // "first weekend" bucket
 
 export function GroupMatchesTab({
@@ -69,25 +68,15 @@ export function GroupMatchesTab({
       return kickoffMatches;
     }
 
-    // Upcoming tab: future matches NOT in kickoff, grouped by rolling time window.
+    // Upcoming tab: ALL future matches NOT in kickoff.
+    // These are imported and visible, but not yet open for prediction.
     const kickoffIds = new Set(kickoffMatches.map((m) => m.id));
 
-    const upcomingPool = notCompleted
+    return notCompleted
       .map((m) => ({ m, t: Date.parse(m.kickoffAt) }))
       .filter((x) => Number.isFinite(x.t) && x.t > now && !kickoffIds.has(x.m.id))
-      .sort((a, b) => a.t - b.t);
-
-    if (upcomingPool.length === 0) return [];
-
-    // Expand window: 7d, 14d, 21d... until we find matches.
-    for (let days = UPCOMING_WINDOW_DAYS_STEP; days <= 365; days += UPCOMING_WINDOW_DAYS_STEP) {
-      const end = now + days * 24 * 60 * 60 * 1000;
-      const within = upcomingPool.filter((x) => x.t <= end).map((x) => x.m);
-      if (within.length > 0) return within;
-    }
-
-    // Fallback: show all future matches.
-    return upcomingPool.map((x) => x.m);
+      .sort((a, b) => a.t - b.t)
+      .map((x) => x.m);
   }, [matches, view, now]);
 
   const sections = useMemo(() => {
