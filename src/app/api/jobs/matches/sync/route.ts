@@ -3,7 +3,6 @@ import { NextResponse } from "next/server";
 import { syncAndProcessFinishedMatches } from "@/lib/pipeline/post-match";
 
 export async function POST(req: Request) {
-  // Optional shared secret to protect the job endpoint.
   const required = process.env.JOB_SECRET;
   if (required) {
     const got = req.headers.get("x-job-secret");
@@ -12,6 +11,11 @@ export async function POST(req: Request) {
     }
   }
 
-  const result = await syncAndProcessFinishedMatches({ maxMatches: 25 });
+  const result = await syncAndProcessFinishedMatches({
+    maxMatches: 50,
+    lookbackHours: 6,
+    lookaheadMinutes: 60,
+  });
+
   return NextResponse.json({ ok: true, result });
 }

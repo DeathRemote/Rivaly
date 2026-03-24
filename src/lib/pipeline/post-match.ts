@@ -8,17 +8,22 @@ import { mapTheSportsDbStatus } from "@/lib/importers/thesportsdb/map";
 
 export async function syncAndProcessFinishedMatches(opts?: {
   maxMatches?: number;
+  lookbackHours?: number;
+  lookaheadMinutes?: number;
 }) {
   const maxMatches = opts?.maxMatches ?? 25;
+  const lookbackHours = opts?.lookbackHours ?? 6;
+  const lookaheadMinutes = opts?.lookaheadMinutes ?? 60;
 
-  // Candidates: matches that should have started already and are not processed.
-  // We include a grace window so we don't spam provider far into the future.
   const now = new Date();
-  const startedBefore = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  const from = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
+  const to = new Date(now.getTime() + lookaheadMinutes * 60 * 1000);
 
+  // Candidates: relevant window + not processed.
+  // Keep it tight so the cron can run every 5 minutes without hammering the provider.
   const candidates = await prisma.match.findMany({
     where: {
-      kickoffAt: { lte: now, gte: startedBefore },
+      kickoffAt: { gte: from, lte: to },
       processedAt: null,
       provider: Provider.THESPORTSDB,
       providerMatchId: { not: null },
@@ -30,6 +35,10 @@ export async function syncAndProcessFinishedMatches(opts?: {
       competitionSeason: { include: { competition: true } },
     },
   });
+
+  if (candidates.length === 0) {
+    return { skipped: true as const, scanned: 0, processed: [] as const };
+  }
 
   const client = new TheSportsDbClient();
 
@@ -163,6 +172,7 @@ export async function syncAndProcessFinishedMatches(opts?: {
   }
 
   return {
+    skipped: false as const,
     scanned: candidates.length,
     processed,
   };
