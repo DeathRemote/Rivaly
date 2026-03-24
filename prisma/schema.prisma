@@ -43,6 +43,7 @@ model User {
   updatedAt           DateTime             @updatedAt
   passwordResetTokens PasswordResetToken[]
   groupPredictions    GroupPrediction[]
+  pointsEvents        PointsEvent[]
 }
 
 model Account {
@@ -151,6 +152,7 @@ model Group {
   createdBy   User   @relation("UserCreatedGroups", fields: [createdById], references: [id], onDelete: Cascade)
 
   members GroupMember[]
+  pointsEvents PointsEvent[]
 
   createdAt        DateTime          @default(now())
   updatedAt        DateTime          @updatedAt
@@ -305,6 +307,7 @@ model Match {
   result               MatchResult?
   finalizedAt          DateTime?
   processedAt          DateTime?
+  pointsEvents         PointsEvent[]
 
   competitionSeason    CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
   competitionPhase     CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
