@@ -33,4 +33,7 @@ export type MatchListItem = {
   };
 };
 
-export type MatchesView = "upcoming" | "locked" | "completed";
+// kickoff    = matches currently open for prediction (visibleAt <= now < lockAt)
+// upcoming   = all future matches outside the current prediction window
+// completed  = matches that are completed (FINAL)
+export type MatchesView = "kickoff" | "upcoming" | "completed";
