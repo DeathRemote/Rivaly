@@ -48,6 +48,9 @@ FROM (
   FROM "GroupPrediction"
   ORDER BY "userId", "matchKey", "updatedAt" DESC
 ) gp
+-- Only backfill predictions for matches that exist in the canonical Match table.
+-- (Legacy/mock match keys like "m1" would otherwise violate the FK.)
+INNER JOIN "Match" m ON m."id" = gp."matchKey"
 ON CONFLICT ("userId", "matchId") DO NOTHING;
 
 -- 5) Drop old table
