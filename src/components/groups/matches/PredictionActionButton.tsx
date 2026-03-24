@@ -15,12 +15,16 @@ export function PredictionActionButton({
   onClick: () => void;
 }) {
   const now = useNow();
+  const visibleAt = Date.parse(match.visibleAt);
   const lockAt = Date.parse(match.lockAt);
   const kickoffAt = Date.parse(match.kickoffAt);
 
   const state = useMemo(() => {
     if (match.status === "FINAL") {
       return { label: "View result", sub: "Final", disabled: false, tone: "dim" as const };
+    }
+    if (now < visibleAt) {
+      return { label: "Locked", sub: "Opens soon", disabled: true, tone: "dim" as const };
     }
     if (now >= lockAt) {
       return { label: "Locked", sub: "Prediction closed", disabled: true, tone: "dim" as const };
@@ -34,9 +38,16 @@ export function PredictionActionButton({
     }
 
     return { label: "Predict score", sub: "Exact score", disabled: false, tone: "orange" as const };
-  }, [match.status, match.userPrediction?.homeScore, match.userPrediction?.awayScore, lockAt, now]);
+  }, [match.status, match.userPrediction?.homeScore, match.userPrediction?.awayScore, visibleAt, lockAt, now]);
 
-  const countdown = now < lockAt ? formatCountdown(lockAt - now) : now < kickoffAt ? "Kickoff soon" : "In play";
+  const countdown =
+    now < visibleAt
+      ? `${formatCountdown(visibleAt - now).replace("to lock", "to open")}`
+      : now < lockAt
+        ? formatCountdown(lockAt - now)
+        : now < kickoffAt
+          ? "Kickoff soon"
+          : "In play";
 
   return (
     <button

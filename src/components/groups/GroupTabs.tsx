@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/cn";
 
-export type GroupTabKey = "leaderboard" | "matches";
+export type GroupTabKey = "leaderboard" | "matches" | "table";
 
 export function GroupTabs({ groupId, active }: { groupId: string; active: GroupTabKey }) {
   const base = `/groups/${groupId}`;
@@ -16,6 +16,9 @@ export function GroupTabs({ groupId, active }: { groupId: string; active: GroupT
       </Tab>
       <Tab href={`${base}?tab=matches`} active={active === "matches"}>
         Matches
+      </Tab>
+      <Tab href={`${base}?tab=table`} active={active === "table"}>
+        Table
       </Tab>
     </div>
   );
