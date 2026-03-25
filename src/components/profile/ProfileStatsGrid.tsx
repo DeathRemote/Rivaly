@@ -23,7 +23,6 @@ export function ProfileStatsGrid({
         label="Accuracy"
         value={`${accuracy.toFixed(1)}%`}
         meta="Correct outcome on scored matches"
-        accent="lime"
       />
       <StatCard
         label="Correct"
