@@ -6,6 +6,10 @@ export type GroupHeroData = {
   sportLabel: string;
   memberCount: number;
   description?: string | null;
+  userStats?: {
+    points: number;
+    accuracyPct: number;
+  };
 };
 
 export function GroupHero({
@@ -48,6 +52,17 @@ export function GroupHero({
             {group.description ||
               "High-stakes predictions arena. Compete with your squad and climb the board."}
           </p>
+
+          {group.userStats ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+                Your points: {group.userStats.points.toLocaleString()}
+              </span>
+              <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+                Accuracy: {group.userStats.accuracyPct}%
+              </span>
+            </div>
+          ) : null}
         </div>
 
         <div className="flex w-full flex-col gap-2 sm:gap-3 sm:w-auto sm:flex-row">
