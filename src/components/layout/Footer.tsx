@@ -1,5 +1,7 @@
 "use client";
 
+
+import Link from "next/link";
 import { useState } from "react";
 
 import { cn } from "@/lib/cn";
@@ -21,6 +23,7 @@ export function Footer({ className }: { className?: string }) {
           "w-full",
           "border-t border-white/5",
           "bg-black/20",
+          // Avoid being hidden behind mobile bottom nav.
           // Avoid being hidden behind mobile bottom nav (if present).
           "pb-24 lg:pb-8",
           className,
@@ -53,6 +56,19 @@ export function Footer({ className }: { className?: string }) {
             >
               Terms &amp; Conditions
             </button>
+
+            <span className="text-white/20">·</span>
+
+            <Link
+              href="/faq"
+              className={cn(
+                "text-white/45 hover:text-lime-100 transition-colors",
+                "underline decoration-white/20 underline-offset-4 hover:decoration-lime-200/40",
+                "focus:outline-none focus:ring-2 focus:ring-lime-300/40 rounded",
+              )}
+            >
+              FAQ
+            </Link>
           </div>
         </div>
       </footer>

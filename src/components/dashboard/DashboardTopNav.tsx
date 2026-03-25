@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
 
-import { cn } from "@/lib/cn";
+// Navigation links removed from header (sidebar + bottom nav only).
 import type { DashboardNavItem } from "@/features/dashboard/mock";
 import { UserMenu } from "@/components/dashboard/UserMenu";
 
@@ -25,25 +25,7 @@ export function DashboardTopNav({
             Rivaly
           </Link>
 
-          <nav className="hidden items-center gap-6 md:flex" aria-label="Dashboard top navigation">
-            {items.map((item) => {
-              const active = item.key === activeKey;
-              return (
-                <Link
-                  key={item.key}
-                  href={item.href}
-                  className={cn(
-                    "font-display font-bold tracking-tight transition-colors duration-200",
-                    active
-                      ? "text-lime-100 border-b-2 border-lime-100 py-1"
-                      : "text-white/60 hover:text-lime-100",
-                  )}
-                >
-                  {item.label}
-                </Link>
-              );
-            })}
-          </nav>
+          {/* Header nav links removed (navigation lives in sidebar + bottom nav). */}
         </div>
 
         <div className="flex items-center gap-4">

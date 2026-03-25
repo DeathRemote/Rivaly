@@ -7,7 +7,7 @@ import { scorePredictionPoints } from "@/lib/scoring/predictions";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { ProfilePageClient } from "@/components/profile/ProfilePageClient";
 
-import { sideNavItems, topNavItems } from "@/features/dashboard/mock";
+import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
 
 type AccountTier = "FREE" | "BASIC" | "PRO" | "ELITE" | "FRIENDS_AND_FAMILY";
 
@@ -48,6 +48,10 @@ export default async function ProfilePage() {
   });
 
   if (!user) redirect("/login?callbackUrl=/profile");
+
+  const ownerEmail = process.env.OWNER_EMAIL;
+  const isOwner = Boolean(ownerEmail && user.email && user.email === ownerEmail);
+  const isAdmin = isOwner || user.role === "ADMIN";
 
   // Account tier / plan is stored separately from role (ADMIN is permissions, not billing).
   const accountTier = (user.accountTier ?? "FREE") as AccountTier;
@@ -171,8 +175,8 @@ export default async function ProfilePage() {
 
   return (
     <DashboardLayout
-      topNavItems={topNavItems}
-      sideNavItems={sideNavItems}
+      topNavItems={getTopNavItems()}
+      sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="profile"
       user={{
         name: user.username ?? user.name ?? "Kinetic Player",

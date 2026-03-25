@@ -15,13 +15,12 @@ export function LegalModal({
   mode: LegalModalMode;
   onClose: () => void;
 }) {
+
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeBtnRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!open) return;
-
-    // Focus the close button on open (basic a11y).
     closeBtnRef.current?.focus();
 
     function onKeyDown(e: KeyboardEvent) {
@@ -29,7 +28,6 @@ export function LegalModal({
     }
 
     document.addEventListener("keydown", onKeyDown);
-
     // Prevent background scroll while modal is open.
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -314,7 +312,6 @@ function TermsContent() {
           We reserve the right to suspend or terminate accounts that violate these terms.
         </p>
       </Section>
-
       <Section title="Changes to Terms">
         <p>
           We may update these Terms from time to time. Continued use of Rivaly

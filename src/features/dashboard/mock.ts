@@ -1,24 +1,8 @@
 export type DashboardNavItem = {
   label: string;
   href: string;
-  key: "dashboard" | "swipe" | "groups" | "discovery" | "profile" | "admin" | "pricing";
+  key: "dashboard" | "swipe" | "groups" | "profile" | "admin";
 };
-
-export const topNavItems: DashboardNavItem[] = [
-  { key: "dashboard", label: "Dashboard", href: "/dashboard" },
-  { key: "swipe", label: "Swipe", href: "/swipe" },
-  { key: "groups", label: "Groups", href: "/groups" },
-];
-
-export const sideNavItems: DashboardNavItem[] = [
-  { key: "dashboard", label: "Dashboard", href: "/dashboard" },
-  { key: "swipe", label: "Swipe", href: "/swipe" },
-  { key: "groups", label: "Groups", href: "/groups" },
-  { key: "discovery", label: "Discovery", href: "/explore" },
-  { key: "profile", label: "Profile", href: "/profile" },
-  { key: "admin", label: "Admin", href: "/admin" },
-  { key: "pricing", label: "Pricing", href: "/pricing" },
-];
 
 export type GlobalStanding = {
   rankNumber: number;

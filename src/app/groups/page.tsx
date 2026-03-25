@@ -7,7 +7,8 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { type GroupCardData } from "@/components/groups/GroupCard";
 import { GroupsPageClient } from "@/components/groups/GroupsPageClient";
 
-import { topNavItems, sideNavItems } from "@/features/dashboard/mock";
+import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { accountTierLabel } from "@/lib/accountTier";
 
 type TabKey = "my" | "public";
 
@@ -31,7 +32,7 @@ export default async function GroupsPage({
   const user = {
     name: session.user.username ?? session.user.name ?? "Kinetic Player",
     image: session.user.image ?? null,
-    rankLabel: "Pro",
+    rankLabel: accountTierLabel(session.user.tier),
   };
 
   const userId = session.user.id;
@@ -107,10 +108,8 @@ export default async function GroupsPage({
 
   return (
     <DashboardLayout
-      topNavItems={topNavItems.map((i) => (i.key === "groups" ? { ...i, href: "/groups" } : i))}
-      sideNavItems={sideNavItems
-        .map((i) => (i.key === "groups" ? { ...i, href: "/groups" } : i))
-        .filter((item) => (item.key === "admin" ? isAdmin : true))}
+      topNavItems={getTopNavItems()}
+      sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="groups"
       user={user}
     >

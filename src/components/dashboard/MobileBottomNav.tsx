@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Compass, House, User, Users, ArrowUpDown } from "lucide-react";
+import { House, User, Users, ArrowUpDown } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
-type ItemKey = "home" | "swipe" | "groups" | "explore" | "profile";
+type ItemKey = "home" | "swipe" | "groups" | "profile";
 
 type Item = {
   label: string;
@@ -19,7 +19,6 @@ const items: Item[] = [
   { key: "home", label: "Home", href: "/dashboard", icon: House },
   { key: "swipe", label: "Swipe", href: "/swipe", icon: ArrowUpDown },
   { key: "groups", label: "Groups", href: "/groups", icon: Users },
-  { key: "explore", label: "Explore", href: "/explore", icon: Compass },
   { key: "profile", label: "Profile", href: "/profile", icon: User },
 ];
 
@@ -33,7 +32,6 @@ function getActiveKey(pathname: string | null): ItemKey {
     return "groups";
   }
   if (p === "/swipe" || p.startsWith("/swipe/")) return "swipe";
-  if (p === "/explore" || p.startsWith("/explore/")) return "explore";
   if (p === "/profile" || p.startsWith("/profile/")) return "profile";
 
   return "home";

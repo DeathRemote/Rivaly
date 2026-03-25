@@ -31,9 +31,6 @@ export function Hero() {
               {hero.primaryCta.label}
               <hero.primaryCta.icon className="size-4" aria-hidden="true" />
             </Button>
-            <Button href={hero.secondaryCta.href} variant="secondary" size="lg">
-              {hero.secondaryCta.label}
-            </Button>
           </div>
         </div>
 

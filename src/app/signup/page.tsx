@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import { AuthCard } from "@/components/auth/AuthCard";
 
-export default async function LoginPage({
+export default async function SignupPage({
   searchParams,
 }: {
   searchParams: Promise<{ callbackUrl?: string }>;
@@ -25,7 +25,7 @@ export default async function LoginPage({
           <span aria-hidden>‹</span>
           Back to landing
         </Link>
-        <AuthCard initialMode="login" callbackUrl={callbackUrl ?? "/dashboard"} />
+        <AuthCard initialMode="signup" callbackUrl={callbackUrl ?? "/dashboard"} />
       </div>
     </div>
   );
