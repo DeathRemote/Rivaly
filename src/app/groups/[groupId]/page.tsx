@@ -103,11 +103,15 @@ export default async function GroupDetailsPage({
 
   const membershipRow = group.members.find((m) => m.userId === userId);
 
-  const [accuracyByUser, completedFeed, momentum] = await Promise.all([
-    getGroupMemberAccuracies(group.id),
-    getGroupCompletedMatchFeed({ groupId: group.id, limitMatches: 6 }),
-    getGroupMomentum(group.id),
-  ]);
+  const accuracyByUser = await getGroupMemberAccuracies(group.id);
+
+  const [completedFeed, momentum] =
+    tab === "leaderboard"
+      ? await Promise.all([
+          getGroupCompletedMatchFeed({ groupId: group.id, limitMatches: 6 }),
+          getGroupMomentum(group.id),
+        ])
+      : [[], null];
 
   const leaderboard: LeaderboardRowData[] = group.members.map((m, idx) => {
     const acc = accuracyByUser.get(m.userId);
@@ -175,40 +179,45 @@ export default async function GroupDetailsPage({
 
   // Matches tab: merge saved group-scoped predictions into match list items so refreshes
   // always reflect the real DB state.
-  const baseMatches = await getMatchesForGroup({
-    groupId: group.id,
-    phaseType: "LEAGUE" satisfies PhaseType,
-  });
-  const baseMatchKeys = baseMatches.map((m) => m.id);
+  const matchesForTab: MatchListItem[] =
+    tab === "matches"
+      ? await (async () => {
+          const baseMatches = await getMatchesForGroup({
+            groupId: group.id,
+            phaseType: "LEAGUE" satisfies PhaseType,
+          });
+          const baseMatchKeys = baseMatches.map((m) => m.id);
 
-  const predictions = await prisma.prediction.findMany({
-    where: {
-      userId,
-      matchId: { in: baseMatchKeys },
-    },
-    select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
-  });
+          const predictions =
+            baseMatchKeys.length === 0
+              ? []
+              : await prisma.prediction.findMany({
+                  where: { userId, matchId: { in: baseMatchKeys } },
+                  select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+                });
 
-  const predictionByKey = new Map<string, (typeof predictions)[number]>(
-    predictions.map((p) => [p.matchId, p] as const),
-  );
+          const predictionByKey = new Map<string, (typeof predictions)[number]>(
+            predictions.map((p) => [p.matchId, p] as const),
+          );
 
-  const matchesForTab: MatchListItem[] = baseMatches.map((m) => {
-    const p = predictionByKey.get(m.id);
-    if (!p) return m;
+          return baseMatches.map((m) => {
+            const p = predictionByKey.get(m.id);
+            if (!p) return m;
 
-    return {
-      ...m,
-      userPrediction: {
-        status: m.status === "FINAL" ? "COMPLETED" : "PREDICTED",
-        summary: `${p.homeScore}-${p.awayScore}`,
-        homeScore: p.homeScore,
-        awayScore: p.awayScore,
-        source: p.source,
-        updatedAt: p.updatedAt.toISOString(),
-      },
-    };
-  });
+            return {
+              ...m,
+              userPrediction: {
+                status: m.status === "FINAL" ? "COMPLETED" : "PREDICTED",
+                summary: `${p.homeScore}-${p.awayScore}`,
+                homeScore: p.homeScore,
+                awayScore: p.awayScore,
+                source: p.source,
+                updatedAt: p.updatedAt.toISOString(),
+              },
+            };
+          });
+        })()
+      : [];
 
   return (
     <DashboardLayout
@@ -244,7 +253,7 @@ export default async function GroupDetailsPage({
 
           <div className="col-span-12 lg:col-span-5 space-y-6">
             <CompletedMatchesFeed items={completedFeed} />
-            <GroupMomentumCard momentum={momentum} />
+            {momentum ? <GroupMomentumCard momentum={momentum} /> : null}
           </div>
         </div>
       ) : tab === "matches" ? (

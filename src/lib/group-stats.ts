@@ -49,7 +49,7 @@ export const getGroupMemberAccuracies = unstable_cache(
   { revalidate: 30 },
 );
 
-export async function getGroupCompletedMatchFeed(opts: {
+async function _getGroupCompletedMatchFeed(opts: {
   groupId: string;
   limitMatches?: number;
 }) {
@@ -161,6 +161,12 @@ export async function getGroupCompletedMatchFeed(opts: {
 
   return out;
 }
+
+export const getGroupCompletedMatchFeed = unstable_cache(
+  async (opts: { groupId: string; limitMatches?: number }) => _getGroupCompletedMatchFeed(opts),
+  ["group-completed-feed"],
+  { revalidate: 30 },
+);
 
 async function _getGroupMomentum(groupId: string) {
   // Momentum v1: blend recent group accuracy + activity.
