@@ -1,5 +1,6 @@
 "use client";
 
+
 import Link from "next/link";
 import { useState } from "react";
 
@@ -23,15 +24,15 @@ export function Footer({ className }: { className?: string }) {
           "border-t border-white/5",
           "bg-black/20",
           // Avoid being hidden behind mobile bottom nav.
+          // Avoid being hidden behind mobile bottom nav (if present).
           "pb-24 lg:pb-8",
           className,
         )}
       >
         <div className="mx-auto w-full max-w-6xl px-4 py-6 sm:px-6">
           <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-center text-xs font-bold text-white/35">
-            <span>© Rivaly {new Date().getFullYear()}</span>
+            <span>© Rivaly 2026</span>
             <span className="text-white/20">•</span>
-
             <button
               type="button"
               onClick={() => openModal("privacy")}
@@ -43,9 +44,7 @@ export function Footer({ className }: { className?: string }) {
             >
               Privacy Policy
             </button>
-
             <span className="text-white/20">·</span>
-
             <button
               type="button"
               onClick={() => openModal("terms")}
