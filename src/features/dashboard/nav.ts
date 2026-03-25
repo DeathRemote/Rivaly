@@ -10,8 +10,7 @@ export function getSideNavItems({ isAdmin }: { isAdmin: boolean }): DashboardNav
     { key: "dashboard", label: "Dashboard", href: "/dashboard" },
     { key: "swipe", label: "Swipe", href: "/swipe" },
     { key: "groups", label: "Groups", href: "/groups" },
-    // Profile shortcut lives in the top-left user card; keep a Settings entry instead.
-    { key: "settings", label: "Settings", href: "/profile" },
+    { key: "tables", label: "Tables", href: "/tables" },
   ];
 
   if (isAdmin) items.push({ key: "admin", label: "Admin", href: "/admin" });
