@@ -1,7 +1,7 @@
 export type DashboardNavItem = {
   label: string;
   href: string;
-  key: "dashboard" | "swipe" | "groups" | "profile" | "admin";
+  key: "dashboard" | "swipe" | "groups" | "tables" | "profile" | "admin";
 };
 
 export type GlobalStanding = {

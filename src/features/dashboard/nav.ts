@@ -10,7 +10,7 @@ export function getSideNavItems({ isAdmin }: { isAdmin: boolean }): DashboardNav
     { key: "dashboard", label: "Dashboard", href: "/dashboard" },
     { key: "swipe", label: "Swipe", href: "/swipe" },
     { key: "groups", label: "Groups", href: "/groups" },
-    { key: "profile", label: "Profile", href: "/profile" },
+    { key: "tables", label: "Tables", href: "/tables" },
   ];
 
   if (isAdmin) items.push({ key: "admin", label: "Admin", href: "/admin" });

@@ -60,7 +60,7 @@ export function UserMenu({
           <div className="h-px bg-white/10" />
           <div className="p-1">
             <Link
-              href="/settings"
+              href="/profile"
               onClick={() => setOpen(false)}
               className="flex w-full items-center rounded-lg px-3 py-2 text-xs font-bold text-white/70 hover:bg-white/10 hover:text-white"
             >
