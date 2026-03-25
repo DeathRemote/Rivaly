@@ -1,9 +1,11 @@
 import type { Prisma } from "@prisma/client";
 
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "@/lib/prisma";
 import { winnerOf } from "@/lib/scoring/predictions";
 
-export async function getGroupMemberAccuracies(groupId: string) {
+async function _getGroupMemberAccuracies(groupId: string) {
   const events = await prisma.pointsEvent.findMany({
     where: { groupId, type: "PREDICTION_SCORED" },
     select: { userId: true, meta: true, createdAt: true },
@@ -39,6 +41,13 @@ export async function getGroupMemberAccuracies(groupId: string) {
 
   return byUser;
 }
+
+// Cache: group-level derived reads can be reused briefly.
+export const getGroupMemberAccuracies = unstable_cache(
+  async (groupId: string) => _getGroupMemberAccuracies(groupId),
+  ["group-member-accuracies"],
+  { revalidate: 30 },
+);
 
 export async function getGroupCompletedMatchFeed(opts: {
   groupId: string;
@@ -153,7 +162,7 @@ export async function getGroupCompletedMatchFeed(opts: {
   return out;
 }
 
-export async function getGroupMomentum(groupId: string) {
+async function _getGroupMomentum(groupId: string) {
   // Momentum v1: blend recent group accuracy + activity.
   // Window: last 14 days.
   const now = new Date();
@@ -197,6 +206,12 @@ export async function getGroupMomentum(groupId: string) {
       "Momentum v1 = 70% group accuracy (last 14 days) + 30% activity (scored predictions per member, capped).",
   };
 }
+
+export const getGroupMomentum = unstable_cache(
+  async (groupId: string) => _getGroupMomentum(groupId),
+  ["group-momentum"],
+  { revalidate: 30 },
+);
 
 function clamp01(n: number) {
   if (!Number.isFinite(n)) return 0;

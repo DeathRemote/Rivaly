@@ -1,6 +1,8 @@
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "@/lib/prisma";
 
-export async function getDashboardData(userId: string) {
+async function _getDashboardData(userId: string) {
   const now = new Date();
 
   const groups = await prisma.group.findMany({
@@ -181,6 +183,12 @@ export async function getDashboardData(userId: string) {
       : null,
   };
 }
+
+export const getDashboardData = unstable_cache(
+  async (userId: string) => _getDashboardData(userId),
+  ["dashboard-data"],
+  { revalidate: 30 },
+);
 
 function pickSpotlightGroup(
   groups: Array<{

@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "@/lib/prisma";
 
 export type GlobalStanding =
@@ -22,7 +24,7 @@ export type GlobalStanding =
 
 const MIN_SCORED_PREDICTIONS = 20;
 
-export async function getGlobalStandingForUser(userId: string): Promise<GlobalStanding> {
+async function _getGlobalStandingForUser(userId: string): Promise<GlobalStanding> {
   const rows = await prisma.$queryRaw<Array<StandingRow>>`
     WITH scored AS (
       SELECT
@@ -140,6 +142,13 @@ export async function getGlobalStandingForUser(userId: string): Promise<GlobalSt
     },
   };
 }
+
+// Cache: this query scans many rows; a short cache reduces DB pressure without harming UX.
+export const getGlobalStandingForUser = unstable_cache(
+  async (userId: string) => _getGlobalStandingForUser(userId),
+  ["global-standing"],
+  { revalidate: 60 },
+);
 
 function computeWeightedScore(r: StandingRow): number {
   // Weighting goals:
