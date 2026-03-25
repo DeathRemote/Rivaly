@@ -19,11 +19,25 @@ export type TablesPageTable = {
   rows: TableRow[];
 };
 
-export function TablesPageClient({ tables }: { tables: TablesPageTable[] }) {
+export function TablesPageClient({
+  tables,
+  error,
+}: {
+  tables: TablesPageTable[];
+  error?: string | null;
+}) {
   const options = useMemo(() => tables.map((t) => ({ id: t.seasonId, label: t.title })), [tables]);
   const [activeId, setActiveId] = useState<string>(options[0]?.id ?? "");
 
   const active = useMemo(() => tables.find((t) => t.seasonId === activeId) ?? tables[0], [tables, activeId]);
+
+  if (error) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+        Tables are temporarily unavailable. Please try again.
+      </div>
+    );
+  }
 
   if (!tables.length) {
     return (

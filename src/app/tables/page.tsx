@@ -1,6 +1,8 @@
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "@/lib/prisma";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -11,7 +13,7 @@ import { accountTierLabel } from "@/lib/accountTier";
 
 type Season = { id: string; seasonLabel: string; competition: { name: string } };
 
-async function getRelevantTables(userId: string): Promise<TablesPageTable[]> {
+async function getRelevantTablesUncached(userId: string): Promise<TablesPageTable[]> {
   const groups = await prisma.group.findMany({
     where: { members: { some: { userId } } },
     select: {
@@ -73,6 +75,12 @@ async function getRelevantTables(userId: string): Promise<TablesPageTable[]> {
   return [...bySeason.values()].filter((t) => t.rows.length > 0);
 }
 
+const getRelevantTables = unstable_cache(
+  async (userId: string) => getRelevantTablesUncached(userId),
+  ["tables-page"],
+  { revalidate: 120 },
+);
+
 export default async function TablesPage() {
   const session = await auth();
   if (!session?.user) redirect("/login?callbackUrl=/tables");
@@ -84,7 +92,15 @@ export default async function TablesPage() {
   const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
   const isAdmin = isOwner || session.user.role === "ADMIN";
 
-  const tables = await getRelevantTables(userId);
+  let tables: TablesPageTable[] = [];
+  let tablesError: string | null = null;
+
+  try {
+    tables = await getRelevantTables(userId);
+  } catch (e) {
+    tablesError = e instanceof Error ? e.message : "Tables temporarily unavailable.";
+    console.warn("[tables] load failed", tablesError);
+  }
 
   return (
     <DashboardLayout
@@ -97,7 +113,7 @@ export default async function TablesPage() {
         rankLabel: accountTierLabel(session.user.tier),
       }}
     >
-      <TablesPageClient tables={tables} />
+      <TablesPageClient tables={tables} error={tablesError} />
     </DashboardLayout>
   );
 }
