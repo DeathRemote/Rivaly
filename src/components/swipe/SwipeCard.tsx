@@ -10,12 +10,16 @@ export function SwipeCard({
   disabled,
   onSwipeLeft,
   onSwipeRight,
+  onPredictScore,
+  onSkip,
   animDirection,
 }: {
   match: SwipeMatch;
   disabled?: boolean;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  onPredictScore?: () => void;
+  onSkip?: () => void;
   animDirection?: "left" | "right" | "down" | null;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -105,18 +109,33 @@ export function SwipeCard({
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3 pt-12">
-          <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+        <div className={cn(
+          "flex items-start justify-between gap-3 pt-12",
+          "flex-col sm:flex-row sm:items-center",
+        )}>
+          <span className={cn(
+            "inline-flex items-center justify-center",
+            "h-7 px-3 rounded-full",
+            "border border-white/10 bg-black/25",
+            "text-[10px] font-black uppercase tracking-[0.22em] text-white/70",
+          )}>
             Open now
           </span>
-          <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40 text-right">
-            Locks {lockAt.toLocaleString(undefined, {
-              weekday: "short",
-              month: "short",
-              day: "2-digit",
-              hour: "2-digit",
-              minute: "2-digit",
-            })}
+
+          <span className={cn(
+            "text-[10px] font-black uppercase tracking-[0.22em] text-white/40",
+            "sm:text-right",
+          )}>
+            <span className="block sm:inline">Locks</span>
+            <span className="block sm:inline sm:ml-2">
+              {lockAt.toLocaleString(undefined, {
+                weekday: "short",
+                month: "short",
+                day: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </span>
           </span>
         </div>
 
@@ -156,6 +175,38 @@ export function SwipeCard({
         </div>
 
         <div className="mt-auto" />
+
+        <div className="mt-6">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onPredictScore}
+            className={cn(
+              "w-full h-12 rounded-2xl",
+              "bg-gradient-to-br from-[#f3ffca] to-[#beee00] text-[#3a4a00]",
+              "text-xs font-black uppercase tracking-[0.22em]",
+              "shadow-[0_0_24px_rgba(202,253,0,0.16)]",
+              "hover:brightness-110 active:scale-[0.99] transition",
+              disabled && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            Predict Score
+          </button>
+
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={onSkip}
+            className={cn(
+              "mt-3 w-full h-11 rounded-2xl border border-white/10 bg-black/25",
+              "text-xs font-black uppercase tracking-[0.22em] text-white/70",
+              "hover:bg-white/5 active:scale-[0.99] transition",
+              disabled && "opacity-50 cursor-not-allowed",
+            )}
+          >
+            Skip for now
+          </button>
+        </div>
       </div>
     </div>
   );

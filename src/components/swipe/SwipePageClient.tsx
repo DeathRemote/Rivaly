@@ -100,16 +100,17 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-4 sm:mb-5 flex items-end justify-between gap-4">
+    <div className="mx-auto w-full max-w-2xl h-[calc(100dvh-10rem)] sm:h-auto overflow-hidden flex flex-col">
+      {/* Desktop header only */}
+      <div className="hidden sm:flex mb-5 items-end justify-between gap-4">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.28em] text-orange-300">
             Swipe mode
           </div>
-          <h1 className="mt-2 font-display text-2xl sm:text-4xl font-black italic tracking-tight text-white">
+          <h1 className="mt-2 font-display text-4xl font-black italic tracking-tight text-white">
             Lock picks fast
           </h1>
-          <p className="mt-2 text-xs sm:text-sm font-medium text-white/60">
+          <p className="mt-2 text-sm font-medium text-white/60">
             Swipe left = Home win. Swipe right = Away win. Draw is a button.
           </p>
         </div>
@@ -119,15 +120,15 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
               Up next
             </div>
-            <div className="mt-1 font-display text-base sm:text-xl font-black text-lime-100">{nextUpLabel}</div>
+            <div className="mt-1 font-display text-xl font-black text-lime-100">{nextUpLabel}</div>
           </div>
         ) : null}
       </div>
 
-      <div className="relative h-[520px] sm:h-[600px]">
-        {/* Background card: super subtle */}
+      <div className="relative flex-1 min-h-0">
+        {/* Background card: nearly hidden */}
         {stack[1] ? (
-          <div className="absolute inset-0 translate-y-2 scale-[0.995] opacity-15 pointer-events-none blur-[0.2px]">
+          <div className="absolute inset-0 translate-y-1 scale-[0.998] opacity-[0.06] pointer-events-none blur-[0.6px]">
             <SwipeCard match={stack[1]} disabled />
           </div>
         ) : null}
@@ -156,6 +157,15 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
                   alert(e instanceof Error ? e.message : "Failed to save prediction");
                 }
               });
+            }}
+            onPredictScore={() => {
+              if (!canInteract) return;
+              setScoreFor(top);
+              setScoreOpen(true);
+            }}
+            onSkip={() => {
+              if (!canInteract) return;
+              skipTop();
             }}
           />
         </div>
@@ -192,15 +202,6 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
               alert(e instanceof Error ? e.message : "Failed to save prediction");
             }
           });
-        }}
-        onPredictScore={() => {
-          if (!canInteract) return;
-          setScoreFor(top);
-          setScoreOpen(true);
-        }}
-        onSkip={() => {
-          if (!canInteract) return;
-          skipTop();
         }}
       />
 
