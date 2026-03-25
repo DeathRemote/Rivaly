@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { getGlobalStandingForUser } from "@/lib/global-standing";
 import { getDashboardData } from "@/lib/dashboard-data";
 
-import { sideNavItems, topNavItems } from "@/features/dashboard/mock";
+import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { accountTierLabel } from "@/lib/accountTier";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { RankBadge } from "@/components/dashboard/RankBadge";
@@ -32,7 +33,7 @@ export default async function DashboardPage() {
   const user = {
     name: session.user.username ?? session.user.name ?? "Kinetic Player",
     image: session.user.image ?? null,
-    rankLabel: session.user.tier ? String(session.user.tier) : "Free",
+    rankLabel: accountTierLabel(session.user.tier),
   };
 
   const [standing, dash] = await Promise.all([
@@ -42,8 +43,8 @@ export default async function DashboardPage() {
 
   return (
     <DashboardLayout
-      topNavItems={topNavItems}
-      sideNavItems={sideNavItems.filter((item) => (item.key === "admin" ? isAdmin : true))}
+      topNavItems={getTopNavItems()}
+      sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="dashboard"
       user={user}
     >

@@ -18,7 +18,8 @@ import type { MatchListItem } from "@/components/groups/matches/types";
 import { getMatchesForGroup } from "@/app/groups/[groupId]/matches/data";
 import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 
-import { topNavItems, sideNavItems } from "@/features/dashboard/mock";
+import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { accountTierLabel } from "@/lib/accountTier";
 import {
   getGroupCompletedMatchFeed,
   getGroupMemberAccuracies,
@@ -97,7 +98,7 @@ export default async function GroupDetailsPage({
   const user = {
     name: session.user.username ?? session.user.name ?? "Kinetic Player",
     image: session.user.image ?? null,
-    rankLabel: session.user.tier ? String(session.user.tier) : "Free",
+    rankLabel: accountTierLabel(session.user.tier),
   };
 
   const membershipRow = group.members.find((m) => m.userId === userId);
@@ -211,10 +212,8 @@ export default async function GroupDetailsPage({
 
   return (
     <DashboardLayout
-      topNavItems={topNavItems.map((i) => (i.key === "groups" ? { ...i, href: "/groups" } : i))}
-      sideNavItems={sideNavItems
-        .map((i) => (i.key === "groups" ? { ...i, href: "/groups" } : i))
-        .filter((item) => (item.key === "admin" ? isAdmin : true))}
+      topNavItems={getTopNavItems()}
+      sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="groups"
       user={user}
     >

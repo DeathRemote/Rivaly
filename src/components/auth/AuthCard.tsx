@@ -12,9 +12,15 @@ function cx(...classes: Array<string | false | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
 
-export function AuthCard({ callbackUrl }: { callbackUrl: string }) {
+export function AuthCard({
+  callbackUrl,
+  initialMode = "login",
+}: {
+  callbackUrl: string;
+  initialMode?: Mode;
+}) {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("login");
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
 
