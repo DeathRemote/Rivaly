@@ -32,10 +32,10 @@ export function GroupDetailsClient({
         group={group}
         onPredict={
           <a
-            href={`/groups/${groupId}/swipe`}
+            href="/swipe"
             className="inline-flex items-center justify-center rounded-xl bg-gradient-to-br from-[#f3ffca] to-[#beee00] px-5 py-2.5 sm:px-7 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-[#3a4a00] shadow-[0_0_20px_rgba(202,253,0,0.25)] transition hover:shadow-[0_0_30px_rgba(202,253,0,0.4)] active:scale-[0.99]"
           >
-            Make Predictions
+            Swipe predictions
           </a>
         }
         onInvite={

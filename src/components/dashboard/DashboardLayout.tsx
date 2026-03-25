@@ -24,7 +24,7 @@ export function DashboardLayout({
       <DashboardTopNav activeKey={activeKey} items={topNavItems} user={user} />
       <DashboardSidebar activeKey={activeKey} items={sideNavItems} user={user} />
 
-      <main className="lg:ml-72 pt-6 lg:pt-24 pb-32 px-6">
+      <main className="lg:ml-64 xl:ml-72 pt-5 lg:pt-20 xl:pt-24 pb-28 lg:pb-32 px-4 sm:px-6">
         <div className="mx-auto w-full max-w-7xl">{children}</div>
       </main>
 

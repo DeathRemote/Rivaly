@@ -52,18 +52,52 @@ export async function getMatchesForGroup({
     orderBy: { kickoffAt: "asc" },
   });
 
+  // Align "first round" unlock behavior with the Swipe page:
+  // If there are NO matches currently open (visibleAt <= now < lockAt) and the season hasn't started yet,
+  // unlock the opening bucket (first 72 hours from the earliest kickoff) by setting visibleAt=now.
+  const now = new Date();
+  const anyOpen = matches.some((m) => {
+    if (m.status === "FINISHED" || m.status === "CANCELED") return false;
+    const visibleAt = (m.visibleAt ?? m.kickoffAt).getTime();
+    const lockAt = (m.lockAt ?? m.kickoffAt).getTime();
+    return visibleAt <= now.getTime() && now.getTime() < lockAt;
+  });
+
+  const seasonStarted = Boolean(season?.startsAt && season.startsAt.getTime() <= now.getTime());
+
+  let openingBucketEnd: Date | null = null;
+
+  if (!anyOpen && !seasonStarted) {
+    const first = matches
+      .filter((m) => m.status !== "FINISHED" && m.status !== "CANCELED")
+      .map((m) => m.kickoffAt)
+      .filter((t) => t.getTime() > now.getTime())
+      .sort((a, b) => a.getTime() - b.getTime())[0];
+
+    if (first) {
+      openingBucketEnd = new Date(first.getTime() + 72 * 60 * 60 * 1000);
+    }
+  }
+
   return matches.map((m) => {
     const kickoffAt = m.kickoffAt.toISOString();
-    const lockAt = (m.lockAt ?? m.kickoffAt).toISOString();
-    const visibleAt = (m.visibleAt ?? m.kickoffAt).toISOString();
+    const lockAtDate = m.lockAt ?? m.kickoffAt;
+
+    const inOpeningBucket =
+      openingBucketEnd &&
+      m.kickoffAt.getTime() > now.getTime() &&
+      m.kickoffAt.getTime() <= openingBucketEnd.getTime() &&
+      now.getTime() < lockAtDate.getTime();
+
+    const visibleAtDate = inOpeningBucket ? now : m.visibleAt ?? m.kickoffAt;
 
     return {
       id: m.id,
       phaseType,
       phaseLabel: m.competitionPhase?.name ?? "Season",
       kickoffAt,
-      lockAt,
-      visibleAt,
+      lockAt: lockAtDate.toISOString(),
+      visibleAt: visibleAtDate.toISOString(),
       status: mapDbStatus(m.status),
       home: { name: m.homeTeam.name, shortName: m.homeTeam.shortName ?? undefined },
       away: { name: m.awayTeam.name, shortName: m.awayTeam.shortName ?? undefined },
