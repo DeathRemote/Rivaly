@@ -217,7 +217,7 @@ export function MatchCard({
             onClick={() => {
               startTransition(async () => {
                 try {
-                  await saveScore({ homeScore: 3, awayScore: 0, source: "QUICK_PICK" });
+                  await saveScore({ homeScore: 2, awayScore: 1, source: "QUICK_PICK" });
                 } catch {
                   // inline error already set
                 }
@@ -263,7 +263,7 @@ export function MatchCard({
             onClick={() => {
               startTransition(async () => {
                 try {
-                  await saveScore({ homeScore: 0, awayScore: 3, source: "QUICK_PICK" });
+                  await saveScore({ homeScore: 1, awayScore: 2, source: "QUICK_PICK" });
                 } catch {
                   // inline error already set
                 }
