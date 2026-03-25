@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { inSeasonOpeningWindow, inStandardKickoffWindow } from "@/lib/prediction-window";
 
 const savePredictionSchema = z.object({
   matchId: z.string().min(1),
@@ -72,14 +73,28 @@ export async function savePredictionAction(
     return { ok: false, error: "You are not eligible to predict this match." };
   }
 
-  const now = Date.now();
-  const visibleAt = Date.parse((match.visibleAt ?? match.kickoffAt).toISOString());
-  const lockAt = Date.parse((match.lockAt ?? match.kickoffAt).toISOString());
+  const allowStandard = inStandardKickoffWindow({
+    kickoffAt: match.kickoffAt,
+    visibleAt: match.visibleAt,
+    lockAt: match.lockAt,
+  });
 
-  const inKickoffWindow = Number.isFinite(visibleAt) && Number.isFinite(lockAt) && visibleAt <= now && now < lockAt;
+  let allow = allowStandard;
 
-  if (!inKickoffWindow) {
-    return { ok: false, error: "Predictions are only allowed for matches currently in the Kickoff window." };
+  // Season-start exception: if the season has not started yet, allow predicting the opening bucket.
+  if (!allow) {
+    allow = await inSeasonOpeningWindow({
+      competitionSeasonId: match.competitionSeasonId,
+      matchId: match.id,
+      bucketHours: 72,
+    });
+  }
+
+  if (!allow) {
+    return {
+      ok: false,
+      error: "Predictions are only allowed for matches currently in the Kickoff window.",
+    };
   }
 
   const p = await prisma.prediction.upsert({

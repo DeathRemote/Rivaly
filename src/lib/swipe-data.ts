@@ -33,8 +33,8 @@ export async function getSwipeMatchesForUser(userId: string): Promise<SwipeMatch
     groupIdsBySeason.set(g.competitionSeasonId, arr);
   }
 
-  // Only matches in the kickoff prediction window.
-  const matches = await prisma.match.findMany({
+  // Swipe needs: matches open now. Plus season-start exception (opening bucket) if nothing is open.
+  const standardOpen = await prisma.match.findMany({
     where: {
       competitionSeasonId: { in: seasonIds },
       status: { in: ["SCHEDULED", "LIVE", "UNKNOWN"] },
@@ -53,6 +53,54 @@ export async function getSwipeMatchesForUser(userId: string): Promise<SwipeMatch
     orderBy: { kickoffAt: "asc" },
     take: 80,
   });
+
+  let matches = standardOpen;
+
+  if (matches.length === 0) {
+    // Season-start exception: show the first bucket (first 72 hours from the earliest kickoff) per season
+    // if the season hasn't started yet.
+    const upcoming = await prisma.match.findMany({
+      where: {
+        competitionSeasonId: { in: seasonIds },
+        status: { in: ["SCHEDULED", "LIVE", "UNKNOWN"] },
+        kickoffAt: { gt: now },
+      },
+      select: {
+        id: true,
+        kickoffAt: true,
+        lockAt: true,
+        competitionSeasonId: true,
+        competitionSeason: {
+          select: {
+            seasonLabel: true,
+            startsAt: true,
+            competition: { select: { name: true } },
+          },
+        },
+        homeTeam: { select: { name: true, shortName: true } },
+        awayTeam: { select: { name: true, shortName: true } },
+      },
+      orderBy: [{ competitionSeasonId: "asc" }, { kickoffAt: "asc" }],
+      take: 250,
+    });
+
+    const firstKickoffBySeason = new Map<string, Date>();
+    for (const m of upcoming) {
+      if (!firstKickoffBySeason.has(m.competitionSeasonId)) firstKickoffBySeason.set(m.competitionSeasonId, m.kickoffAt);
+    }
+
+    const bucketMs = 72 * 60 * 60 * 1000;
+
+    matches = upcoming.filter((m) => {
+      const seasonStart = m.competitionSeason.startsAt;
+      if (seasonStart && seasonStart.getTime() <= now.getTime()) return false;
+
+      const first = firstKickoffBySeason.get(m.competitionSeasonId);
+      if (!first) return false;
+
+      return m.kickoffAt.getTime() <= first.getTime() + bucketMs;
+    });
+  }
 
   if (matches.length === 0) return [];
 
