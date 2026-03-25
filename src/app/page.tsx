@@ -4,7 +4,7 @@ import { HowItWorks } from "@/components/landing/HowItWorks";
 import { FeatureBento } from "@/components/landing/FeatureBento";
 import { Pricing } from "@/components/landing/Pricing";
 import { FinalCta } from "@/components/landing/FinalCta";
-// Footer is rendered globally in src/app/layout.tsx
+// Footer is rendered globally in src/app/layout.tsx (do not import a landing-specific Footer).
 import { MobileBottomNav } from "@/components/landing/MobileBottomNav";
 
 export default function HomePage() {
