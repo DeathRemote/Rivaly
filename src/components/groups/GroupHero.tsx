@@ -6,6 +6,10 @@ export type GroupHeroData = {
   sportLabel: string;
   memberCount: number;
   description?: string | null;
+  userStats?: {
+    points: number;
+    accuracyPct: number;
+  };
 };
 
 export function GroupHero({
@@ -18,14 +22,14 @@ export function GroupHero({
   onPredict?: React.ReactNode;
 }) {
   return (
-    <header className="relative mb-10 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-8 md:p-10">
+    <header className="relative mb-6 md:mb-10 overflow-hidden rounded-[2rem] border border-white/10 bg-white/5 p-5 sm:p-8 md:p-10">
       <div className="pointer-events-none absolute right-0 top-0 h-full w-1/2 bg-gradient-to-l from-lime-300/10 to-transparent" />
       <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-lime-300/10 blur-[120px]" />
       <div className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-orange-300/10 blur-[120px]" />
 
-      <div className="relative flex flex-col items-start justify-between gap-6 md:flex-row md:items-end">
+      <div className="relative flex flex-col items-start justify-between gap-4 md:gap-6 md:flex-row md:items-end">
         <div>
-          <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="mb-3 md:mb-4 flex flex-wrap items-center gap-2 md:gap-3">
             <span className="rounded-full border border-orange-300/20 bg-orange-300/10 px-3 py-1 text-[10px] font-black uppercase tracking-[0.2em] text-orange-200">
               {group.competition}
             </span>
@@ -41,16 +45,27 @@ export function GroupHero({
             </span>
           </div>
 
-          <h1 className="font-display text-5xl font-black tracking-tighter text-white md:text-6xl">
+          <h1 className="font-display text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter text-white">
             {group.name} <span className="text-lime-100 italic">PRIME</span>
           </h1>
-          <p className="mt-3 max-w-2xl text-sm font-medium text-white/60">
+          <p className="mt-2 md:mt-3 max-w-2xl text-sm font-medium text-white/60">
             {group.description ||
               "High-stakes predictions arena. Compete with your squad and climb the board."}
           </p>
+
+          {group.userStats ? (
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+                Your points: {group.userStats.points.toLocaleString()}
+              </span>
+              <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
+                Accuracy: {group.userStats.accuracyPct}%
+              </span>
+            </div>
+          ) : null}
         </div>
 
-        <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+        <div className="flex w-full flex-col gap-2 sm:gap-3 sm:w-auto sm:flex-row">
           {onInvite ?? (
             <button
               type="button"

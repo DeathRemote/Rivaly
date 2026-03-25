@@ -1,18 +1,21 @@
 import Image from "next/image";
+import Link from "next/link";
 
 import type { LeaderboardRow } from "@/features/dashboard/mock";
 import { cn } from "@/lib/cn";
 
-function xpFmt(xp: number) {
-  return new Intl.NumberFormat("en-US").format(xp);
+function pointsFmt(points: number) {
+  return new Intl.NumberFormat("en-US").format(points);
 }
 
 export function GroupLeaderboardCard({
   groupName,
   rows,
+  spotlightMeta,
 }: {
   groupName: string;
   rows: LeaderboardRow[];
+  spotlightMeta?: { needsToPredictCount: number; groupId: string };
 }) {
   return (
     <section className="rounded-xl bg-white/5 p-8">
@@ -21,6 +24,14 @@ export function GroupLeaderboardCard({
           <h3 className="font-display text-2xl font-black italic uppercase tracking-tight">
             {groupName}
           </h3>
+
+          {spotlightMeta ? (
+            <p className="mt-2 text-xs font-medium text-white/60">
+              You still have <span className="text-white font-bold">{spotlightMeta.needsToPredictCount}</span> match
+              {spotlightMeta.needsToPredictCount === 1 ? "" : "es"} to predict in this group.
+            </p>
+          ) : null
+          }
 
           <div className="mt-4 space-y-4">
             {rows.map((row) => {
@@ -82,7 +93,7 @@ export function GroupLeaderboardCard({
                           : "text-white/60",
                     )}
                   >
-                    {xpFmt(row.xp)} XP
+                    {pointsFmt(row.xp)} PTS
                   </span>
                 </div>
               );
@@ -98,9 +109,12 @@ export function GroupLeaderboardCard({
           <p className="mt-2 text-xs font-medium text-white/60">
             You’re close to the next spot. Keep predicting.
           </p>
-          <button className="mt-6 rounded-xl border border-lime-300/30 px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-lime-100 hover:bg-lime-300/5">
-            View All Groups
-          </button>
+          <Link
+            href={spotlightMeta ? `/groups/${spotlightMeta.groupId}` : "/groups"}
+            className="mt-6 inline-flex items-center justify-center rounded-xl border border-lime-300/30 px-8 py-3 text-xs font-black uppercase tracking-[0.18em] text-lime-100 hover:bg-lime-300/5"
+          >
+            {spotlightMeta ? "Open Group" : "View All Groups"}
+          </Link>
         </div>
       </div>
     </section>

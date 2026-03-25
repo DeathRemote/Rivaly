@@ -19,12 +19,21 @@ enum UserRole {
   ADMIN
 }
 
+enum AccountTier {
+  FREE
+  BASIC
+  PRO
+  ELITE
+  FRIENDS_AND_FAMILY
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
   username      String?   @unique
   country       String?
-  role          UserRole  @default(USER)
+  role          UserRole    @default(USER)
+  accountTier   AccountTier @default(FREE)
   email         String?   @unique
   image         String?
   emailVerified DateTime?
@@ -42,7 +51,7 @@ model User {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   passwordResetTokens PasswordResetToken[]
-  groupPredictions    GroupPrediction[]
+  predictions         Prediction[]
   pointsEvents        PointsEvent[]
 }
 
@@ -154,9 +163,8 @@ model Group {
   members GroupMember[]
   pointsEvents PointsEvent[]
 
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
-  groupPredictions GroupPrediction[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   @@index([visibility])
   @@index([createdById])
@@ -185,11 +193,10 @@ enum PredictionSource {
   SCORE
 }
 
-model GroupPrediction {
+model Prediction {
   id        String           @id @default(cuid())
-  groupId   String
   userId    String
-  matchKey  String
+  matchId   String
   homeScore Int
   awayScore Int
   source    PredictionSource @default(SCORE)
@@ -197,13 +204,12 @@ model GroupPrediction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
-  @@unique([groupId, userId, matchKey])
-  @@index([groupId])
+  @@unique([userId, matchId])
   @@index([userId])
-  @@index([matchKey])
+  @@index([matchId])
 }
 
 model Competition {
@@ -310,6 +316,7 @@ model Match {
   finalizedAt          DateTime?
   processedAt          DateTime?
   pointsEvents         PointsEvent[]
+  predictions          Prediction[]
 
   competitionSeason    CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
   competitionPhase     CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
