@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 
 import { SwipeCard } from "@/components/swipe/SwipeCard";
 import { PredictScoreModal } from "@/components/swipe/PredictScoreModal";
+import { SwipeControls } from "@/components/swipe/SwipeControls";
 import type { SwipeMatch } from "@/lib/swipe-data";
 import { savePredictionAction } from "@/app/predictions/actions";
 
@@ -41,6 +42,16 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
       setStack((s) => s.filter((x) => x.matchId !== top.matchId));
       setAnim(null);
     }, 260);
+  }
+
+  function skipTop() {
+    if (!top) return;
+    // Move to the end. No save.
+    setAnim({ matchId: top.matchId, dir: "down" });
+    window.setTimeout(() => {
+      setStack((s) => (s.length <= 1 ? s : [...s.slice(1), s[0]!].filter(Boolean)));
+      setAnim(null);
+    }, 220);
   }
 
   async function submitQuickPick(match: SwipeMatch, pick: "home" | "draw" | "away") {
@@ -90,33 +101,33 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
 
   return (
     <div className="mx-auto w-full max-w-2xl">
-      <div className="mb-5 flex items-end justify-between gap-4">
+      <div className="mb-4 sm:mb-5 flex items-end justify-between gap-4">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.28em] text-orange-300">
             Swipe mode
           </div>
-          <h1 className="mt-2 font-display text-4xl font-black italic tracking-tight text-white">
+          <h1 className="mt-2 font-display text-2xl sm:text-4xl font-black italic tracking-tight text-white">
             Lock picks fast
           </h1>
-          <p className="mt-2 text-sm font-medium text-white/60">
+          <p className="mt-2 text-xs sm:text-sm font-medium text-white/60">
             Swipe left = Home win. Swipe right = Away win. Draw is a button.
           </p>
         </div>
 
         {nextUpLabel ? (
-          <div className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-center">
+          <div className="rounded-2xl border border-white/10 bg-black/20 px-3 py-2 text-center">
             <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
               Up next
             </div>
-            <div className="mt-1 font-display text-xl font-black text-lime-100">{nextUpLabel}</div>
+            <div className="mt-1 font-display text-base sm:text-xl font-black text-lime-100">{nextUpLabel}</div>
           </div>
         ) : null}
       </div>
 
-      <div className="relative h-[540px] sm:h-[600px]">
-        {/* Second card peek */}
+      <div className="relative h-[520px] sm:h-[600px]">
+        {/* Background card: super subtle */}
         {stack[1] ? (
-          <div className="absolute inset-0 translate-y-3 scale-[0.98] opacity-60 pointer-events-none">
+          <div className="absolute inset-0 translate-y-2 scale-[0.995] opacity-15 pointer-events-none blur-[0.2px]">
             <SwipeCard match={stack[1]} disabled />
           </div>
         ) : null}
@@ -146,44 +157,52 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
                 }
               });
             }}
-            onHome={() => {
-              if (!canInteract) return;
-              startTransition(async () => {
-                try {
-                  await submitQuickPick(top, "home");
-                } catch (e) {
-                  alert(e instanceof Error ? e.message : "Failed to save prediction");
-                }
-              });
-            }}
-            onDraw={() => {
-              if (!canInteract) return;
-              startTransition(async () => {
-                try {
-                  await submitQuickPick(top, "draw");
-                } catch (e) {
-                  alert(e instanceof Error ? e.message : "Failed to save prediction");
-                }
-              });
-            }}
-            onAway={() => {
-              if (!canInteract) return;
-              startTransition(async () => {
-                try {
-                  await submitQuickPick(top, "away");
-                } catch (e) {
-                  alert(e instanceof Error ? e.message : "Failed to save prediction");
-                }
-              });
-            }}
-            onPredictScore={() => {
-              if (!canInteract) return;
-              setScoreFor(top);
-              setScoreOpen(true);
-            }}
           />
         </div>
       </div>
+
+      <SwipeControls
+        disabled={!canInteract}
+        onHome={() => {
+          if (!canInteract) return;
+          startTransition(async () => {
+            try {
+              await submitQuickPick(top, "home");
+            } catch (e) {
+              alert(e instanceof Error ? e.message : "Failed to save prediction");
+            }
+          });
+        }}
+        onDraw={() => {
+          if (!canInteract) return;
+          startTransition(async () => {
+            try {
+              await submitQuickPick(top, "draw");
+            } catch (e) {
+              alert(e instanceof Error ? e.message : "Failed to save prediction");
+            }
+          });
+        }}
+        onAway={() => {
+          if (!canInteract) return;
+          startTransition(async () => {
+            try {
+              await submitQuickPick(top, "away");
+            } catch (e) {
+              alert(e instanceof Error ? e.message : "Failed to save prediction");
+            }
+          });
+        }}
+        onPredictScore={() => {
+          if (!canInteract) return;
+          setScoreFor(top);
+          setScoreOpen(true);
+        }}
+        onSkip={() => {
+          if (!canInteract) return;
+          skipTop();
+        }}
+      />
 
       <PredictScoreModal
         open={scoreOpen}

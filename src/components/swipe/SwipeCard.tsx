@@ -10,20 +10,12 @@ export function SwipeCard({
   disabled,
   onSwipeLeft,
   onSwipeRight,
-  onHome,
-  onDraw,
-  onAway,
-  onPredictScore,
   animDirection,
 }: {
   match: SwipeMatch;
   disabled?: boolean;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
-  onHome?: () => void;
-  onDraw?: () => void;
-  onAway?: () => void;
-  onPredictScore?: () => void;
   animDirection?: "left" | "right" | "down" | null;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
@@ -40,8 +32,8 @@ export function SwipeCard({
     if (!drag.active) return null;
     if (Math.abs(drag.x) < 24) return null;
     return drag.x < 0
-      ? { label: "HOME", tone: "lime" as const }
-      : { label: "AWAY", tone: "cyan" as const };
+      ? { label: "HOME WIN", tone: "lime" as const, corner: "left" as const }
+      : { label: "AWAY WIN", tone: "cyan" as const, corner: "right" as const };
   }, [drag]);
 
   const style = useMemo(() => {
@@ -103,8 +95,9 @@ export function SwipeCard({
         {overlay ? (
           <div
             className={cn(
-              "pointer-events-none absolute top-6 left-6 z-20 rounded-2xl px-4 py-2",
+              "pointer-events-none absolute top-6 z-20 rounded-2xl px-4 py-2",
               "text-[10px] font-black uppercase tracking-[0.28em]",
+              overlay.corner === "left" ? "left-6" : "right-6",
               overlay.tone === "lime" ? "bg-lime-300 text-black" : "bg-cyan-300 text-black",
             )}
           >
@@ -112,12 +105,18 @@ export function SwipeCard({
           </div>
         ) : null}
 
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex items-center justify-between gap-3 pt-12">
           <span className="rounded-full border border-white/10 bg-black/25 px-3 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/70">
             Open now
           </span>
-          <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
-            Locks {lockAt.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" })}
+          <span className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40 text-right">
+            Locks {lockAt.toLocaleString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
           </span>
         </div>
 
@@ -126,11 +125,24 @@ export function SwipeCard({
             {match.competitionLabel}
           </div>
 
-          <h2 className="mt-3 font-display text-4xl sm:text-5xl font-black italic tracking-tight text-white">
-            {match.home.shortName ?? match.home.name}
-            <span className="mx-3 text-white/20">vs</span>
-            {match.away.shortName ?? match.away.name}
-          </h2>
+          <div className="mt-3">
+            {/* Mobile: stacked to prevent overflow. Desktop+: side-by-side */}
+            <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-5">
+              <div className="min-w-0 max-w-full text-center">
+                <div className="font-display text-3xl sm:text-4xl md:text-5xl font-black italic tracking-tight text-white break-words">
+                  {match.home.shortName ?? match.home.name}
+                </div>
+              </div>
+
+              <div className="font-display text-xl md:text-2xl font-black italic text-white/25">VS</div>
+
+              <div className="min-w-0 max-w-full text-center">
+                <div className="font-display text-3xl sm:text-4xl md:text-5xl font-black italic tracking-tight text-white break-words">
+                  {match.away.shortName ?? match.away.name}
+                </div>
+              </div>
+            </div>
+          </div>
 
           <p className="mt-3 text-sm font-medium text-white/60">
             {kickoff.toLocaleString(undefined, {
@@ -143,71 +155,7 @@ export function SwipeCard({
           </p>
         </div>
 
-        <div className="mt-auto">
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={onHome}
-              className={cn(
-                "h-12 rounded-2xl border border-white/10 bg-black/25",
-                "text-[10px] font-black uppercase tracking-[0.22em] text-white/80",
-                "hover:bg-white/5 active:scale-[0.99] transition",
-              )}
-            >
-              Home Win
-              <div className="mt-1 text-[10px] text-white/40">2-1</div>
-            </button>
-
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={onDraw}
-              className={cn(
-                "h-12 rounded-2xl border border-white/10 bg-black/25",
-                "text-[10px] font-black uppercase tracking-[0.22em] text-white/80",
-                "hover:bg-white/5 active:scale-[0.99] transition",
-              )}
-            >
-              Draw
-              <div className="mt-1 text-[10px] text-white/40">1-1</div>
-            </button>
-
-            <button
-              type="button"
-              disabled={disabled}
-              onClick={onAway}
-              className={cn(
-                "h-12 rounded-2xl border border-white/10 bg-black/25",
-                "text-[10px] font-black uppercase tracking-[0.22em] text-white/80",
-                "hover:bg-white/5 active:scale-[0.99] transition",
-              )}
-            >
-              Away Win
-              <div className="mt-1 text-[10px] text-white/40">1-2</div>
-            </button>
-          </div>
-
-          <button
-            type="button"
-            disabled={disabled}
-            onClick={onPredictScore}
-            className={cn(
-              "mt-4 w-full h-12 rounded-2xl",
-              "bg-gradient-to-br from-[#f3ffca] to-[#beee00] text-[#3a4a00]",
-              "text-xs font-black uppercase tracking-[0.22em]",
-              "shadow-[0_0_24px_rgba(202,253,0,0.18)]",
-              "hover:brightness-110 active:scale-[0.99] transition",
-            )}
-          >
-            Predict Score
-          </button>
-
-          <div className="mt-4 flex items-center justify-between text-[10px] font-black uppercase tracking-[0.22em] text-white/35">
-            <span>Swipe ← home</span>
-            <span>Swipe → away</span>
-          </div>
-        </div>
+        <div className="mt-auto" />
       </div>
     </div>
   );

@@ -22,6 +22,7 @@ export default async function SwipePage() {
       topNavItems={topNavItems}
       sideNavItems={sideNavItems}
       activeKey="swipe"
+      hideMobileFab
       user={{
         name: session.user.username ?? session.user.name ?? "Kinetic Player",
         image: session.user.image ?? null,
