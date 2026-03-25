@@ -114,7 +114,7 @@ export default async function GroupDetailsPage({
       : [[], null];
 
   const leaderboard: LeaderboardRowData[] = group.members.map((m, idx) => {
-    const acc = accuracyByUser.get(m.userId);
+    const acc = accuracyByUser[m.userId];
     const accuracyPct = acc && acc.scored > 0 ? Math.round((acc.correct / acc.scored) * 100) : 0;
 
     // Trend v0: compare event count last 7D vs previous 7D.
@@ -136,7 +136,7 @@ export default async function GroupDetailsPage({
   });
 
   const currentUserAccuracy = (() => {
-    const acc = accuracyByUser.get(userId);
+    const acc = accuracyByUser[userId];
     if (!acc || acc.scored === 0) return 0;
     return Math.round((acc.correct / acc.scored) * 100);
   })();

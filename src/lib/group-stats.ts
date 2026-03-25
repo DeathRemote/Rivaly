@@ -5,7 +5,16 @@ import { winnerOf } from "@/lib/scoring/predictions";
 
 // Note: group-level derived reads can be reused briefly.
 
-async function _getGroupMemberAccuracies(groupId: string) {
+export type GroupMemberAccuracy = {
+  scored: number;
+  correct: number;
+  last7d: number;
+  prev7d: number;
+};
+
+export type GroupMemberAccuracyByUserId = Record<string, GroupMemberAccuracy>;
+
+async function _getGroupMemberAccuracies(groupId: string): Promise<GroupMemberAccuracyByUserId> {
   const now = new Date();
   const d7 = 7 * 24 * 60 * 60 * 1000;
   const from7 = new Date(now.getTime() - d7);
@@ -40,41 +49,33 @@ async function _getGroupMemberAccuracies(groupId: string) {
     }),
   ]);
 
-  const byUser = new Map<
-    string,
-    {
-      scored: number;
-      correct: number;
-      last7d: number;
-      prev7d: number;
-    }
-  >();
+  const byUser: GroupMemberAccuracyByUserId = {};
 
   for (const r of total) {
-    byUser.set(r.userId, {
+    byUser[r.userId] = {
       scored: r._count._all,
       correct: 0,
       last7d: 0,
       prev7d: 0,
-    });
+    };
   }
 
   for (const r of correct) {
-    const cur = byUser.get(r.userId) ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
+    const cur = byUser[r.userId] ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
     cur.correct = r._count._all;
-    byUser.set(r.userId, cur);
+    byUser[r.userId] = cur;
   }
 
   for (const r of last7) {
-    const cur = byUser.get(r.userId) ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
+    const cur = byUser[r.userId] ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
     cur.last7d = r._count._all;
-    byUser.set(r.userId, cur);
+    byUser[r.userId] = cur;
   }
 
   for (const r of prev7) {
-    const cur = byUser.get(r.userId) ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
+    const cur = byUser[r.userId] ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
     cur.prev7d = r._count._all;
-    byUser.set(r.userId, cur);
+    byUser[r.userId] = cur;
   }
 
   return byUser;

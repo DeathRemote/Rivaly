@@ -13,12 +13,15 @@ async function _getDashboardData(userId: string) {
       updatedAt: true,
       competitionSeasonId: true,
       members: {
+        orderBy: { points: "desc" },
+        take: 3,
         select: {
           userId: true,
           points: true,
           user: { select: { name: true, username: true } },
         },
       },
+      _count: { select: { members: true } },
     },
   });
 
@@ -78,15 +81,14 @@ async function _getDashboardData(userId: string) {
     openNeededBySeason.set(m.competitionSeasonId, (openNeededBySeason.get(m.competitionSeasonId) ?? 0) + 1);
   }
 
-  const lastActivityByGroup = await prisma.pointsEvent.findMany({
+  const lastActivityByGroup = await prisma.pointsEvent.groupBy({
+    by: ["groupId"],
     where: { groupId: { in: groups.map((g) => g.id) } },
-    select: { groupId: true, createdAt: true },
-    orderBy: { createdAt: "desc" },
-    take: 200,
+    _max: { createdAt: true },
   });
   const latestEventAt = new Map<string, Date>();
-  for (const evt of lastActivityByGroup) {
-    if (!latestEventAt.has(evt.groupId)) latestEventAt.set(evt.groupId, evt.createdAt);
+  for (const r of lastActivityByGroup) {
+    if (r._max.createdAt) latestEventAt.set(r.groupId, r._max.createdAt);
   }
 
   const spotlight = pickSpotlightGroup(groups, {
@@ -233,8 +235,7 @@ function buildTop3(
   members: Array<{ userId: string; points: number; user: { name: string | null; username: string | null } }>,
   meId: string,
 ) {
-  const sorted = [...members].sort((a, b) => b.points - a.points);
-  return sorted.slice(0, 3).map((m, idx) => ({
+  return members.slice(0, 3).map((m, idx) => ({
     position: idx + 1,
     name: m.user.username ?? m.user.name ?? "Unknown",
     points: m.points,
