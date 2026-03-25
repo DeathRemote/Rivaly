@@ -89,7 +89,7 @@ export function SwipeCard({
     <div
       ref={ref}
       className={cn(
-        "h-full w-full rounded-[2rem] border border-white/10 bg-[#111417] overflow-hidden",
+        "relative z-50 h-full w-full rounded-[2rem] border border-white/10 bg-[#111417] overflow-hidden",
         "shadow-[0_30px_80px_rgba(0,0,0,0.55)]",
         "touch-none", // critical for mobile: prevent browser scroll/gesture from hijacking the drag
         disabled && "opacity-70",
@@ -117,7 +117,8 @@ export function SwipeCard({
       }}
       onPointerUp={() => {
         if (disabled) return;
-        const threshold = 120;
+        const thresholdX = 120;
+        const thresholdY = 200; // harder to trigger Draw; must be deliberate
         const x = drag.x;
         const y = drag.y;
 
@@ -128,15 +129,17 @@ export function SwipeCard({
         const ay = Math.abs(y);
 
         // Prefer the dominant axis (more "Tinder" feel)
-        if (ax >= threshold && ax >= ay) {
-          if (x <= -threshold) onSwipeLeft?.();
-          else if (x >= threshold) onSwipeRight?.();
+        // Horizontal should stay easy; vertical (Draw) should require stronger intent.
+        if (ax >= thresholdX && ax >= ay) {
+          if (x <= -thresholdX) onSwipeLeft?.();
+          else if (x >= thresholdX) onSwipeRight?.();
           return;
         }
 
-        if (ay >= threshold && ay > ax) {
-          if (y <= -threshold) onSwipeUp?.();
-          else if (y >= threshold) onSwipeDown?.();
+        // Draw: require bigger movement AND clear vertical dominance.
+        if (ay >= thresholdY && ay >= ax * 1.25) {
+          if (y <= -thresholdY) onSwipeUp?.();
+          else if (y >= thresholdY) onSwipeDown?.();
         }
       }}
       onPointerCancel={() => {

@@ -101,7 +101,7 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl h-[calc(100dvh-10rem)] sm:h-[740px] overflow-hidden flex flex-col">
+    <div className="mx-auto w-full max-w-2xl h-[calc(100dvh-10rem)] sm:h-[740px] overflow-hidden sm:overflow-visible flex flex-col">
       {/* Desktop header only */}
       <div className="hidden sm:flex mb-5 items-end justify-between gap-4">
         <div>
@@ -126,7 +126,7 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
         ) : null}
       </div>
 
-      <div className="relative flex-1 min-h-0">
+      <div className="relative flex-1 min-h-0 overflow-visible">
         {/* Background card: nearly hidden */}
         {dragging && stack[1] ? (
           <div className="absolute inset-0 translate-y-2 scale-[0.97] pointer-events-none">

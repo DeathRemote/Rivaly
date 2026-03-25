@@ -20,7 +20,7 @@ export function DashboardLayout({
   hideMobileFab?: boolean;
 }) {
   return (
-    <div className="min-h-screen bg-background text-foreground overflow-x-hidden">
+    <div className="min-h-screen bg-background text-foreground overflow-x-hidden lg:overflow-x-visible">
       <DashboardTopNav activeKey={activeKey} items={topNavItems} user={user} />
       <DashboardSidebar activeKey={activeKey} items={sideNavItems} user={user} />
 
