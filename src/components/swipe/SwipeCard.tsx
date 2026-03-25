@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SwipeMatch } from "@/lib/swipe-data";
 import { cn } from "@/lib/cn";
@@ -29,6 +29,26 @@ export function SwipeCard({
   animDirection?: "left" | "right" | "down" | "up" | null;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+  const [cardHeight, setCardHeight] = useState<number>(
+    typeof window === "undefined" ? 700 : window.innerHeight,
+  );
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    const update = () => {
+      const h = el.getBoundingClientRect().height;
+      if (Number.isFinite(h) && h > 0) setCardHeight(h);
+    };
+
+    update();
+
+    const ro = new ResizeObserver(() => update());
+    ro.observe(el);
+
+    return () => ro.disconnect();
+  }, []);
 
   const [drag, setDrag] = useState<{
     x: number;
@@ -52,18 +72,24 @@ export function SwipeCard({
 
     const ax = Math.abs(drag.x);
     const ay = Math.abs(drag.y);
-    const min = 24;
-    if (Math.max(ax, ay) < min) return null;
 
-    // Dominant axis overlay
-    if (ay > ax) {
+    const thresholdX = 120;
+    // Draw triggers only when the card has been pulled ~1/3 of its height up/down.
+    const thresholdY = cardHeight / 3;
+
+    // Draw overlay only when it would actually trigger on release.
+    if (ay >= thresholdY && ay >= ax * 1.2) {
       return { label: "DRAW", tone: "neutral" as const, corner: "center" as const };
     }
 
-    return drag.x < 0
-      ? { label: "HOME WIN", tone: "lime" as const, corner: "left" as const }
-      : { label: "AWAY WIN", tone: "cyan" as const, corner: "right" as const };
-  }, [drag.active, drag.x, drag.y]);
+    if (ax >= thresholdX && ax >= ay) {
+      return drag.x < 0
+        ? { label: "HOME WIN", tone: "lime" as const, corner: "left" as const }
+        : { label: "AWAY WIN", tone: "cyan" as const, corner: "right" as const };
+    }
+
+    return null;
+  }, [drag.active, drag.x, drag.y, cardHeight]);
 
   const style = useMemo(() => {
     if (animDirection) {
@@ -119,11 +145,9 @@ export function SwipeCard({
         if (disabled) return;
         const thresholdX = 120;
 
-        // Draw threshold is relative to the card height so it scales across devices.
-        // Make Draw *deliberate* (harder than Home/Away): require a large vertical travel.
-        // Example: ~45% of card height.
-        const cardHeight = ref.current?.getBoundingClientRect().height ?? window.innerHeight;
-        const thresholdY = cardHeight * 0.45;
+        // Draw: require the card to travel ~1/3 of its own height up/down.
+        // This matches the "top is 1/3 down" / "bottom is 1/3 up" mental model.
+        const thresholdY = cardHeight / 3;
 
         const x = drag.x;
         const y = drag.y;
@@ -142,8 +166,8 @@ export function SwipeCard({
           return;
         }
 
-        // Draw: require bigger movement AND very clear vertical dominance.
-        if (ay >= thresholdY && ay >= ax * 1.6) {
+        // Draw: require bigger movement AND clear vertical dominance.
+        if (ay >= thresholdY && ay >= ax * 1.2) {
           if (y <= -thresholdY) onSwipeUp?.();
           else if (y >= thresholdY) onSwipeDown?.();
         }
