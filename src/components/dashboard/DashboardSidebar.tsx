@@ -8,12 +8,11 @@ import {
   User,
   BadgeCheck,
   CreditCard,
-  Plus,
 } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 import type { DashboardNavItem } from "@/features/dashboard/mock";
-import { PrimaryCTAButton } from "@/components/dashboard/PrimaryCTAButton";
+import { SidebarAd } from "@/components/ads/SidebarAd";
 import { UserBadge } from "@/components/dashboard/UserBadge";
 
 function iconForKey(key: DashboardNavItem["key"]) {
@@ -76,14 +75,11 @@ export function DashboardSidebar({
         })}
       </nav>
 
-      <div className="p-6">
-        <PrimaryCTAButton>
-          <span className="inline-flex items-center justify-center gap-2">
-            Make Prediction
-            <Plus className="h-5 w-5" />
-          </span>
-        </PrimaryCTAButton>
-      </div>
+      {activeKey !== "swipe" ? (
+        <div className="p-6">
+          <SidebarAd />
+        </div>
+      ) : null}
     </aside>
   );
 }
