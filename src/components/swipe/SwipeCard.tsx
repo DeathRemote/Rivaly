@@ -10,8 +10,11 @@ export function SwipeCard({
   disabled,
   onSwipeLeft,
   onSwipeRight,
+  onSwipeUp,
+  onSwipeDown,
   onPredictScore,
   onSkip,
+  onDragActiveChange,
   animDirection,
 }: {
   match: SwipeMatch;
@@ -46,11 +49,21 @@ export function SwipeCard({
 
   const overlay = useMemo(() => {
     if (!drag.active) return null;
-    if (Math.abs(drag.x) < 24) return null;
+
+    const ax = Math.abs(drag.x);
+    const ay = Math.abs(drag.y);
+    const min = 24;
+    if (Math.max(ax, ay) < min) return null;
+
+    // Dominant axis overlay
+    if (ay > ax) {
+      return { label: "DRAW", tone: "neutral" as const, corner: "center" as const };
+    }
+
     return drag.x < 0
       ? { label: "HOME WIN", tone: "lime" as const, corner: "left" as const }
       : { label: "AWAY WIN", tone: "cyan" as const, corner: "right" as const };
-  }, [drag]);
+  }, [drag.active, drag.x, drag.y]);
 
   const style = useMemo(() => {
     if (animDirection) {
@@ -141,8 +154,16 @@ export function SwipeCard({
             className={cn(
               "pointer-events-none absolute top-6 z-20 rounded-2xl px-4 py-2",
               "text-[10px] font-black uppercase tracking-[0.28em]",
-              overlay.corner === "left" ? "left-6" : "right-6",
-              overlay.tone === "lime" ? "bg-lime-300 text-black" : "bg-cyan-300 text-black",
+              overlay.corner === "left"
+                ? "left-6"
+                : overlay.corner === "right"
+                  ? "right-6"
+                  : "left-1/2 -translate-x-1/2",
+              overlay.tone === "lime"
+                ? "bg-lime-300 text-black"
+                : overlay.tone === "cyan"
+                  ? "bg-cyan-300 text-black"
+                  : "bg-white text-black",
             )}
           >
             {overlay.label}
