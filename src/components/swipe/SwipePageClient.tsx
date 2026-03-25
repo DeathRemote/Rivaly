@@ -129,8 +129,9 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
       <div className="relative flex-1 min-h-0">
         {/* Background card: nearly hidden */}
         {dragging && stack[1] ? (
-          <div className="absolute inset-0 translate-y-[2px] scale-[0.999] opacity-[0.12] pointer-events-none blur-[0.8px]">
+          <div className="absolute inset-0 translate-y-2 scale-[0.97] pointer-events-none">
             <SwipeCard match={stack[1]} disabled />
+            <div className="pointer-events-none absolute inset-0 rounded-[2rem] shadow-[0_18px_60px_rgba(0,0,0,0.45)]" />
           </div>
         ) : null}
 
