@@ -118,7 +118,12 @@ export function SwipeCard({
       onPointerUp={() => {
         if (disabled) return;
         const thresholdX = 120;
-        const thresholdY = 200; // harder to trigger Draw; must be deliberate
+
+        // Draw threshold is relative to the card height so it scales across devices.
+        // Example: ~28% of card height.
+        const cardHeight = ref.current?.getBoundingClientRect().height ?? window.innerHeight;
+        const thresholdY = cardHeight * 0.28;
+
         const x = drag.x;
         const y = drag.y;
 
