@@ -23,10 +23,19 @@ export function SwipeCard({
   animDirection?: "left" | "right" | "down" | null;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
-  const [drag, setDrag] = useState<{ x: number; y: number; active: boolean }>({
+
+  const [drag, setDrag] = useState<{
+    x: number;
+    y: number;
+    active: boolean;
+    startX: number;
+    startY: number;
+  }>({
     x: 0,
     y: 0,
     active: false,
+    startX: 0,
+    startY: 0,
   });
 
   const kickoff = useMemo(() => new Date(match.kickoffAt), [match.kickoffAt]);
@@ -66,30 +75,40 @@ export function SwipeCard({
       className={cn(
         "h-full w-full rounded-[2rem] border border-white/10 bg-white/5 overflow-hidden",
         "shadow-[0_30px_80px_rgba(0,0,0,0.55)]",
+        "touch-none", // critical for mobile: prevent browser scroll/gesture from hijacking the drag
         disabled && "opacity-70",
       )}
       style={style}
       onPointerDown={(e) => {
         if (disabled) return;
+
+        // Don’t start a drag from interactive controls.
+        const target = e.target as HTMLElement;
+        if (target.closest("button") || target.closest("input") || target.closest("a")) return;
+
         (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
-        setDrag({ x: 0, y: 0, active: true });
+        setDrag({ x: 0, y: 0, active: true, startX: e.clientX, startY: e.clientY });
       }}
       onPointerMove={(e) => {
         if (disabled) return;
         if (!drag.active) return;
-        setDrag((d) => ({ ...d, x: d.x + e.movementX, y: d.y + e.movementY }));
+        setDrag((d) => ({
+          ...d,
+          x: e.clientX - d.startX,
+          y: e.clientY - d.startY,
+        }));
       }}
       onPointerUp={() => {
         if (disabled) return;
         const threshold = 120;
         const x = drag.x;
 
-        setDrag({ x: 0, y: 0, active: false });
+        setDrag({ x: 0, y: 0, active: false, startX: 0, startY: 0 });
 
         if (x <= -threshold) onSwipeLeft?.();
         else if (x >= threshold) onSwipeRight?.();
       }}
-      onPointerCancel={() => setDrag({ x: 0, y: 0, active: false })}
+      onPointerCancel={() => setDrag({ x: 0, y: 0, active: false, startX: 0, startY: 0 })}
     >
       <div className="relative h-full p-6 sm:p-8 flex flex-col">
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-lime-300/10 blur-[120px]" />
@@ -109,40 +128,23 @@ export function SwipeCard({
           </div>
         ) : null}
 
-        <div className={cn(
-          "flex items-start justify-between gap-3 pt-12",
-          "flex-col sm:flex-row sm:items-center",
-        )}>
-          <span className={cn(
-            "inline-flex items-center justify-center",
-            "h-7 px-3 rounded-full",
-            "border border-white/10 bg-black/25",
-            "text-[10px] font-black uppercase tracking-[0.22em] text-white/70",
-          )}>
-            Open now
-          </span>
-
-          <span className={cn(
-            "text-[10px] font-black uppercase tracking-[0.22em] text-white/40",
-            "sm:text-right",
-          )}>
-            <span className="block sm:inline">Locks</span>
-            <span className="block sm:inline sm:ml-2">
-              {lockAt.toLocaleString(undefined, {
-                weekday: "short",
-                month: "short",
-                day: "2-digit",
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </span>
-          </span>
-        </div>
-
-        <div className="mt-6 text-center">
+        <div className="pt-12 text-center">
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
             {match.competitionLabel}
           </div>
+
+          <div className="mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
+            Locks {lockAt.toLocaleString(undefined, {
+              weekday: "short",
+              month: "short",
+              day: "2-digit",
+              hour: "2-digit",
+              minute: "2-digit",
+            })}
+          </div>
+        </div>
+
+        <div className="mt-6 text-center">
 
           <div className="mt-3">
             {/* Mobile: stacked to prevent overflow. Desktop+: side-by-side */}
