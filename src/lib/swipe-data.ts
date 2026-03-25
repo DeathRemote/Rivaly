@@ -7,7 +7,7 @@ export type SwipeMatch = {
   competitionLabel: string;
   home: { name: string; shortName?: string | null };
   away: { name: string; shortName?: string | null };
-  // A representative group context for authorization + navigation.
+  // A representative group context for navigation (saving is global, not group-scoped).
   groupId: string;
 };
 

@@ -5,7 +5,7 @@ import { useMemo, useState, useTransition } from "react";
 import { SwipeCard } from "@/components/swipe/SwipeCard";
 import { PredictScoreModal } from "@/components/swipe/PredictScoreModal";
 import type { SwipeMatch } from "@/lib/swipe-data";
-import { saveGroupPredictionAction } from "@/app/groups/[groupId]/matches/actions";
+import { savePredictionAction } from "@/app/predictions/actions";
 
 type Direction = "left" | "right" | "down";
 
@@ -46,10 +46,8 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   async function submitQuickPick(match: SwipeMatch, pick: "home" | "draw" | "away") {
     const score = QUICK[pick];
 
-    const res = await saveGroupPredictionAction({
-      groupId: match.groupId,
+    const res = await savePredictionAction({
       matchId: match.matchId,
-      phaseType: "LEAGUE",
       homeScore: score.homeScore,
       awayScore: score.awayScore,
       source: "QUICK_PICK",
@@ -61,10 +59,8 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   }
 
   async function submitExactScore(match: SwipeMatch, homeScore: number, awayScore: number) {
-    const res = await saveGroupPredictionAction({
-      groupId: match.groupId,
+    const res = await savePredictionAction({
       matchId: match.matchId,
-      phaseType: "LEAGUE",
       homeScore,
       awayScore,
       source: "SCORE",
