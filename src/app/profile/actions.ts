@@ -132,3 +132,21 @@ export async function updateProfileAction(input: UpdateProfileInput): Promise<Up
 
   return { ok: true };
 }
+
+export type DeleteAccountResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export async function deleteAccountAction(): Promise<DeleteAccountResult> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "You must be logged in." };
+
+  // Delete the user; tenant-scoped data is expected to cascade via FK constraints.
+  // Notes:
+  // - Predictions are user-scoped and will be deleted as well.
+  // - Sessions/accounts should cascade from User (schema uses onDelete: Cascade).
+  await prisma.user.delete({ where: { id: userId } });
+
+  return { ok: true };
+}
