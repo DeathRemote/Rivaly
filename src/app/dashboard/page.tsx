@@ -199,7 +199,7 @@ export default async function DashboardPage() {
               needsToPredictCount: dash.spotlightGroup.needsToPredictCount,
               groupId: dash.spotlightGroup.id,
             }}
-            rows={dash.spotlightGroup.leaderboardTop3.map((r) => ({
+            rows={(dash.spotlightGroup.leaderboardTop3 ?? []).map((r) => ({
               position: r.position,
               name: r.name,
               xp: r.points,
