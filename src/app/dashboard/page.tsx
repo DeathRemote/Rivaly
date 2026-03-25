@@ -195,6 +195,10 @@ export default async function DashboardPage() {
         {dash.spotlightGroup ? (
           <GroupLeaderboardCard
             groupName={dash.spotlightGroup.name}
+            spotlightMeta={{
+              needsToPredictCount: dash.spotlightGroup.needsToPredictCount,
+              groupId: dash.spotlightGroup.id,
+            }}
             rows={dash.spotlightGroup.leaderboardTop3.map((r) => ({
               position: r.position,
               name: r.name,

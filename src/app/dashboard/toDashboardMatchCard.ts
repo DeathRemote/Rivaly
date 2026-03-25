@@ -12,7 +12,11 @@ export function toDashboardMatchCard(m: {
 
   const now = Date.now();
   const msToLock = Math.max(0, lock.getTime() - now);
-  const windowMs = 24 * 60 * 60 * 1000;
+
+  // We can’t reliably know the whole kickoff window length for every match here,
+  // but we *can* show a clear "time remaining" signal.
+  // Bar value: 0..100 based on 0..120 minutes remaining.
+  const windowMs = 120 * 60 * 1000;
   const progress = 100 - Math.min(100, Math.round((msToLock / windowMs) * 100));
 
   return {
@@ -25,10 +29,19 @@ export function toDashboardMatchCard(m: {
     left: { name: m.home.toUpperCase(), sport: "soccer" },
     right: { name: m.away.toUpperCase(), sport: "soccer" },
     metric: {
-      label: "KICKOFF WINDOW",
-      valueLabel: msToLock > 0 ? `${Math.ceil(msToLock / (60 * 1000))}m` : "Now",
+      label: "LOCKS IN",
+      valueLabel: msToLock <= 0 ? "LOCKED" : fmtDuration(msToLock),
       value: Math.max(5, Math.min(100, progress)),
       color: "orange",
     },
   };
+}
+
+function fmtDuration(ms: number) {
+  const totalMin = Math.max(0, Math.ceil(ms / (60 * 1000)));
+  if (totalMin < 1) return "Now";
+  if (totalMin < 60) return `${totalMin}m`;
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
 }
