@@ -130,57 +130,93 @@ function PrivacyPolicyContent() {
     <div>
       <Section title="Introduction">
         <p>
-          Rivaly ("we", "our", "us") provides a platform for sports predictions and social competition.
+          Rivaly ("we", "our", "us") operates a platform for sports predictions and social competition.
           This Privacy Policy explains how we collect, use, and protect your information.
         </p>
+        <p className="mt-2 text-sm opacity-70">Last updated: March 25, 2026</p>
       </Section>
 
       <Section title="Information We Collect">
         <ul className="list-disc pl-5 space-y-2">
-          <li>Account information (email, username)</li>
-          <li>User-generated content (predictions, group activity)</li>
-          <li>Usage data (interactions, pages visited, device/browser info)</li>
+          <li>Account information (email address, username)</li>
+          <li>User-generated content (predictions, group activity, interactions)</li>
+          <li>Usage data (pages visited, interactions, device and browser information, IP address)</li>
+          <li>Technical data (cookies, session data, analytics)</li>
         </ul>
       </Section>
 
-      <Section title="Cookies and Tracking">
+      <Section title="How We Use Your Information">
+        <ul className="list-disc pl-5 space-y-2">
+          <li>Provide and operate the Rivaly platform</li>
+          <li>Improve features and user experience</li>
+          <li>Enable social functionality such as groups and leaderboards</li>
+          <li>Monitor performance, security, and abuse</li>
+          <li>Display relevant advertisements</li>
+        </ul>
+      </Section>
+
+      <Section title="Cookies and Tracking Technologies">
         <p>
-          We use cookies and similar technologies to improve user experience and analyze usage.
+          We use cookies and similar technologies to keep users logged in, understand user behavior,
+          and improve the performance of the platform.
         </p>
       </Section>
 
       <Section title="Google AdSense">
         <p>
           We use Google AdSense to display advertisements. Google may use cookies (including the
-          DoubleClick cookie) to serve personalized ads based on users’ visits to this and other websites.
-          Users may opt out of personalized advertising by visiting Google Ads Settings.
+          DoubleClick cookie) to serve ads based on users’ visits to this and other websites.
         </p>
-      </Section>
-
-      <Section title="How We Use Data">
-        <ul className="list-disc pl-5 space-y-2">
-          <li>Provide and improve the service</li>
-          <li>Personalize user experience</li>
-          <li>Display relevant ads</li>
-          <li>Ensure platform integrity</li>
-        </ul>
+        <p className="mt-2">
+          Users may opt out of personalized advertising by visiting{" "}
+          <a
+            className="text-lime-200/80 hover:text-lime-200 underline underline-offset-4"
+            href="https://adssettings.google.com"
+            target="_blank"
+          >
+            https://adssettings.google.com
+          </a>
+          .
+        </p>
       </Section>
 
       <Section title="Data Sharing">
         <p>
-          We do not sell personal data. Data may be shared with trusted third-party services required to
-          operate the platform (e.g., hosting, analytics, advertising).
+          We do not sell personal data. We may share data with trusted third-party services required
+          to operate the platform, including hosting providers, analytics tools, and advertising partners.
+        </p>
+      </Section>
+
+      <Section title="Data Retention">
+        <p>
+          We retain user data only as long as necessary to provide the service and comply with legal obligations.
         </p>
       </Section>
 
       <Section title="User Rights">
         <p>
-          Users may request access, correction, or deletion of their data by contacting us.
+          You may request access, correction, or deletion of your data at any time by contacting us.
         </p>
       </Section>
 
       <Section title="Data Security">
-        <p>We take reasonable measures to protect user data.</p>
+        <p>
+          We take reasonable technical and organizational measures to protect your data. However,
+          no system can be guaranteed to be completely secure.
+        </p>
+      </Section>
+
+      <Section title="Children’s Privacy">
+        <p>
+          Rivaly is not intended for users under the age of 13 (or the minimum legal age in your jurisdiction).
+        </p>
+      </Section>
+
+      <Section title="Changes to This Policy">
+        <p>
+          We may update this Privacy Policy from time to time. Continued use of the platform
+          constitutes acceptance of any changes.
+        </p>
       </Section>
 
       <Section title="Contact">
@@ -203,50 +239,99 @@ function TermsContent() {
   return (
     <div>
       <Section title="Introduction">
-        <p>By using Rivaly, you agree to these Terms.</p>
-      </Section>
-
-      <Section title="Use of Service">
-        <ul className="list-disc pl-5 space-y-2">
-          <li>The platform is for entertainment purposes only</li>
-          <li>No real-money betting or gambling is conducted</li>
-        </ul>
-      </Section>
-
-      <Section title="User Responsibilities">
-        <ul className="list-disc pl-5 space-y-2">
-          <li>Users must provide accurate information</li>
-          <li>Users are responsible for their account activity</li>
-        </ul>
-      </Section>
-
-      <Section title="Prohibited Behavior">
-        <ul className="list-disc pl-5 space-y-2">
-          <li>Cheating or manipulation</li>
-          <li>Abuse, harassment, or exploitation of the platform</li>
-        </ul>
-      </Section>
-
-      <Section title="Content">
         <p>
-          Users retain ownership of their content but grant Rivaly the right to display it within the
-          platform.
+          By accessing or using Rivaly, you agree to these Terms and Conditions.
+        </p>
+        <p className="mt-2 text-sm opacity-70">Last updated: March 25, 2026</p>
+      </Section>
+
+      <Section title="Overview">
+        <p>
+          Rivaly is a platform for sports predictions and social competition.
+          The platform is intended for entertainment purposes only and does not involve real-money betting.
+        </p>
+      </Section>
+
+      <Section title="No Gambling">
+        <ul className="list-disc pl-5 space-y-2">
+          <li>No real-money wagering is offered</li>
+          <li>Predictions are for fun, competition, and rankings only</li>
+          <li>Points and rankings have no monetary value</li>
+        </ul>
+      </Section>
+
+      <Section title="User Accounts">
+        <ul className="list-disc pl-5 space-y-2">
+          <li>You are responsible for maintaining the security of your account</li>
+          <li>You must provide accurate information</li>
+          <li>You are responsible for all activity under your account</li>
+        </ul>
+      </Section>
+
+      <Section title="Acceptable Use">
+        <ul className="list-disc pl-5 space-y-2">
+          <li>No cheating, manipulation, or exploitation of the platform</li>
+          <li>No abusive, harmful, or illegal behavior</li>
+          <li>No attempts to bypass system rules or restrictions</li>
+        </ul>
+      </Section>
+
+      <Section title="Payments and Subscriptions">
+        <p>
+          Rivaly may offer optional paid features such as additional groups,
+          increased limits, or an ad-free experience.
+        </p>
+        <ul className="list-disc pl-5 space-y-2">
+          <li>Payments are optional and do not affect core gameplay</li>
+          <li>No payments provide monetary rewards or winnings</li>
+          <li>Payments are non-refundable unless required by law</li>
+        </ul>
+      </Section>
+
+      <Section title="User Content">
+        <p>
+          Users retain ownership of their content but grant Rivaly a non-exclusive right
+          to display and use it within the platform.
         </p>
       </Section>
 
       <Section title="Disclaimer">
-        <p>We do not guarantee accuracy of predictions or outcomes.</p>
+        <p>
+          Rivaly does not guarantee the accuracy of predictions, data, or outcomes.
+          All features are provided for entertainment purposes only.
+        </p>
       </Section>
 
       <Section title="Limitation of Liability">
         <p>
-          Rivaly is not liable for losses, damages, or decisions made based on platform content.
+          Rivaly is not liable for any losses, damages, or decisions made based on
+          platform content or usage.
         </p>
       </Section>
 
       <Section title="Termination">
         <p>
           We reserve the right to suspend or terminate accounts that violate these terms.
+        </p>
+      </Section>
+
+      <Section title="Changes to Terms">
+        <p>
+          We may update these Terms from time to time. Continued use of Rivaly
+          constitutes acceptance of updated terms.
+        </p>
+      </Section>
+
+      <Section title="Contact">
+        <p>
+          For questions regarding these Terms, contact us at{" "}
+          <a
+            className="text-lime-200/80 hover:text-lime-200 underline underline-offset-4"
+            href="mailto:rivalyab@gmail.com"
+          >
+            rivalyab@gmail.com
+          </a>
+          .
         </p>
       </Section>
     </div>
