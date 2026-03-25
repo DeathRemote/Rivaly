@@ -9,16 +9,18 @@ import { ProfilePageClient } from "@/components/profile/ProfilePageClient";
 
 import { sideNavItems, topNavItems } from "@/features/dashboard/mock";
 
-type AccountPlan = "FREE" | "PRO" | "PREMIUM" | "ELITE";
+type AccountTier = "FREE" | "BASIC" | "PRO" | "ELITE" | "FRIENDS_AND_FAMILY";
 
-function accountPlanLabel(plan: AccountPlan) {
-  switch (plan) {
+function accountTierLabel(tier: AccountTier) {
+  switch (tier) {
+    case "FRIENDS_AND_FAMILY":
+      return "Friends & Family";
     case "ELITE":
       return "Elite";
-    case "PREMIUM":
-      return "Premium";
     case "PRO":
       return "Pro";
+    case "BASIC":
+      return "Basic";
     case "FREE":
     default:
       return "Free";
@@ -40,15 +42,15 @@ export default async function ProfilePage() {
       email: true,
       image: true,
       role: true,
+      accountTier: true,
       createdAt: true,
     },
   });
 
   if (!user) redirect("/login?callbackUrl=/profile");
 
-  // Account plan: we don’t have plans in the DB yet.
-  // Keep it as a real typed concept so adding monthly plans is a clean migration later.
-  const accountPlan: AccountPlan = user.role === "ADMIN" ? "ELITE" : "FREE";
+  // Account tier / plan is stored separately from role (ADMIN is permissions, not billing).
+  const accountTier = (user.accountTier ?? "FREE") as AccountTier;
 
   // Basic stats
   const totalPredictions = await prisma.prediction.count({ where: { userId } });
@@ -175,7 +177,7 @@ export default async function ProfilePage() {
       user={{
         name: user.username ?? user.name ?? "Kinetic Player",
         image: user.image ?? null,
-        rankLabel: accountPlanLabel(accountPlan),
+        rankLabel: accountTierLabel(accountTier),
       }}
     >
       <ProfilePageClient
@@ -185,7 +187,7 @@ export default async function ProfilePage() {
           username: user.username ?? null,
           email: user.email ?? null,
           image: user.image ?? null,
-          accountPlan: { key: accountPlan, label: accountPlanLabel(accountPlan) },
+          accountPlan: { key: accountTier, label: accountTierLabel(accountTier) },
           createdAt: user.createdAt.toISOString(),
         }}
         stats={{

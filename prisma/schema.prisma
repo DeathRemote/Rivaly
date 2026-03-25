@@ -19,12 +19,21 @@ enum UserRole {
   ADMIN
 }
 
+enum AccountTier {
+  FREE
+  BASIC
+  PRO
+  ELITE
+  FRIENDS_AND_FAMILY
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
   username      String?   @unique
   country       String?
-  role          UserRole  @default(USER)
+  role          UserRole    @default(USER)
+  accountTier   AccountTier @default(FREE)
   email         String?   @unique
   image         String?
   emailVerified DateTime?
