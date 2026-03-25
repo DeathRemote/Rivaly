@@ -1,11 +1,12 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 
+import { getGlobalStandingForUser } from "@/lib/global-standing";
+
 import {
   mockLastResult,
   mockLeaderboard,
   mockMatches,
-  mockStanding,
   sideNavItems,
   topNavItems,
 } from "@/features/dashboard/mock";
@@ -28,11 +29,16 @@ export default async function DashboardPage() {
   const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
   const isAdmin = isOwner || session.user.role === "ADMIN";
 
+  const userId = session.user.id;
+  if (!userId) redirect("/login?callbackUrl=/dashboard");
+
   const user = {
     name: session.user.username ?? session.user.name ?? "Kinetic Player",
     image: session.user.image ?? null,
-    rankLabel: "Pro",
+    rankLabel: session.user.tier ? String(session.user.tier) : "Free",
   };
+
+  const standing = await getGlobalStandingForUser(userId);
 
   return (
     <DashboardLayout
@@ -49,22 +55,45 @@ export default async function DashboardPage() {
           <span className="mb-2 block text-[10px] font-bold uppercase tracking-[0.2em] text-white/60">
             Global Standing
           </span>
-          <h1 className="font-display text-5xl font-black italic tracking-tighter text-lime-100 md:text-7xl">
-            #{mockStanding.rankNumber}nd
-          </h1>
-          <p className="mt-4 max-w-xs font-medium text-white/60">
-            You&apos;re in the top {mockStanding.percentile}% of the Kinetic League this week.
-            Keep the streak alive.
-          </p>
+          {standing.eligible ? (
+            <>
+              <h1 className="font-display text-5xl font-black italic tracking-tighter text-lime-100 md:text-7xl">
+                Top {standing.topPercent}%
+              </h1>
+              <p className="mt-4 max-w-sm font-medium text-white/60">
+                Based on recent form (30D), lifetime accuracy, and consistency (avg points per scored
+                prediction).
+              </p>
 
-          <div className="mt-8 flex flex-wrap items-center gap-3">
-            <RankBadge label={mockStanding.tierLabel.toUpperCase()} icon="stars" tone="lime" />
-            <RankBadge
-              label={`${mockStanding.winStreak} WIN STREAK`}
-              icon="flame"
-              tone="orange"
-            />
-          </div>
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <RankBadge label={`TOP ${standing.topPercent}%`} icon="stars" tone="lime" />
+                <RankBadge
+                  label={`${standing.breakdown.scoredPredictions30d} SCORED (30D)`}
+                  icon="flame"
+                  tone="orange"
+                />
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 className="font-display text-4xl font-black italic tracking-tighter text-lime-100 md:text-6xl">
+                Unranked
+              </h1>
+              <p className="mt-4 max-w-sm font-medium text-white/60">
+                Get ranked after <span className="text-white">{standing.minRequired}</span> scored
+                predictions. You currently have {standing.scoredPredictionsLifetime}.
+              </p>
+
+              <div className="mt-8 flex flex-wrap items-center gap-3">
+                <RankBadge label="GLOBAL STANDING" icon="stars" tone="lime" />
+                <RankBadge
+                  label={`${standing.scoredPredictionsLifetime}/${standing.minRequired} SCORED`}
+                  icon="flame"
+                  tone="orange"
+                />
+              </div>
+            </>
+          )}
         </section>
 
         <StatCard label="Last Result" accent="lime" className="bg-white/5">
