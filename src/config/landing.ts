@@ -65,8 +65,7 @@ export const hero = {
   },
   description:
     "Predict match results, earn points, and climb the leaderboard. High-stakes energy — without the clutter.",
-  primaryCta: { label: "Get started", href: "#pricing", icon: ArrowRight },
-  secondaryCta: { label: "Join a group", href: "#how" },
+  primaryCta: { label: "Get started", href: "/signup", icon: ArrowRight },
 };
 
 export const steps: Step[] = [

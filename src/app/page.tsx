@@ -4,7 +4,7 @@ import { HowItWorks } from "@/components/landing/HowItWorks";
 import { FeatureBento } from "@/components/landing/FeatureBento";
 import { Pricing } from "@/components/landing/Pricing";
 import { FinalCta } from "@/components/landing/FinalCta";
-import { Footer } from "@/components/landing/Footer";
+// Footer is rendered globally in src/app/layout.tsx
 import { MobileBottomNav } from "@/components/landing/MobileBottomNav";
 
 export default function HomePage() {
@@ -23,7 +23,6 @@ export default function HomePage() {
         <FinalCta />
       </main>
 
-      <Footer />
       <MobileBottomNav />
     </div>
   );

@@ -4,10 +4,8 @@ import {
   LayoutDashboard,
   ArrowUpDown,
   Users,
-  Compass,
   User,
   BadgeCheck,
-  CreditCard,
 } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -23,14 +21,10 @@ function iconForKey(key: DashboardNavItem["key"]) {
       return ArrowUpDown;
     case "groups":
       return Users;
-    case "discovery":
-      return Compass;
     case "profile":
       return User;
     case "admin":
       return BadgeCheck;
-    case "pricing":
-      return CreditCard;
     default:
       return Shield;
   }

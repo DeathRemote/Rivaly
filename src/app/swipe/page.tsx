@@ -6,7 +6,8 @@ import { getSwipeMatchesForUser } from "@/lib/swipe-data";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { SwipePageClient } from "@/components/swipe/SwipePageClient";
 
-import { sideNavItems, topNavItems } from "@/features/dashboard/mock";
+import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { accountTierLabel } from "@/lib/accountTier";
 
 export default async function SwipePage() {
   const session = await auth();
@@ -17,16 +18,20 @@ export default async function SwipePage() {
 
   const matches = await getSwipeMatchesForUser(userId);
 
+  const ownerEmail = process.env.OWNER_EMAIL;
+  const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
+  const isAdmin = isOwner || session.user.role === "ADMIN";
+
   return (
     <DashboardLayout
-      topNavItems={topNavItems}
-      sideNavItems={sideNavItems}
+      topNavItems={getTopNavItems()}
+      sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="swipe"
       hideMobileFab
       user={{
         name: session.user.username ?? session.user.name ?? "Kinetic Player",
         image: session.user.image ?? null,
-        rankLabel: session.user.tier ? String(session.user.tier) : "Free",
+        rankLabel: accountTierLabel(session.user.tier),
       }}
     >
       <SwipePageClient initialMatches={matches} />

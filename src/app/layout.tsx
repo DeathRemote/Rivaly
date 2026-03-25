@@ -3,6 +3,8 @@ import Script from "next/script";
 import { Lexend, Manrope } from "next/font/google";
 import "./globals.css";
 
+import { Footer } from "@/components/layout/Footer";
+
 const fontDisplay = Lexend({
   subsets: ["latin"],
   variable: "--font-display",
@@ -32,7 +34,7 @@ export default function RootLayout({
       lang="en"
       className={`${fontDisplay.variable} ${fontBody.variable} dark h-full scroll-smooth antialiased`}
     >
-      <body className="min-h-full bg-black text-white">
+      <body className="min-h-screen bg-black text-white">
         {/* AdSense Script (must be beforeInteractive for verification) */}
         <Script
           id="adsense-script"
@@ -41,7 +43,10 @@ export default function RootLayout({
           crossOrigin="anonymous"
         />
 
-        {children}
+        <div className="min-h-screen flex flex-col">
+          <main className="flex-1">{children}</main>
+          <Footer />
+        </div>
       </body>
     </html>
   );

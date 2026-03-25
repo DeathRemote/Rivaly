@@ -23,7 +23,7 @@ export function FinalCta() {
           </h2>
 
           <div className="relative z-10 mt-10 flex justify-center">
-            <Button href="#pricing" variant="primary" size="lg">
+            <Button href="/signup" variant="primary" size="lg">
               Join the arena
               <ArrowRight className="size-4" aria-hidden="true" />
             </Button>
