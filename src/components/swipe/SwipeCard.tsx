@@ -120,9 +120,10 @@ export function SwipeCard({
         const thresholdX = 120;
 
         // Draw threshold is relative to the card height so it scales across devices.
-        // Example: ~28% of card height.
+        // Make Draw *deliberate* (harder than Home/Away): require a large vertical travel.
+        // Example: ~45% of card height.
         const cardHeight = ref.current?.getBoundingClientRect().height ?? window.innerHeight;
-        const thresholdY = cardHeight * 0.28;
+        const thresholdY = cardHeight * 0.45;
 
         const x = drag.x;
         const y = drag.y;
@@ -141,8 +142,8 @@ export function SwipeCard({
           return;
         }
 
-        // Draw: require bigger movement AND clear vertical dominance.
-        if (ay >= thresholdY && ay >= ax * 1.25) {
+        // Draw: require bigger movement AND very clear vertical dominance.
+        if (ay >= thresholdY && ay >= ax * 1.6) {
           if (y <= -thresholdY) onSwipeUp?.();
           else if (y >= thresholdY) onSwipeDown?.();
         }
