@@ -18,9 +18,12 @@ export function SwipeCard({
   disabled?: boolean;
   onSwipeLeft?: () => void;
   onSwipeRight?: () => void;
+  onSwipeUp?: () => void;
+  onSwipeDown?: () => void;
   onPredictScore?: () => void;
   onSkip?: () => void;
-  animDirection?: "left" | "right" | "down" | null;
+  onDragActiveChange?: (active: boolean) => void;
+  animDirection?: "left" | "right" | "down" | "up" | null;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
 
@@ -52,7 +55,7 @@ export function SwipeCard({
   const style = useMemo(() => {
     if (animDirection) {
       const x = animDirection === "left" ? -420 : animDirection === "right" ? 420 : 0;
-      const y = animDirection === "down" ? 280 : -20;
+      const y = animDirection === "down" ? 280 : animDirection === "up" ? -280 : -20;
       const r = animDirection === "left" ? -14 : animDirection === "right" ? 14 : 0;
       return {
         transform: `translate(${x}px, ${y}px) rotate(${r}deg)`,
@@ -73,7 +76,7 @@ export function SwipeCard({
     <div
       ref={ref}
       className={cn(
-        "h-full w-full rounded-[2rem] border border-white/10 bg-white/5 overflow-hidden",
+        "h-full w-full rounded-[2rem] border border-white/10 bg-[#111417] overflow-hidden",
         "shadow-[0_30px_80px_rgba(0,0,0,0.55)]",
         "touch-none", // critical for mobile: prevent browser scroll/gesture from hijacking the drag
         disabled && "opacity-70",
@@ -87,6 +90,7 @@ export function SwipeCard({
         if (target.closest("button") || target.closest("input") || target.closest("a")) return;
 
         (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+        onDragActiveChange?.(true);
         setDrag({ x: 0, y: 0, active: true, startX: e.clientX, startY: e.clientY });
       }}
       onPointerMove={(e) => {
@@ -102,13 +106,30 @@ export function SwipeCard({
         if (disabled) return;
         const threshold = 120;
         const x = drag.x;
+        const y = drag.y;
 
+        onDragActiveChange?.(false);
         setDrag({ x: 0, y: 0, active: false, startX: 0, startY: 0 });
 
-        if (x <= -threshold) onSwipeLeft?.();
-        else if (x >= threshold) onSwipeRight?.();
+        const ax = Math.abs(x);
+        const ay = Math.abs(y);
+
+        // Prefer the dominant axis (more "Tinder" feel)
+        if (ax >= threshold && ax >= ay) {
+          if (x <= -threshold) onSwipeLeft?.();
+          else if (x >= threshold) onSwipeRight?.();
+          return;
+        }
+
+        if (ay >= threshold && ay > ax) {
+          if (y <= -threshold) onSwipeUp?.();
+          else if (y >= threshold) onSwipeDown?.();
+        }
       }}
-      onPointerCancel={() => setDrag({ x: 0, y: 0, active: false, startX: 0, startY: 0 })}
+      onPointerCancel={() => {
+        onDragActiveChange?.(false);
+        setDrag({ x: 0, y: 0, active: false, startX: 0, startY: 0 });
+      }}
     >
       <div className="relative h-full p-6 sm:p-8 flex flex-col">
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-lime-300/10 blur-[120px]" />

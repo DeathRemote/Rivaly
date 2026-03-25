@@ -8,7 +8,7 @@ import { SwipeControls } from "@/components/swipe/SwipeControls";
 import type { SwipeMatch } from "@/lib/swipe-data";
 import { savePredictionAction } from "@/app/predictions/actions";
 
-type Direction = "left" | "right" | "down";
+type Direction = "left" | "right" | "down" | "up";
 
 const QUICK = {
   home: { homeScore: 2, awayScore: 1 },
@@ -26,6 +26,7 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   const [scoreFor, setScoreFor] = useState<SwipeMatch | null>(null);
 
   const [anim, setAnim] = useState<{ matchId: string; dir: Direction } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const canInteract = !pending && !anim;
 
   const nextUpLabel = useMemo(() => {
@@ -100,7 +101,7 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl h-[calc(100dvh-10rem)] sm:h-auto overflow-hidden flex flex-col">
+    <div className="mx-auto w-full max-w-2xl h-[calc(100dvh-10rem)] sm:h-[740px] overflow-hidden flex flex-col">
       {/* Desktop header only */}
       <div className="hidden sm:flex mb-5 items-end justify-between gap-4">
         <div>
@@ -127,8 +128,8 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
 
       <div className="relative flex-1 min-h-0">
         {/* Background card: nearly hidden */}
-        {stack[1] ? (
-          <div className="absolute inset-0 translate-y-[2px] scale-[0.999] opacity-[0.03] pointer-events-none blur-[1.2px]">
+        {dragging && stack[1] ? (
+          <div className="absolute inset-0 translate-y-[2px] scale-[0.999] opacity-[0.12] pointer-events-none blur-[0.8px]">
             <SwipeCard match={stack[1]} disabled />
           </div>
         ) : null}
@@ -138,6 +139,7 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
             match={top}
             disabled={!canInteract}
             animDirection={anim?.matchId === top.matchId ? anim.dir : null}
+            onDragActiveChange={(active) => setDragging(active)}
             onSwipeLeft={() => {
               if (!canInteract) return;
               startTransition(async () => {
@@ -153,6 +155,26 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
               startTransition(async () => {
                 try {
                   await submitQuickPick(top, "away");
+                } catch (e) {
+                  alert(e instanceof Error ? e.message : "Failed to save prediction");
+                }
+              });
+            }}
+            onSwipeUp={() => {
+              if (!canInteract) return;
+              startTransition(async () => {
+                try {
+                  await submitQuickPick(top, "draw");
+                } catch (e) {
+                  alert(e instanceof Error ? e.message : "Failed to save prediction");
+                }
+              });
+            }}
+            onSwipeDown={() => {
+              if (!canInteract) return;
+              startTransition(async () => {
+                try {
+                  await submitQuickPick(top, "draw");
                 } catch (e) {
                   alert(e instanceof Error ? e.message : "Failed to save prediction");
                 }
