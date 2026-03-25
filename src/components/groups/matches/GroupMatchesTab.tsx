@@ -119,8 +119,6 @@ export function GroupMatchesTab({
               title={s.label}
               subtitle={phaseType === "LEAGUE" ? "Your weekly slate." : undefined}
               matches={s.items}
-              groupId={groupId}
-              phaseType={phaseType}
             />
           ))}
         </div>

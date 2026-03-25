@@ -1,12 +1,17 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Compass, House, User, Users, ArrowUpDown } from "lucide-react";
 
 import { cn } from "@/lib/cn";
 
+type ItemKey = "home" | "swipe" | "groups" | "explore" | "profile";
+
 type Item = {
   label: string;
   href: string;
-  key: "home" | "swipe" | "groups" | "explore" | "profile";
+  key: ItemKey;
   icon: React.ComponentType<{ className?: string }>;
 };
 
@@ -18,7 +23,26 @@ const items: Item[] = [
   { key: "profile", label: "Profile", href: "/profile", icon: User },
 ];
 
-export function MobileBottomNav({ activeKey = "home" }: { activeKey?: Item["key"] }) {
+function getActiveKey(pathname: string | null): ItemKey {
+  const p = pathname ?? "";
+
+  if (p === "/dashboard" || p.startsWith("/dashboard/")) return "home";
+  if (p === "/groups" || p.startsWith("/groups/")) {
+    // Group swipe lives under /groups/[groupId]/swipe
+    if (p.includes("/swipe")) return "swipe";
+    return "groups";
+  }
+  if (p === "/swipe" || p.startsWith("/swipe/")) return "swipe";
+  if (p === "/explore" || p.startsWith("/explore/")) return "explore";
+  if (p === "/profile" || p.startsWith("/profile/")) return "profile";
+
+  return "home";
+}
+
+export function MobileBottomNav() {
+  const pathname = usePathname();
+  const activeKey = getActiveKey(pathname);
+
   return (
     <nav
       className={cn(
@@ -37,6 +61,7 @@ export function MobileBottomNav({ activeKey = "home" }: { activeKey?: Item["key"
             <Link
               key={item.key}
               href={item.href}
+              aria-current={active ? "page" : undefined}
               className={cn(
                 "flex flex-col items-center justify-center",
                 "tap-highlight-transparent",

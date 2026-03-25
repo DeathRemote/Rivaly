@@ -9,8 +9,7 @@ import { GroupDetailsClient } from "@/components/groups/GroupDetailsClient";
 import { GroupTabs, type GroupTabKey } from "@/components/groups/GroupTabs";
 import { GroupLeaderboard } from "@/components/groups/GroupLeaderboard";
 import { type LeaderboardRowData } from "@/components/groups/LeaderboardRow";
-import { GroupMatchCard, type GroupMatch } from "@/components/groups/GroupMatchCard";
-import { RecentResultCard } from "@/components/groups/RecentResultCard";
+import { CompletedMatchesFeed } from "@/components/groups/CompletedMatchesFeed";
 import { GroupMomentumCard } from "@/components/groups/GroupMomentumCard";
 import { GroupMatchesTab } from "@/components/groups/matches/GroupMatchesTab";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
@@ -20,6 +19,11 @@ import { getMatchesForGroup } from "@/app/groups/[groupId]/matches/data";
 import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 
 import { topNavItems, sideNavItems } from "@/features/dashboard/mock";
+import {
+  getGroupCompletedMatchFeed,
+  getGroupMemberAccuracies,
+  getGroupMomentum,
+} from "@/lib/group-stats";
 
 export default async function GroupDetailsPage({
   params,
@@ -93,13 +97,28 @@ export default async function GroupDetailsPage({
   const user = {
     name: session.user.username ?? session.user.name ?? "Kinetic Player",
     image: session.user.image ?? null,
-    rankLabel: "Pro",
+    rankLabel: session.user.tier ? String(session.user.tier) : "Free",
   };
 
+  const membershipRow = group.members.find((m) => m.userId === userId);
+
+  const [accuracyByUser, completedFeed, momentum] = await Promise.all([
+    getGroupMemberAccuracies(group.id),
+    getGroupCompletedMatchFeed({ groupId: group.id, limitMatches: 6 }),
+    getGroupMomentum(group.id),
+  ]);
+
   const leaderboard: LeaderboardRowData[] = group.members.map((m, idx) => {
-    // Mock metrics for now; points are real.
-    const accuracyPct = Math.max(42, Math.min(92, 55 + ((m.points % 37) as number)));
-    const trend = idx % 5 === 0 ? "up" : idx % 7 === 0 ? "down" : "flat";
+    const acc = accuracyByUser.get(m.userId);
+    const accuracyPct = acc && acc.scored > 0 ? Math.round((acc.correct / acc.scored) * 100) : 0;
+
+    // Trend v0: compare event count last 7D vs previous 7D.
+    const trend =
+      acc && acc.last7d !== acc.prev7d
+        ? acc.last7d > acc.prev7d
+          ? "up"
+          : "down"
+        : "flat";
 
     return {
       rank: idx + 1,
@@ -111,7 +130,11 @@ export default async function GroupDetailsPage({
     };
   });
 
-  const upcomingMatches: GroupMatch[] = mockUpcomingMatches(group.sport);
+  const currentUserAccuracy = (() => {
+    const acc = accuracyByUser.get(userId);
+    if (!acc || acc.scored === 0) return 0;
+    return Math.round((acc.correct / acc.scored) * 100);
+  })();
 
   // Table tab: ensure standings exist (and are reasonably fresh) for the linked competition season.
   if (tab === "table" && group.competitionSeasonId) {
@@ -157,16 +180,17 @@ export default async function GroupDetailsPage({
   });
   const baseMatchKeys = baseMatches.map((m) => m.id);
 
-  const predictions = await prisma.groupPrediction.findMany({
+  const predictions = await prisma.prediction.findMany({
     where: {
-      groupId: group.id,
       userId,
-      matchKey: { in: baseMatchKeys },
+      matchId: { in: baseMatchKeys },
     },
-    select: { matchKey: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+    select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
   });
 
-  const predictionByKey = new Map(predictions.map((p) => [p.matchKey, p] as const));
+  const predictionByKey = new Map<string, (typeof predictions)[number]>(
+    predictions.map((p) => [p.matchId, p] as const),
+  );
 
   const matchesForTab: MatchListItem[] = baseMatches.map((m) => {
     const p = predictionByKey.get(m.id);
@@ -203,6 +227,10 @@ export default async function GroupDetailsPage({
           sportLabel: sportLabel(group.sport),
           memberCount: group._count.members,
           description: null,
+          userStats: {
+            points: membershipRow?.points ?? 0,
+            accuracyPct: currentUserAccuracy,
+          },
         }}
         inviteCode={group.inviteCode}
       />
@@ -216,23 +244,8 @@ export default async function GroupDetailsPage({
           </div>
 
           <div className="col-span-12 lg:col-span-5 space-y-6">
-            <div className="flex items-center justify-between px-2">
-              <h3 className="font-display text-xl font-black uppercase tracking-tight text-white">
-                Upcoming matches
-              </h3>
-              <span className="text-xs font-black uppercase tracking-[0.22em] text-lime-200/70">
-                View All
-              </span>
-            </div>
-
-            <div className="space-y-6">
-              {upcomingMatches.map((m) => (
-                <GroupMatchCard key={m.id} match={m} />
-              ))}
-            </div>
-
-            <RecentResultCard />
-            <GroupMomentumCard />
+            <CompletedMatchesFeed items={completedFeed} />
+            <GroupMomentumCard momentum={momentum} />
           </div>
         </div>
       ) : tab === "matches" ? (
@@ -262,16 +275,3 @@ function sportLabel(s: "SOCCER" | "BASKETBALL" | "TENNIS" | "ESPORTS") {
   }
 }
 
-function mockUpcomingMatches(sport: "SOCCER" | "BASKETBALL" | "TENNIS" | "ESPORTS"): GroupMatch[] {
-  if (sport === "BASKETBALL") {
-    return [
-      { id: "lal-bos", timeLabel: "Tonight • 19:30", venueLabel: "STAPLES", left: { name: "LAKERS" }, right: { name: "CELTICS" } },
-      { id: "gsw-phx", timeLabel: "Fri • 21:00", venueLabel: "CHASE", left: { name: "WARRIORS" }, right: { name: "SUNS" } },
-    ];
-  }
-
-  return [
-    { id: "ars-por", timeLabel: "Tonight • 20:45", venueLabel: "LONDON", left: { name: "Arsenal FC" }, right: { name: "FC Porto" } },
-    { id: "rm-barca", timeLabel: "Sun • 21:00", venueLabel: "MADRID", left: { name: "REAL MADRID" }, right: { name: "BARCELONA" } },
-  ];
-}

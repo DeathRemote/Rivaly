@@ -225,15 +225,11 @@ export async function leaveGroupAction(input: LeaveGroupInput): Promise<LeaveGro
     return { ok: false, error: "Group owner can’t leave. Delete the group instead." };
   }
 
-  // Remove membership and any predictions for this group (so the user has no remaining obligations).
-  await prisma.$transaction([
-    prisma.groupPrediction.deleteMany({
-      where: { groupId: group.id, userId },
-    }),
-    prisma.groupMember.deleteMany({
-      where: { groupId: group.id, userId },
-    }),
-  ]);
+  // Remove membership.
+  // Predictions are global per user+match and are NOT deleted when leaving a group.
+  await prisma.groupMember.deleteMany({
+    where: { groupId: group.id, userId },
+  });
 
   revalidatePath("/groups");
 
@@ -273,8 +269,9 @@ export async function deleteGroupAction(input: DeleteGroupInput): Promise<Delete
     return { ok: false, error: "Only the group owner can delete this group." };
   }
 
-  // Cascade will remove GroupMember + GroupPrediction due to FK onDelete: Cascade.
+  // Cascade will remove GroupMember + PointsEvents due to FK onDelete: Cascade.
   // NOTE: We do NOT delete competition season fixtures here because they are shared.
+  // NOTE: Predictions are global per user+match and are not tied to a group, so we do not delete them here.
   await prisma.group.delete({ where: { id: group.id } });
 
   revalidatePath("/groups");

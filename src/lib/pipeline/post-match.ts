@@ -98,15 +98,43 @@ export async function syncAndProcessFinishedMatches(opts?: {
         },
       });
 
-      // Load predictions for this matchKey across all groups.
-      const predictions = await tx.groupPrediction.findMany({
-        where: { matchKey: m.id },
-        select: { groupId: true, userId: true, homeScore: true, awayScore: true },
+      // Load predictions for this match (global per user+match).
+      const predictions = await tx.prediction.findMany({
+        where: { matchId: m.id },
+        select: { userId: true, homeScore: true, awayScore: true },
       });
+
+      const predictedUserIds = predictions.map((p) => p.userId);
+      const predictionByUserId = new Map<string, (typeof predictions)[number]>(
+        predictions.map((p) => [p.userId, p] as const),
+      );
+
+      // Score per-group: apply the same prediction to every group that uses this competition season,
+      // but only for users who are members of that group.
+      const groups = await tx.group.findMany({
+        where: { competitionSeasonId: m.competitionSeasonId },
+        select: { id: true },
+      });
+
+      const groupIds = groups.map((g) => g.id);
+
+      const eligibleMembers =
+        groupIds.length === 0 || predictedUserIds.length === 0
+          ? []
+          : await tx.groupMember.findMany({
+              where: {
+                groupId: { in: groupIds },
+                userId: { in: predictedUserIds },
+              },
+              select: { groupId: true, userId: true },
+            });
 
       let pointsEvents = 0;
 
-      for (const p of predictions) {
+      for (const mbr of eligibleMembers) {
+        const p = predictionByUserId.get(mbr.userId);
+        if (!p) continue;
+
         const scored = scorePredictionPoints({
           predicted: { home: p.homeScore, away: p.awayScore },
           actual: { home: homeScore, away: awayScore },
@@ -116,15 +144,15 @@ export async function syncAndProcessFinishedMatches(opts?: {
         const event = await tx.pointsEvent.upsert({
           where: {
             groupId_userId_matchId_type: {
-              groupId: p.groupId,
-              userId: p.userId,
+              groupId: mbr.groupId,
+              userId: mbr.userId,
               matchId: m.id,
               type: "PREDICTION_SCORED",
             },
           },
           create: {
-            groupId: p.groupId,
-            userId: p.userId,
+            groupId: mbr.groupId,
+            userId: mbr.userId,
             matchId: m.id,
             type: "PREDICTION_SCORED",
             points: scored.points,
@@ -140,11 +168,8 @@ export async function syncAndProcessFinishedMatches(opts?: {
           select: { id: true, points: true },
         });
 
-        // Only increment if this was a new event.
-        // Prisma upsert doesn't tell us if create vs update; we enforce idempotency by never changing processedAt once set.
-        // We only run scoring while match.processedAt is null, so this upsert should be "create" in normal flow.
         await tx.groupMember.updateMany({
-          where: { groupId: p.groupId, userId: p.userId },
+          where: { groupId: mbr.groupId, userId: mbr.userId },
           data: { points: { increment: event.points } },
         });
 

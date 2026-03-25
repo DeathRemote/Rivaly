@@ -15,8 +15,11 @@ const credentialsSchema = z.object({
 
 type RivalyRole = "USER" | "ADMIN";
 
+type RivalyTier = "FREE" | "BASIC" | "PRO" | "ELITE" | "FRIENDS_AND_FAMILY";
+
 type RivalyJWT = JWT & {
   role?: RivalyRole;
+  tier?: RivalyTier;
   username?: string | null;
   country?: string | null;
 };
@@ -27,6 +30,7 @@ type RivalySessionUser = {
   email?: string | null;
   image?: string | null;
   role?: RivalyRole;
+  tier?: RivalyTier;
   username?: string | null;
   country?: string | null;
 };
@@ -87,14 +91,23 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
       // Populate extra fields onto the JWT so we can use them in Server Components
       // without extra DB roundtrips.
-      if (t.sub && (!t.role || !t.username || !t.country)) {
+      if (t.sub && (!t.role || !t.tier || !t.username || !t.country)) {
         const dbUser = await prisma.user.findUnique({
           where: { id: t.sub },
-          select: { role: true, username: true, country: true, name: true, email: true, image: true },
+          select: {
+            role: true,
+            accountTier: true,
+            username: true,
+            country: true,
+            name: true,
+            email: true,
+            image: true,
+          },
         });
 
         if (dbUser) {
           t.role = dbUser.role as RivalyRole;
+          t.tier = dbUser.accountTier as RivalyTier;
           t.username = dbUser.username;
           t.country = dbUser.country;
           // Keep basics in sync as well.
@@ -112,6 +125,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const u = session.user as RivalySessionUser;
         u.id = t.sub ?? undefined;
         u.role = t.role;
+        u.tier = t.tier;
         u.username = t.username;
         u.country = t.country;
       }
@@ -148,6 +162,7 @@ declare module "next-auth" {
       email?: string | null;
       image?: string | null;
       role?: RivalyRole;
+      tier?: RivalyTier;
       username?: string | null;
       country?: string | null;
     };

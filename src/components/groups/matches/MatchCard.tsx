@@ -4,21 +4,17 @@ import { useMemo, useState, useTransition } from "react";
 // Navigation refresh is not needed; we keep local prediction state for immediate UI updates.
 
 import { cn } from "@/lib/cn";
-import type { MatchListItem, PhaseType } from "@/components/groups/matches/types";
+import type { MatchListItem } from "@/components/groups/matches/types";
 import { MatchStatusBadge } from "@/components/groups/matches/MatchStatusBadge";
 import { PredictionActionButton } from "@/components/groups/matches/PredictionActionButton";
 import { ScorePredictionModal } from "@/components/groups/matches/ScorePredictionModal";
 import { useNow } from "@/components/groups/matches/useNow";
-import { saveGroupPredictionAction } from "@/app/groups/[groupId]/matches/actions";
+import { savePredictionAction } from "@/app/predictions/actions";
 
 export function MatchCard({
   match,
-  groupId,
-  phaseType,
 }: {
   match: MatchListItem;
-  groupId: string;
-  phaseType: PhaseType;
 }) {
   // Local prediction state only (no router refresh).
   const [pending, startTransition] = useTransition();
@@ -67,10 +63,8 @@ export function MatchCard({
   }) {
     setInlineError(null);
 
-    const res = await saveGroupPredictionAction({
-      groupId,
-      matchKey: match.id,
-      phaseType,
+    const res = await savePredictionAction({
+      matchId: match.id,
       homeScore,
       awayScore,
       source,
@@ -217,7 +211,7 @@ export function MatchCard({
             onClick={() => {
               startTransition(async () => {
                 try {
-                  await saveScore({ homeScore: 3, awayScore: 0, source: "QUICK_PICK" });
+                  await saveScore({ homeScore: 2, awayScore: 1, source: "QUICK_PICK" });
                 } catch {
                   // inline error already set
                 }
@@ -226,7 +220,7 @@ export function MatchCard({
             className={cn(
               "rounded-xl border border-white/10 bg-black/20 py-3 text-center",
               "text-[10px] font-black uppercase tracking-[0.22em]",
-              quickPickSelected(3, 0)
+              quickPickSelected(2, 1)
                 ? "border-lime-300/30 bg-lime-300/10 text-lime-100"
                 : "text-white/60 hover:bg-white/5 hover:text-white",
               (locked || pending) && "opacity-50 cursor-not-allowed",
@@ -263,7 +257,7 @@ export function MatchCard({
             onClick={() => {
               startTransition(async () => {
                 try {
-                  await saveScore({ homeScore: 0, awayScore: 3, source: "QUICK_PICK" });
+                  await saveScore({ homeScore: 1, awayScore: 2, source: "QUICK_PICK" });
                 } catch {
                   // inline error already set
                 }
@@ -272,7 +266,7 @@ export function MatchCard({
             className={cn(
               "rounded-xl border border-white/10 bg-black/20 py-3 text-center",
               "text-[10px] font-black uppercase tracking-[0.22em]",
-              quickPickSelected(0, 3)
+              quickPickSelected(1, 2)
                 ? "border-lime-300/30 bg-lime-300/10 text-lime-100"
                 : "text-white/60 hover:bg-white/5 hover:text-white",
               (locked || pending) && "opacity-50 cursor-not-allowed",

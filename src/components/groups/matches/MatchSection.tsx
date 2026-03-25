@@ -1,19 +1,13 @@
 import type { MatchListItem } from "@/components/groups/matches/types";
 import { MatchCard } from "@/components/groups/matches/MatchCard";
-import type { PhaseType } from "@/components/groups/matches/types";
-
 export function MatchSection({
   title,
   subtitle,
   matches,
-  groupId,
-  phaseType,
 }: {
   title: string;
   subtitle?: string;
   matches: MatchListItem[];
-  groupId: string;
-  phaseType: PhaseType;
 }) {
   return (
     <section>
@@ -31,7 +25,7 @@ export function MatchSection({
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {matches.map((m) => (
-          <MatchCard key={m.id} match={m} groupId={groupId} phaseType={phaseType} />
+          <MatchCard key={m.id} match={m} />
         ))}
       </div>
     </section>
