@@ -71,6 +71,9 @@ export function ProfilePageClient({
         identity={identity}
         confidence={confidence}
         onEditProfile={() => setEditOpen(true)}
+        onUpgradeMembership={() => {
+          // UI only for now (billing not implemented)
+        }}
       />
 
       <ProfileStatsGrid stats={stats} />
@@ -87,26 +90,7 @@ export function ProfilePageClient({
       <RecentPerformanceList items={recentPerformance} />
 
       <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
-              Membership
-            </div>
-            <div className="mt-1 text-sm font-semibold text-white/70">
-              Current plan: <span className="text-white">{profile.accountPlan.label}</span>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            disabled
-            className="h-11 rounded-xl border border-white/10 bg-black/20 px-5 text-xs font-black uppercase tracking-[0.18em] text-white/50 opacity-70 cursor-not-allowed"
-          >
-            Upgrade Membership
-          </button>
-        </div>
-
-        <div className="mt-6 border-t border-white/10 pt-6">
+        <div>
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-200/70">
             Danger zone
           </div>
