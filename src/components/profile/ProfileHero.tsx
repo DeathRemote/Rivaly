@@ -8,6 +8,7 @@ export function ProfileHero({
   identity,
   confidence,
   onEditProfile,
+  onUpgradeMembership,
 }: {
   identity: {
     name: string;
@@ -21,6 +22,7 @@ export function ProfileHero({
     description: string;
   };
   onEditProfile: () => void;
+  onUpgradeMembership?: () => void;
 }) {
   return (
     <section className="grid grid-cols-1 md:grid-cols-12 gap-8 items-end">
@@ -63,10 +65,11 @@ export function ProfileHero({
             <p className="text-white/35 text-sm">Set a username to make your profile shareable.</p>
           )}
 
-          <div className="flex gap-3 mt-4 justify-center md:justify-start">
+          <div className="flex gap-3 mt-4 justify-center md:justify-start flex-wrap">
             <Button variant="secondary" size="md" onClick={onEditProfile}>
               Edit Profile
             </Button>
+
             <Button
               variant="ghost"
               size="md"
@@ -78,6 +81,19 @@ export function ProfileHero({
             >
               Share Stats
             </Button>
+
+            <button
+              type="button"
+              disabled
+              onClick={onUpgradeMembership}
+              className={cn(
+                "h-11 rounded-xl border border-white/10 bg-black/20 px-4",
+                "text-xs font-black uppercase tracking-[0.18em]",
+                "text-white/50 opacity-70 cursor-not-allowed",
+              )}
+            >
+              Upgrade Membership
+            </button>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useTransition } from "react";
 
 import { ProfileHero } from "@/components/profile/ProfileHero";
 import { ProfileStatsGrid } from "@/components/profile/ProfileStatsGrid";
@@ -8,6 +8,8 @@ import { PredictionTrajectoryCard } from "@/components/profile/PredictionTraject
 import { BadgesCard, type EarnedBadge } from "@/components/profile/BadgesCard";
 import { RecentPerformanceList, type RecentPerformanceItem } from "@/components/profile/RecentPerformanceList";
 import { EditProfileModal } from "@/components/profile/EditProfileModal";
+import { Modal } from "@/components/ui/Modal";
+import { deleteAccountAction } from "@/app/profile/actions";
 
 export function ProfilePageClient({
   profile,
@@ -49,6 +51,9 @@ export function ProfilePageClient({
   recentPerformance: RecentPerformanceItem[];
 }) {
   const [editOpen, setEditOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const identity = useMemo(
     () => ({
@@ -66,6 +71,9 @@ export function ProfilePageClient({
         identity={identity}
         confidence={confidence}
         onEditProfile={() => setEditOpen(true)}
+        onUpgradeMembership={() => {
+          // UI only for now (billing not implemented)
+        }}
       />
 
       <ProfileStatsGrid stats={stats} />
@@ -81,6 +89,29 @@ export function ProfilePageClient({
 
       <RecentPerformanceList items={recentPerformance} />
 
+      <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+        <div>
+          <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-200/70">
+            Danger zone
+          </div>
+          <p className="mt-2 text-sm text-white/50">
+            Deleting your account permanently removes your user and associated data.
+          </p>
+          <div className="mt-4">
+            <button
+              type="button"
+              onClick={() => {
+                setDeleteError(null);
+                setDeleteOpen(true);
+              }}
+              className="h-11 rounded-xl border border-red-500/30 bg-red-500/10 px-5 text-xs font-black uppercase tracking-[0.18em] text-red-200 hover:bg-red-500/15"
+            >
+              Delete Account
+            </button>
+          </div>
+        </div>
+      </section>
+
       <EditProfileModal
         open={editOpen}
         onClose={() => setEditOpen(false)}
@@ -90,6 +121,61 @@ export function ProfilePageClient({
           email: profile.email ?? "",
         }}
       />
+
+      <Modal
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        title="Delete account"
+        description="This cannot be undone."
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-white/60">
+            Confirm you want to permanently delete your Rivaly account.
+          </p>
+
+          {deleteError ? (
+            <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {deleteError}
+            </div>
+          ) : null}
+
+          <div className="flex justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(false)}
+              className="h-11 px-4 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 font-semibold"
+              disabled={pending}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                setDeleteError(null);
+                startTransition(async () => {
+                  const res = await deleteAccountAction();
+                  if (!res.ok) {
+                    setDeleteError(res.error);
+                    return;
+                  }
+
+                  // After deletion, sign out client-side to clear cookies, then go to landing.
+                  try {
+                    const { signOut } = await import("next-auth/react");
+                    await signOut({ callbackUrl: "/" });
+                  } catch {
+                    window.location.href = "/";
+                  }
+                });
+              }}
+              className="h-11 px-5 rounded-xl bg-red-500 text-black font-black uppercase tracking-[0.18em] text-xs hover:brightness-110"
+            >
+              {pending ? "Deleting…" : "Confirm delete"}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

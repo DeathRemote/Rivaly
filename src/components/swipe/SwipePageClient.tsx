@@ -232,16 +232,15 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
         open={scoreOpen}
         onClose={() => setScoreOpen(false)}
         match={scoreFor}
-        onConfirm={(homeScore, awayScore) => {
+        onConfirm={async (homeScore, awayScore) => {
           if (!scoreFor) return;
-          startTransition(async () => {
-            try {
-              await submitExactScore(scoreFor, homeScore, awayScore);
-              setScoreOpen(false);
-            } catch (e) {
-              alert(e instanceof Error ? e.message : "Failed to save prediction");
-            }
-          });
+          try {
+            await submitExactScore(scoreFor, homeScore, awayScore);
+            setScoreOpen(false);
+          } catch (e) {
+            alert(e instanceof Error ? e.message : "Failed to save prediction");
+            throw e;
+          }
         }}
       />
     </div>

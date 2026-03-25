@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import type { SwipeMatch } from "@/lib/swipe-data";
@@ -14,17 +14,30 @@ export function PredictScoreModal({
   open: boolean;
   onClose: () => void;
   match: SwipeMatch | null;
-  onConfirm: (homeScore: number, awayScore: number) => void;
+  onConfirm: (homeScore: number, awayScore: number) => Promise<void> | void;
 }) {
-  const [homeScore, setHomeScore] = useState(1);
-  const [awayScore, setAwayScore] = useState(1);
+  const [homeScore, setHomeScore] = useState(0);
+  const [awayScore, setAwayScore] = useState(0);
 
   const matchKey = useMemo(() => match?.matchId ?? "none", [match?.matchId]);
+
+  const closeAndReset = () => {
+    setHomeScore(0);
+    setAwayScore(0);
+    onClose();
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    // When opening, start from 0-0 for a clean, intentional score entry.
+    setHomeScore(0);
+    setAwayScore(0);
+  }, [open, matchKey]);
 
   return (
     <Modal
       open={open}
-      onClose={onClose}
+      onClose={closeAndReset}
       title="Predict exact score"
       description={
         match
@@ -44,7 +57,11 @@ export function PredictScoreModal({
             min={0}
             max={99}
             value={homeScore}
-            onChange={(e) => setHomeScore(Number(e.target.value))}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => {
+              const v = e.target.value;
+              setHomeScore(v === "" ? 0 : Number(v));
+            }}
             className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-4 text-white focus:outline-none focus:ring-2 focus:ring-lime-400/50"
           />
         </label>
@@ -57,7 +74,11 @@ export function PredictScoreModal({
             min={0}
             max={99}
             value={awayScore}
-            onChange={(e) => setAwayScore(Number(e.target.value))}
+            onFocus={(e) => e.currentTarget.select()}
+            onChange={(e) => {
+              const v = e.target.value;
+              setAwayScore(v === "" ? 0 : Number(v));
+            }}
             className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-4 text-white focus:outline-none focus:ring-2 focus:ring-lime-400/50"
           />
         </label>
@@ -66,14 +87,19 @@ export function PredictScoreModal({
       <div className="mt-6 flex justify-end gap-3">
         <button
           type="button"
-          onClick={onClose}
+          onClick={closeAndReset}
           className="h-11 px-4 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 font-semibold"
         >
           Cancel
         </button>
         <button
           type="button"
-          onClick={() => onConfirm(homeScore, awayScore)}
+          onClick={async () => {
+            await onConfirm(homeScore, awayScore);
+            // After a successful submit, reset back to 0-0.
+            setHomeScore(0);
+            setAwayScore(0);
+          }}
           className="h-11 px-5 rounded-xl bg-lime-300 text-black font-black uppercase tracking-[0.18em] text-xs hover:brightness-110"
         >
           Confirm
