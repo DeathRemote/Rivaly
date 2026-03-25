@@ -10,7 +10,13 @@ const SPORT_ICONS: Record<MatchCard["left"]["sport"], React.ComponentType<{ clas
   soccer: Bolt,
 };
 
-export function MatchPredictionCard({ match }: { match: MatchCard }) {
+export function MatchPredictionCard({
+  match,
+  href,
+}: {
+  match: MatchCard;
+  href?: string;
+}) {
   const badgeClass =
     match.badge.variant === "live"
       ? "bg-orange-300 text-black"
@@ -86,7 +92,7 @@ export function MatchPredictionCard({ match }: { match: MatchCard }) {
           </div>
         </div>
 
-        <PrimaryCTAButton className="py-4">Predict Now</PrimaryCTAButton>
+        <PrimaryCTAButton className="py-4" href={href}>Predict Now</PrimaryCTAButton>
       </div>
 
       <div className="pointer-events-none absolute -right-10 -top-10 h-48 w-48 rounded-full bg-lime-300/10 blur-[70px]" />

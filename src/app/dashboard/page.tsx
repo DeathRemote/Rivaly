@@ -1,15 +1,11 @@
 import { auth } from "@/auth";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { getGlobalStandingForUser } from "@/lib/global-standing";
+import { getDashboardData } from "@/lib/dashboard-data";
 
-import {
-  mockLastResult,
-  mockLeaderboard,
-  mockMatches,
-  sideNavItems,
-  topNavItems,
-} from "@/features/dashboard/mock";
+import { sideNavItems, topNavItems } from "@/features/dashboard/mock";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { RankBadge } from "@/components/dashboard/RankBadge";
@@ -17,6 +13,7 @@ import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { MatchPredictionCard } from "@/components/dashboard/MatchPredictionCard";
 import { GroupLeaderboardCard } from "@/components/dashboard/GroupLeaderboardCard";
+import { toDashboardMatchCard } from "@/app/dashboard/toDashboardMatchCard";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -38,7 +35,10 @@ export default async function DashboardPage() {
     rankLabel: session.user.tier ? String(session.user.tier) : "Free",
   };
 
-  const standing = await getGlobalStandingForUser(userId);
+  const [standing, dash] = await Promise.all([
+    getGlobalStandingForUser(userId),
+    getDashboardData(userId),
+  ]);
 
   return (
     <DashboardLayout
@@ -97,65 +97,117 @@ export default async function DashboardPage() {
         </section>
 
         <StatCard label="Last Result" accent="lime" className="bg-white/5">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-full bg-white/10" />
-              <span className="font-display text-sm font-bold italic">{mockLastResult.leftTeam}</span>
-            </div>
-            <span className="text-xs font-bold text-white/60">VS</span>
-            <div className="flex items-center gap-2">
-              <span className="font-display text-sm font-bold italic">{mockLastResult.rightTeam}</span>
-              <div className="h-8 w-8 rounded-full bg-white/10" />
-            </div>
-          </div>
+          {dash.lastResult ? (
+            <>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="h-8 w-8 rounded-full bg-white/10" />
+                  <span className="font-display text-sm font-bold italic">{dash.lastResult.home}</span>
+                </div>
+                <span className="text-xs font-bold text-white/60">VS</span>
+                <div className="flex items-center gap-2">
+                  <span className="font-display text-sm font-bold italic">{dash.lastResult.away}</span>
+                  <div className="h-8 w-8 rounded-full bg-white/10" />
+                </div>
+              </div>
 
-          <div className="mt-4 text-center">
-            <div className="font-display text-3xl font-black">
-              {mockLastResult.resultLabel}
-            </div>
-            <div className="mt-1 text-sm font-bold text-lime-300">
-              +{mockLastResult.deltaPoints.toLocaleString()} PTS
-            </div>
-          </div>
+              <div className="mt-4 grid grid-cols-2 gap-4">
+                <div className="rounded-xl border border-white/10 bg-black/25 p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+                    Your prediction
+                  </div>
+                  <div className="mt-2 font-display text-2xl font-black text-white">
+                    {dash.lastResult.predicted}
+                  </div>
+                </div>
 
-          <button className="mt-6 w-full rounded-lg bg-white/10 py-3 text-xs font-bold uppercase tracking-[0.18em] text-white/60 hover:text-lime-100">
-            View Replay
-          </button>
+                <div className="rounded-xl border border-white/10 bg-black/25 p-4">
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">
+                    Final
+                  </div>
+                  <div className="mt-2 font-display text-2xl font-black text-white">
+                    {dash.lastResult.actual}
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-4 text-center">
+                <div className="text-sm font-bold text-white/60">Points earned</div>
+                <div className="mt-1 font-display text-3xl font-black text-lime-300">
+                  {dash.lastResult.points >= 0 ? "+" : ""}
+                  {dash.lastResult.points} PTS
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-white/10 bg-black/25 p-4 text-sm text-white/60">
+              No scored results yet. Make predictions to start earning points.
+            </div>
+          )}
         </StatCard>
       </div>
 
       <SectionHeader
         title="What to predict this week"
-        description="High-stakes matches curated for your rank."
+        description="Matches open right now — fastest way to climb."
         accent="orange"
-        right={
-          <>
-            <button
-              type="button"
-              className="rounded-full bg-white/5 p-2 hover:bg-white/10"
-              aria-label="Previous"
-            >
-              ‹
-            </button>
-            <button
-              type="button"
-              className="rounded-full bg-white/5 p-2 hover:bg-white/10"
-              aria-label="Next"
-            >
-              ›
-            </button>
-          </>
-        }
       />
 
-      <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-        {mockMatches.map((match) => (
-          <MatchPredictionCard key={match.id} match={match} />
-        ))}
-      </div>
+      {dash.kickoff.matchesToPredict.length > 0 ? (
+        <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
+          {dash.kickoff.matchesToPredict.slice(0, 6).map((m) => (
+            <MatchPredictionCard
+              key={m.matchId}
+              match={toDashboardMatchCard(m)}
+              href={m.groupId ? `/groups/${m.groupId}?tab=matches` : "/groups"}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-8">
+          <div className="font-display text-2xl font-black italic text-lime-100">
+            You’re all caught up
+          </div>
+          <p className="mt-2 max-w-xl text-sm font-medium text-white/60">
+            All matches currently open for prediction have been predicted. Come back soon or check your
+            groups for upcoming fixtures.
+          </p>
+          <div className="mt-6 flex gap-3 flex-wrap">
+            <Link
+              href="/groups"
+              className="inline-flex items-center justify-center rounded-xl bg-white/5 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-white/80 hover:bg-white/10"
+            >
+              View upcoming matches
+            </Link>
+            {dash.spotlightGroup ? (
+              <Link
+                href={`/groups/${dash.spotlightGroup.id}`}
+                className="inline-flex items-center justify-center rounded-xl border border-lime-300/30 px-5 py-3 text-xs font-black uppercase tracking-[0.18em] text-lime-100 hover:bg-lime-300/5"
+              >
+                Go to leaderboard
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      )}
 
       <div className="mt-16">
-        <GroupLeaderboardCard groupName="Elite Strikers Group" rows={mockLeaderboard} />
+        {dash.spotlightGroup ? (
+          <GroupLeaderboardCard
+            groupName={dash.spotlightGroup.name}
+            rows={dash.spotlightGroup.leaderboardTop3.map((r) => ({
+              position: r.position,
+              name: r.name,
+              xp: r.points,
+              isYou: r.isYou,
+              accent: r.accent,
+            }))}
+          />
+        ) : (
+          <div className="rounded-xl border border-white/10 bg-white/5 p-8 text-white/60">
+            Join a group to see a leaderboard spotlight here.
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

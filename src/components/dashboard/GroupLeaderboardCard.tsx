@@ -3,8 +3,8 @@ import Image from "next/image";
 import type { LeaderboardRow } from "@/features/dashboard/mock";
 import { cn } from "@/lib/cn";
 
-function xpFmt(xp: number) {
-  return new Intl.NumberFormat("en-US").format(xp);
+function pointsFmt(points: number) {
+  return new Intl.NumberFormat("en-US").format(points);
 }
 
 export function GroupLeaderboardCard({
@@ -82,7 +82,7 @@ export function GroupLeaderboardCard({
                           : "text-white/60",
                     )}
                   >
-                    {xpFmt(row.xp)} XP
+                    {pointsFmt(row.xp)} PTS
                   </span>
                 </div>
               );
