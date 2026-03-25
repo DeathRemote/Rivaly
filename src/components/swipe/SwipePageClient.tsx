@@ -101,14 +101,14 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   }
 
   return (
-    <div className="mx-auto w-full max-w-2xl h-[calc(100dvh-10rem)] sm:h-[740px] overflow-hidden sm:overflow-visible flex flex-col">
+    <div className="mx-auto w-full max-w-xl xl:max-w-2xl h-[calc(100dvh-9rem)] sm:h-[680px] lg:h-[640px] xl:h-[740px] overflow-hidden sm:overflow-visible flex flex-col">
       {/* Desktop header only */}
-      <div className="hidden sm:flex mb-5 items-end justify-between gap-4">
+      <div className="hidden sm:flex mb-4 lg:mb-3 xl:mb-5 items-end justify-between gap-4">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.28em] text-orange-300">
             Swipe mode
           </div>
-          <h1 className="mt-2 font-display text-4xl font-black italic tracking-tight text-white">
+          <h1 className="mt-2 font-display text-3xl xl:text-4xl font-black italic tracking-tight text-white">
             Lock picks fast
           </h1>
           <p className="mt-2 text-sm font-medium text-white/60">

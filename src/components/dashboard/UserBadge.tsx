@@ -1,4 +1,5 @@
 import Image from "next/image";
+import Link from "next/link";
 
 export function UserBadge({
   name,
@@ -10,7 +11,11 @@ export function UserBadge({
   image: string | null;
 }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-white/5 p-4">
+    <Link
+      href="/profile"
+      className="flex items-center gap-3 rounded-xl bg-white/5 p-4 hover:bg-white/10 transition focus:outline-none focus:ring-2 focus:ring-lime-300/40"
+      aria-label="Go to profile"
+    >
       <div className="relative h-10 w-10 overflow-hidden rounded-full bg-white/10">
         {image ? (
           <Image src={image} alt={name} fill className="object-cover" />
@@ -22,6 +27,6 @@ export function UserBadge({
           Rank: {rankLabel}
         </p>
       </div>
-    </div>
+    </Link>
   );
 }
