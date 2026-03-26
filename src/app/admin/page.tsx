@@ -1,26 +1,40 @@
-import { redirect } from "next/navigation";
+import { requireAdminPageAccess } from "@/lib/admin/auth";
 
-import { auth } from "@/auth";
+import { getSideNavItems } from "@/features/dashboard/nav";
+import { accountTierLabel } from "@/lib/accountTier";
+
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
+import { AdminPageClient } from "@/components/admin/AdminPageClient";
+
+import { getAdminStatsCached } from "@/lib/admin/stats";
+import { getSportConfigsCached } from "@/lib/admin/sports";
+import { getAdminCatalogCached } from "@/lib/admin/catalog";
 
 export default async function AdminPage() {
-  const session = await auth();
-  if (!session?.user) redirect("/login?callbackUrl=/admin");
+  const session = await requireAdminPageAccess({ callbackUrl: "/admin" });
 
-  const ownerEmail = process.env.OWNER_EMAIL;
-  const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
-  const isAdmin = isOwner || session.user.role === "ADMIN";
+  const user = {
+    name: session.user.username ?? session.user.name ?? "Kinetic Player",
+    image: session.user.image ?? null,
+    rankLabel: accountTierLabel(session.user.tier),
+  };
 
-  if (!isAdmin) {
-    // Backend protection: do not render admin for non-admin users.
-    redirect("/dashboard");
-  }
+  const [stats, sports, catalog] = await Promise.all([
+    getAdminStatsCached(),
+    getSportConfigsCached(),
+    getAdminCatalogCached(),
+  ]);
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-6 py-16">
-      <h1 className="font-display text-4xl font-black italic tracking-tight text-white">
-        Admin
-      </h1>
-      <p className="mt-4 text-white/60">Admin tools coming soon.</p>
-    </div>
+    <DashboardLayout
+      sideNavItems={getSideNavItems({ isAdmin: true })}
+      activeKey="admin"
+      user={user}
+      hideMobileFab
+    >
+      <div className="mx-auto w-full max-w-6xl px-6 py-10">
+        <AdminPageClient initialStats={stats} initialSports={sports} initialCatalog={catalog} />
+      </div>
+    </DashboardLayout>
   );
 }

@@ -7,7 +7,7 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { type GroupCardData } from "@/components/groups/GroupCard";
 import { GroupsPageClient } from "@/components/groups/GroupsPageClient";
 
-import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
 
 type TabKey = "my" | "public";
@@ -108,7 +108,6 @@ export default async function GroupsPage({
 
   return (
     <DashboardLayout
-      topNavItems={getTopNavItems()}
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="groups"
       user={user}

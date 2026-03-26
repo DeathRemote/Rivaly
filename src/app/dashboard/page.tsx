@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { getGlobalStandingForUser } from "@/lib/global-standing";
 import { getDashboardData } from "@/lib/dashboard-data";
 
-import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
@@ -43,7 +43,6 @@ export default async function DashboardPage() {
 
   return (
     <DashboardLayout
-      topNavItems={getTopNavItems()}
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="dashboard"
       user={user}
