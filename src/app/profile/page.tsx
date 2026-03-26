@@ -160,11 +160,8 @@ export default async function ProfilePage() {
   });
 
   // Trajectory: daily points (global scoring) across a window.
-  const trajectory = {
-    d7: await getTrajectory({ userId, days: 7 }),
-    d14: await getTrajectory({ userId, days: 14 }),
-    d30: await getTrajectory({ userId, days: 30 }),
-  };
+  // Perf: compute all windows from a single 30-day query.
+  const trajectory = await getTrajectories({ userId });
 
   const badges = deriveBadges({
     totalPredictions,
@@ -236,8 +233,9 @@ function deriveConfidencePct({
   return Math.max(0, Math.min(100, base * volumeFactor + (1 - volumeFactor) * 25));
 }
 
-async function getTrajectory({ userId, days }: { userId: string; days: 7 | 14 | 30 }) {
+async function getTrajectories({ userId }: { userId: string }) {
   const now = new Date();
+  const days = 30;
   const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
 
   const preds = await prisma.prediction.findMany({
@@ -262,8 +260,6 @@ async function getTrajectory({ userId, days }: { userId: string; days: 7 | 14 | 
     orderBy: { match: { finalizedAt: "asc" } },
   });
 
-  // Build a day-bucket series
-  const buckets: Array<{ day: string; points: number; correct: number; total: number }> = [];
   const byDay = new Map<string, { points: number; correct: number; total: number }>();
 
   for (const p of preds) {
@@ -287,20 +283,29 @@ async function getTrajectory({ userId, days }: { userId: string; days: 7 | 14 | 
     byDay.set(day, cur);
   }
 
-  // Ensure we render a continuous series for the range (even if empty days)
+  const series30: Array<{ day: string; points: number; correct: number; total: number }> = [];
+
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(now.getTime() - i * 24 * 60 * 60 * 1000);
     const key = d.toISOString().slice(0, 10);
     const v = byDay.get(key) ?? { points: 0, correct: 0, total: 0 };
-    buckets.push({ day: key, ...v });
+    series30.push({ day: key, ...v });
   }
 
-  const total = buckets.reduce((acc, b) => acc + b.total, 0);
-  const correct = buckets.reduce((acc, b) => acc + b.correct, 0);
-  const accuracyPct = total === 0 ? 0 : (correct / total) * 100;
-  const points = buckets.reduce((acc, b) => acc + b.points, 0);
+  function summarize(windowDays: 7 | 14 | 30) {
+    const series = series30.slice(days - windowDays);
+    const total = series.reduce((acc, b) => acc + b.total, 0);
+    const correct = series.reduce((acc, b) => acc + b.correct, 0);
+    const accuracyPct = total === 0 ? 0 : (correct / total) * 100;
+    const points = series.reduce((acc, b) => acc + b.points, 0);
+    return { days: windowDays, points, accuracyPct, series };
+  }
 
-  return { days, points, accuracyPct, series: buckets };
+  const d7 = summarize(7);
+  const d14 = summarize(14);
+  const d30 = summarize(30);
+
+  return { d7, d14, d30 };
 }
 
 function deriveBadges(input: {

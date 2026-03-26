@@ -89,7 +89,11 @@ export async function getMatchesForGroup({
       m.kickoffAt.getTime() <= openingBucketEnd.getTime() &&
       now.getTime() < lockAtDate.getTime();
 
-    const visibleAtDate = inOpeningBucket ? now : m.visibleAt ?? m.kickoffAt;
+    // IMPORTANT: don't use server "now" as visibleAt.
+    // If the client clock is behind the server clock by a few seconds, the UI can appear
+    // temporarily locked right after a revalidation/refresh (visibleAt in the "future").
+    // Using epoch makes the match immediately eligible in the opening bucket.
+    const visibleAtDate = inOpeningBucket ? new Date(0) : m.visibleAt ?? m.kickoffAt;
 
     return {
       id: m.id,
