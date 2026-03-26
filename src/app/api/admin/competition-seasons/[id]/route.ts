@@ -8,11 +8,11 @@ import { prisma } from "@/lib/prisma";
 const ParamsSchema = z.object({ id: z.string().min(1) });
 const PatchSchema = z.object({ published: z.boolean() });
 
-export async function PATCH(req: Request, ctx: { params: { id: string } }) {
+export async function PATCH(req: Request, ctx: { params: { id: string } | Promise<{ id: string }> }) {
   const guard = await requireAdminApi();
   if (!guard.ok) return guard.response;
 
-  const params = ctx.params;
+  const params = await ctx.params;
   const p = ParamsSchema.safeParse(params);
   if (!p.success) return NextResponse.json({ ok: false, error: "Invalid id" }, { status: 400 });
 

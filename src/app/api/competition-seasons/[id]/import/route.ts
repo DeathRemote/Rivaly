@@ -3,8 +3,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { importCompetitionSeasonFixtures } from "@/lib/importers/competition-season-fixtures";
 
-export async function POST(req: Request, ctx: { params: { id: string } }) {
-  const { id } = ctx.params;
+export async function POST(req: Request, ctx: { params: { id: string } | Promise<{ id: string }> }) {
+  const { id } = await ctx.params;
   const url = new URL(req.url);
 
   // Destructive, but useful while we iterate (e.g. if partial fixtures were imported).
