@@ -1,46 +1,93 @@
-import type { Prisma } from "@prisma/client";
+import { unstable_cache } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
 import { winnerOf } from "@/lib/scoring/predictions";
 
-export async function getGroupMemberAccuracies(groupId: string) {
-  const events = await prisma.pointsEvent.findMany({
-    where: { groupId, type: "PREDICTION_SCORED" },
-    select: { userId: true, meta: true, createdAt: true },
-  });
+// Note: group-level derived reads can be reused briefly.
 
-  const byUser = new Map<
-    string,
-    {
-      scored: number;
-      correct: number;
-      last7d: number;
-      prev7d: number;
-    }
-  >();
+export type GroupMemberAccuracy = {
+  scored: number;
+  correct: number;
+  last7d: number;
+  prev7d: number;
+};
 
-  const now = Date.now();
+export type GroupMemberAccuracyByUserId = Record<string, GroupMemberAccuracy>;
+
+async function _getGroupMemberAccuracies(groupId: string): Promise<GroupMemberAccuracyByUserId> {
+  const now = new Date();
   const d7 = 7 * 24 * 60 * 60 * 1000;
+  const from7 = new Date(now.getTime() - d7);
+  const from14 = new Date(now.getTime() - 2 * d7);
 
-  for (const e of events) {
-    const meta = (e.meta ?? {}) as Prisma.JsonObject;
-    const model = meta as unknown as { winnerCorrect?: boolean };
+  // Avoid pulling all events into memory (can grow unbounded).
+  // We approximate winnerCorrect as points > 0 (wrong predictions score 0).
+  const [total, correct, last7, prev7] = await Promise.all([
+    prisma.pointsEvent.groupBy({
+      by: ["userId"],
+      where: { groupId, type: "PREDICTION_SCORED" },
+      _count: { _all: true },
+    }),
+    prisma.pointsEvent.groupBy({
+      by: ["userId"],
+      where: { groupId, type: "PREDICTION_SCORED", points: { gt: 0 } },
+      _count: { _all: true },
+    }),
+    prisma.pointsEvent.groupBy({
+      by: ["userId"],
+      where: { groupId, type: "PREDICTION_SCORED", createdAt: { gte: from7 } },
+      _count: { _all: true },
+    }),
+    prisma.pointsEvent.groupBy({
+      by: ["userId"],
+      where: {
+        groupId,
+        type: "PREDICTION_SCORED",
+        createdAt: { gte: from14, lt: from7 },
+      },
+      _count: { _all: true },
+    }),
+  ]);
 
-    const cur = byUser.get(e.userId) ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
-    cur.scored += 1;
-    if (model.winnerCorrect) cur.correct += 1;
+  const byUser: GroupMemberAccuracyByUserId = {};
 
-    const age = now - e.createdAt.getTime();
-    if (age <= d7) cur.last7d += 1;
-    else if (age <= 2 * d7) cur.prev7d += 1;
+  for (const r of total) {
+    byUser[r.userId] = {
+      scored: r._count._all,
+      correct: 0,
+      last7d: 0,
+      prev7d: 0,
+    };
+  }
 
-    byUser.set(e.userId, cur);
+  for (const r of correct) {
+    const cur = byUser[r.userId] ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
+    cur.correct = r._count._all;
+    byUser[r.userId] = cur;
+  }
+
+  for (const r of last7) {
+    const cur = byUser[r.userId] ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
+    cur.last7d = r._count._all;
+    byUser[r.userId] = cur;
+  }
+
+  for (const r of prev7) {
+    const cur = byUser[r.userId] ?? { scored: 0, correct: 0, last7d: 0, prev7d: 0 };
+    cur.prev7d = r._count._all;
+    byUser[r.userId] = cur;
   }
 
   return byUser;
 }
 
-export async function getGroupCompletedMatchFeed(opts: {
+export const getGroupMemberAccuracies = unstable_cache(
+  async (groupId: string) => _getGroupMemberAccuracies(groupId),
+  ["group-member-accuracies"],
+  { revalidate: 30 },
+);
+
+async function _getGroupCompletedMatchFeed(opts: {
   groupId: string;
   limitMatches?: number;
 }) {
@@ -89,7 +136,6 @@ export async function getGroupCompletedMatchFeed(opts: {
       userId: true,
       matchId: true,
       points: true,
-      meta: true,
       user: { select: { name: true, username: true, image: true } },
     },
     orderBy: { points: "desc" },
@@ -153,29 +199,28 @@ export async function getGroupCompletedMatchFeed(opts: {
   return out;
 }
 
-export async function getGroupMomentum(groupId: string) {
-  // Momentum v1: blend recent group accuracy + activity.
-  // Window: last 14 days.
+export const getGroupCompletedMatchFeed = unstable_cache(
+  async (opts: { groupId: string; limitMatches?: number }) => _getGroupCompletedMatchFeed(opts),
+  ["group-completed-feed"],
+  { revalidate: 30 },
+);
+
+async function _getGroupMomentum(groupId: string) {
   const now = new Date();
   const from = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
 
-  const [events, memberCount] = await Promise.all([
-    prisma.pointsEvent.findMany({
+  const [totalCount, correctCount, memberCount] = await Promise.all([
+    prisma.pointsEvent.count({
       where: { groupId, type: "PREDICTION_SCORED", createdAt: { gte: from } },
-      select: { meta: true, userId: true, points: true },
+    }),
+    prisma.pointsEvent.count({
+      where: { groupId, type: "PREDICTION_SCORED", createdAt: { gte: from }, points: { gt: 0 } },
     }),
     prisma.groupMember.count({ where: { groupId } }),
   ]);
 
-  let correct = 0;
-  let total = 0;
-
-  for (const e of events) {
-    const meta = (e.meta ?? {}) as Prisma.JsonObject;
-    const model = meta as unknown as { winnerCorrect?: boolean };
-    total += 1;
-    if (model.winnerCorrect) correct += 1;
-  }
+  const total = totalCount;
+  const correct = correctCount;
 
   const accuracyPct = total === 0 ? 0 : (correct / total) * 100;
   const eventsPerMember = memberCount === 0 ? 0 : total / memberCount;
@@ -183,7 +228,9 @@ export async function getGroupMomentum(groupId: string) {
   // Activity score: 10 scored predictions per member in 14D = maxed.
   const activityScore = clamp01(eventsPerMember / 10) * 100;
 
-  const momentumPct = Math.round(clamp01(0.7 * (accuracyPct / 100) + 0.3 * (activityScore / 100)) * 100);
+  const momentumPct = Math.round(
+    clamp01(0.7 * (accuracyPct / 100) + 0.3 * (activityScore / 100)) * 100,
+  );
 
   const riskLabel = momentumPct >= 70 ? "HIGH" : momentumPct >= 40 ? "MED" : "LOW";
 
@@ -197,6 +244,12 @@ export async function getGroupMomentum(groupId: string) {
       "Momentum v1 = 70% group accuracy (last 14 days) + 30% activity (scored predictions per member, capped).",
   };
 }
+
+export const getGroupMomentum = unstable_cache(
+  async (groupId: string) => _getGroupMomentum(groupId),
+  ["group-momentum"],
+  { revalidate: 30 },
+);
 
 function clamp01(n: number) {
   if (!Number.isFinite(n)) return 0;
