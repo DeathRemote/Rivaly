@@ -12,9 +12,8 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { RankBadge } from "@/components/dashboard/RankBadge";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { MatchPredictionCard } from "@/components/dashboard/MatchPredictionCard";
 import { GroupLeaderboardCard } from "@/components/dashboard/GroupLeaderboardCard";
-import { toDashboardMatchCard } from "@/app/dashboard/toDashboardMatchCard";
+import { DashboardMatchCarousel } from "@/components/dashboard/DashboardMatchCarousel";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -154,36 +153,7 @@ export default async function DashboardPage() {
       />
 
       {dash.kickoff.matchesToPredict.length > 0 ? (
-        <section className="mt-8">
-          <div
-            className={
-              "-mx-4 px-4 sm:mx-0 sm:px-0 " +
-              "overflow-x-auto overscroll-x-contain " +
-              "scroll-smooth snap-x snap-mandatory"
-            }
-          >
-            <div className="flex gap-6 min-w-max pb-2">
-              {dash.kickoff.matchesToPredict.map((m) => (
-                <div
-                  key={m.matchId}
-                  className={
-                    "snap-start flex-none " +
-                    "w-[280px] sm:w-[320px] lg:w-[340px]"
-                  }
-                >
-                  <MatchPredictionCard
-                    match={toDashboardMatchCard(m)}
-                    href={m.groupId ? `/groups/${m.groupId}?tab=matches` : "/groups"}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <p className="mt-3 text-xs text-white/40">
-            Tip: swipe/scroll sideways to see more open matches.
-          </p>
-        </section>
+        <DashboardMatchCarousel matches={dash.kickoff.matchesToPredict} />
       ) : (
         <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-8">
           <div className="font-display text-2xl font-black italic text-lime-100">
