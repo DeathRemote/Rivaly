@@ -1,8 +1,11 @@
 import { redirect } from "next/navigation";
 
+import type { Session } from "next-auth";
+
 import { auth } from "@/auth";
 
-export type AdminSession = Awaited<ReturnType<typeof auth>>;
+// NextAuth v5 `auth` is overloaded (middleware + server helper). We only use the server helper shape here.
+export type AdminSession = Session | null;
 
 export async function getIsAdmin(): Promise<{ session: AdminSession; isAdmin: boolean }> {
   const session = await auth();
@@ -26,3 +29,4 @@ export async function requireAdminPageAccess(opts?: { callbackUrl?: string }) {
 
   return session;
 }
+
