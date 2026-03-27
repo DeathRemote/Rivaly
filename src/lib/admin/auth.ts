@@ -16,7 +16,9 @@ export async function getIsAdmin(): Promise<{ session: AdminSession; isAdmin: bo
 }
 
 /** Server component helper: requires admin; redirects non-authed to login and non-admin to /dashboard. */
-export async function requireAdminPageAccess(opts?: { callbackUrl?: string }) {
+export async function requireAdminPageAccess(
+  opts?: { callbackUrl?: string },
+): Promise<Session & { user: NonNullable<Session["user"]> }> {
   const { session, isAdmin } = await getIsAdmin();
 
   if (!session?.user) {
@@ -27,6 +29,7 @@ export async function requireAdminPageAccess(opts?: { callbackUrl?: string }) {
     redirect("/dashboard");
   }
 
-  return session;
+  // After the redirect guards above, session.user is guaranteed.
+  return session as Session & { user: NonNullable<Session["user"]> };
 }
 
