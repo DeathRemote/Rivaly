@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 const ParamsSchema = z.object({ id: z.string().min(1) });
 const PatchSchema = z.object({ published: z.boolean() });
 
-export async function PATCH(req: Request, ctx: { params: { id: string } | Promise<{ id: string }> }) {
+export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requireAdminApi();
   if (!guard.ok) return guard.response;
 
