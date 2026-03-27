@@ -18,7 +18,7 @@ import type { MatchListItem } from "@/components/groups/matches/types";
 import { getMatchesForGroup } from "@/app/groups/[groupId]/matches/data";
 import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 
-import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
 import {
   getGroupCompletedMatchFeed,
@@ -221,7 +221,6 @@ export default async function GroupDetailsPage({
 
   return (
     <DashboardLayout
-      topNavItems={getTopNavItems()}
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="groups"
       user={user}
@@ -257,11 +256,7 @@ export default async function GroupDetailsPage({
           </div>
         </div>
       ) : tab === "matches" ? (
-        <GroupMatchesTab
-          groupId={group.id}
-          phaseType={"LEAGUE" satisfies PhaseType}
-          matches={matchesForTab}
-        />
+        <GroupMatchesTab phaseType={"LEAGUE" satisfies PhaseType} matches={matchesForTab} />
       ) : (
         <GroupTableTab competitionSeasonId={group.competitionSeasonId ?? ""} />
       )}

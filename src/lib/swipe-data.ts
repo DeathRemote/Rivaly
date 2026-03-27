@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 
 export type SwipeMatch = {
   matchId: string;
+  competitionSeasonId: string;
   kickoffAt: string;
   lockAt: string;
   competitionLabel: string;
@@ -126,6 +127,7 @@ export async function getSwipeMatchesForUser(userId: string): Promise<SwipeMatch
 
     out.push({
       matchId: m.id,
+      competitionSeasonId: m.competitionSeasonId,
       kickoffAt: m.kickoffAt.toISOString(),
       lockAt: (m.lockAt ?? m.kickoffAt).toISOString(),
       competitionLabel,

@@ -6,7 +6,7 @@ import { getSwipeMatchesForUser } from "@/lib/swipe-data";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { SwipePageClient } from "@/components/swipe/SwipePageClient";
 
-import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
 
 export default async function SwipePage() {
@@ -24,7 +24,6 @@ export default async function SwipePage() {
 
   return (
     <DashboardLayout
-      topNavItems={getTopNavItems()}
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="swipe"
       hideMobileFab

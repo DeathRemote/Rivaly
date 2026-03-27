@@ -24,7 +24,10 @@ export async function GET(req: Request) {
   const seasons = await prisma.competitionSeason.findMany({
     where: {
       published: true,
-      ...(parsed.data.sport ? { competition: { sport: parsed.data.sport } } : {}),
+      competition: {
+        published: true,
+        ...(parsed.data.sport ? { sport: parsed.data.sport } : {}),
+      },
     },
     include: {
       competition: true,

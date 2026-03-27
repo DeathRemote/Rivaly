@@ -1,9 +1,10 @@
 import { unstable_cache } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
+import { getSwipeMatchesForUser } from "@/lib/swipe-data";
 
 async function _getDashboardData(userId: string) {
-  const now = new Date();
+  // (now not needed here; selection is delegated to Swipe matcher)
 
   const groups = await prisma.group.findMany({
     where: { members: { some: { userId } } },
@@ -25,60 +26,23 @@ async function _getDashboardData(userId: string) {
     },
   });
 
-  const seasonIds = groups.map((g) => g.competitionSeasonId).filter(Boolean) as string[];
+  // Use the same selection rules as Swipe so dashboard is consistent:
+  // - kickoff window via visibleAt/lockAt
+  // - season-start opening bucket exception
+  // - exclude already predicted matches
+  const matchesToPredict = await getSwipeMatchesForUser(userId);
 
-  const openMatches =
-    seasonIds.length === 0
-      ? []
-      : await prisma.match.findMany({
-          where: {
-            competitionSeasonId: { in: seasonIds },
-            status: { not: "FINISHED" },
-            kickoffAt: { gte: new Date(now.getTime() - 6 * 60 * 60 * 1000) },
-            OR: [
-              {
-                visibleAt: { lte: now },
-                lockAt: { gt: now },
-              },
-              // Fallback if visibleAt/lockAt aren’t set yet: treat kickoff as lock.
-              {
-                visibleAt: null,
-                lockAt: null,
-                kickoffAt: { gt: now },
-              },
-            ],
-          },
-          select: {
-            id: true,
-            kickoffAt: true,
-            visibleAt: true,
-            lockAt: true,
-            competitionSeasonId: true,
-            homeTeam: { select: { name: true, shortName: true } },
-            awayTeam: { select: { name: true, shortName: true } },
-          },
-          orderBy: { kickoffAt: "asc" },
-          take: 50,
-        });
-
-  const openMatchIds = openMatches.map((m) => m.id);
-  const existingPredictions =
-    openMatchIds.length === 0
-      ? []
-      : await prisma.prediction.findMany({
-          where: { userId, matchId: { in: openMatchIds } },
-          select: { matchId: true },
-        });
-
-  const predictedSet = new Set(existingPredictions.map((p) => p.matchId));
-  const matchesToPredict = openMatches.filter((m) => !predictedSet.has(m.id));
+  const openMatchesCount = matchesToPredict.length;
 
   // Group spotlight selection.
 
   // Count open-needed per group (matches in kickoff window not predicted).
   const openNeededBySeason = new Map<string, number>();
   for (const m of matchesToPredict) {
-    openNeededBySeason.set(m.competitionSeasonId, (openNeededBySeason.get(m.competitionSeasonId) ?? 0) + 1);
+    openNeededBySeason.set(
+      m.competitionSeasonId,
+      (openNeededBySeason.get(m.competitionSeasonId) ?? 0) + 1,
+    );
   }
 
   const lastActivityByGroup = await prisma.pointsEvent.groupBy({
@@ -107,18 +71,20 @@ async function _getDashboardData(userId: string) {
 
   const kickoffCards = matchesToPredict.map((m) => {
     const seasonGroupIds = groupIdBySeason.get(m.competitionSeasonId) ?? [];
-    const groupId =
+
+    // Prefer spotlight group routing if the match is in the same season.
+    const routeGroupId =
       spotlight && spotlight.competitionSeasonId === m.competitionSeasonId
         ? spotlight.id
-        : seasonGroupIds[0] ?? null;
+        : seasonGroupIds[0] ?? m.groupId ?? null;
 
     return {
-      matchId: m.id,
-      kickoffAt: m.kickoffAt.toISOString(),
-      home: m.homeTeam.shortName ?? m.homeTeam.name,
-      away: m.awayTeam.shortName ?? m.awayTeam.name,
-      groupId,
-      lockAt: (m.lockAt ?? m.kickoffAt).toISOString(),
+      matchId: m.matchId,
+      kickoffAt: m.kickoffAt,
+      home: m.home.shortName ?? m.home.name,
+      away: m.away.shortName ?? m.away.name,
+      groupId: routeGroupId,
+      lockAt: m.lockAt,
     };
   });
 
@@ -171,7 +137,7 @@ async function _getDashboardData(userId: string) {
   return {
     kickoff: {
       matchesToPredict: kickoffCards,
-      allOpenCount: openMatches.length,
+      allOpenCount: openMatchesCount,
       remainingCount: matchesToPredict.length,
     },
     lastResult,

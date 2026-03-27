@@ -1,52 +1,22 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Modal } from "@/components/ui/Modal";
 import type { SwipeMatch } from "@/lib/swipe-data";
 
-export function PredictScoreModal({
-  open,
-  onClose,
-  match,
+function ScoreForm({
+  onCancel,
   onConfirm,
 }: {
-  open: boolean;
-  onClose: () => void;
-  match: SwipeMatch | null;
+  onCancel: () => void;
   onConfirm: (homeScore: number, awayScore: number) => Promise<void> | void;
 }) {
   const [homeScore, setHomeScore] = useState(0);
   const [awayScore, setAwayScore] = useState(0);
 
-  const matchKey = useMemo(() => match?.matchId ?? "none", [match?.matchId]);
-
-  const closeAndReset = () => {
-    setHomeScore(0);
-    setAwayScore(0);
-    onClose();
-  };
-
-  useEffect(() => {
-    if (!open) return;
-    // When opening, start from 0-0 for a clean, intentional score entry.
-    setHomeScore(0);
-    setAwayScore(0);
-  }, [open, matchKey]);
-
   return (
-    <Modal
-      open={open}
-      onClose={closeAndReset}
-      title="Predict exact score"
-      description={
-        match
-          ? `${match.home.shortName ?? match.home.name} vs ${match.away.shortName ?? match.away.name}`
-          : undefined
-      }
-    >
-      {/* key forces local state reset when switching matches */}
-      <div key={matchKey} className="contents">
+    <div className="contents">
       <div className="grid grid-cols-2 gap-4">
         <label className="block">
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/45 mb-2">
@@ -87,7 +57,7 @@ export function PredictScoreModal({
       <div className="mt-6 flex justify-end gap-3">
         <button
           type="button"
-          onClick={closeAndReset}
+          onClick={onCancel}
           className="h-11 px-4 rounded-xl bg-white/5 text-white/80 hover:bg-white/10 font-semibold"
         >
           Cancel
@@ -96,9 +66,6 @@ export function PredictScoreModal({
           type="button"
           onClick={async () => {
             await onConfirm(homeScore, awayScore);
-            // After a successful submit, reset back to 0-0.
-            setHomeScore(0);
-            setAwayScore(0);
           }}
           className="h-11 px-5 rounded-xl bg-lime-300 text-black font-black uppercase tracking-[0.18em] text-xs hover:brightness-110"
         >
@@ -109,7 +76,44 @@ export function PredictScoreModal({
       <p className="mt-4 text-[11px] leading-relaxed text-white/45">
         Tip: Swipe is for fast picks. Edit later from the group Matches tab.
       </p>
-      </div>
+    </div>
+  );
+}
+
+export function PredictScoreModal({
+  open,
+  onClose,
+  match,
+  onConfirm,
+}: {
+  open: boolean;
+  onClose: () => void;
+  match: SwipeMatch | null;
+  onConfirm: (homeScore: number, awayScore: number) => Promise<void> | void;
+}) {
+  const matchKey = useMemo(() => match?.matchId ?? "none", [match?.matchId]);
+
+  const closeAndReset = () => {
+    onClose();
+  };
+
+  return (
+    <Modal
+      open={open}
+      onClose={closeAndReset}
+      title="Predict exact score"
+      description={
+        match
+          ? `${match.home.shortName ?? match.home.name} vs ${match.away.shortName ?? match.away.name}`
+          : undefined
+      }
+    >
+      {/* key forces local state reset when switching matches */}
+      <ScoreForm
+        key={matchKey}
+        onCancel={closeAndReset}
+        onConfirm={onConfirm}
+      />
     </Modal>
   );
 }

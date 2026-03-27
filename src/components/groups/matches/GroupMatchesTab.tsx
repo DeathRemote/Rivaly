@@ -12,11 +12,9 @@ import { MatchesEmptyState } from "@/components/groups/matches/MatchesEmptyState
 const PRESEASON_KICKOFF_SPAN_HOURS = 72; // "first weekend" bucket
 
 export function GroupMatchesTab({
-  groupId,
   phaseType,
   matches,
 }: {
-  groupId: string;
   phaseType: PhaseType;
   matches: MatchListItem[];
 }) {

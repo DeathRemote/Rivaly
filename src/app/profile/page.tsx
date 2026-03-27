@@ -7,7 +7,7 @@ import { scorePredictionPoints } from "@/lib/scoring/predictions";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { ProfilePageClient } from "@/components/profile/ProfilePageClient";
 
-import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { getSideNavItems } from "@/features/dashboard/nav";
 
 type AccountTier = "FREE" | "BASIC" | "PRO" | "ELITE" | "FRIENDS_AND_FAMILY";
 
@@ -172,7 +172,6 @@ export default async function ProfilePage() {
 
   return (
     <DashboardLayout
-      topNavItems={getTopNavItems()}
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="profile"
       user={{

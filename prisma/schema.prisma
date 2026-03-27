@@ -130,6 +130,15 @@ enum Sport {
   ESPORTS
 }
 
+model SportConfig {
+  // Controls what sports are selectable in group creation.
+  sport    Sport   @id
+  enabled  Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
 enum Provider {
   THESPORTSDB
 }

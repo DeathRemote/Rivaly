@@ -8,7 +8,7 @@ import { prisma } from "@/lib/prisma";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { TablesPageClient, type TablesPageTable } from "@/components/tables/TablesPageClient";
 
-import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
 
 type Season = { id: string; seasonLabel: string; competition: { name: string } };
@@ -104,7 +104,6 @@ export default async function TablesPage() {
 
   return (
     <DashboardLayout
-      topNavItems={getTopNavItems()}
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="tables"
       user={{

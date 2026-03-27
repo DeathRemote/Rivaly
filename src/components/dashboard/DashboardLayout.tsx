@@ -5,14 +5,12 @@ import { DashboardSidebar } from "@/components/dashboard/DashboardSidebar";
 import { MobileBottomNav } from "@/components/dashboard/MobileBottomNav";
 
 export function DashboardLayout({
-  topNavItems,
   sideNavItems,
   activeKey,
   user,
   children,
   hideMobileFab,
 }: {
-  topNavItems: DashboardNavItem[];
   sideNavItems: DashboardNavItem[];
   activeKey: DashboardNavItem["key"];
   user: { name: string; image: string | null; rankLabel: string };
@@ -21,7 +19,7 @@ export function DashboardLayout({
 }) {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden lg:overflow-x-visible">
-      <DashboardTopNav activeKey={activeKey} items={topNavItems} user={user} />
+      <DashboardTopNav user={user} />
       <DashboardSidebar activeKey={activeKey} items={sideNavItems} user={user} />
 
       <main className="lg:ml-64 xl:ml-72 pt-5 lg:pt-20 xl:pt-24 pb-28 lg:pb-32 px-4 sm:px-6">

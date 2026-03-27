@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { generateInviteCode } from "@/lib/group-code";
+import { isSportEnabled } from "@/lib/admin/sports";
 
 const createGroupSchema = z
   .object({
@@ -51,6 +52,10 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
 
   const { name, sport, competitionSeasonId, competition } = parsed.data;
 
+  // Backend enforcement: sport activation affects group creation.
+  const enabled = await isSportEnabled(sport);
+  if (!enabled) return { ok: false, error: "That sport is currently disabled." };
+
   // Generate a short, uppercase invite code server-side.
   // Ensure uniqueness using the DB unique constraint, retrying on collisions.
   for (let attempt = 0; attempt < 10; attempt++) {
@@ -61,7 +66,11 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
 
       if (sport === "SOCCER") {
         const season = await prisma.competitionSeason.findFirst({
-          where: { id: competitionSeasonId, published: true },
+          where: {
+            id: competitionSeasonId,
+            published: true,
+            competition: { published: true },
+          },
           include: { competition: true },
         });
         if (!season) return { ok: false, error: "Selected competition season not found." };
