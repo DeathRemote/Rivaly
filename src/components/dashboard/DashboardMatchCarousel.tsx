@@ -81,11 +81,15 @@ export function DashboardMatchCarousel({
 
       <div
         ref={scrollerRef}
-        className={
-          "-mx-4 px-4 sm:mx-0 sm:px-0 " +
-          "overflow-x-auto overscroll-x-contain " +
-          "scroll-smooth snap-x snap-mandatory"
-        }
+        className={cn(
+          "-mx-4 px-4 sm:mx-0 sm:px-0",
+          "overflow-x-auto overscroll-x-contain",
+          "scroll-smooth snap-x snap-mandatory",
+          // Hide scrollbars (still scrollable)
+          "[scrollbar-width:none]",
+          "[-ms-overflow-style:none]",
+          "[&::-webkit-scrollbar]:hidden",
+        )}
       >
         <div className="flex gap-6 min-w-max pb-2">
           {matches.map((m) => (
