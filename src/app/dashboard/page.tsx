@@ -5,16 +5,15 @@ import { redirect } from "next/navigation";
 import { getGlobalStandingForUser } from "@/lib/global-standing";
 import { getDashboardData } from "@/lib/dashboard-data";
 
-import { getSideNavItems, getTopNavItems } from "@/features/dashboard/nav";
+import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { RankBadge } from "@/components/dashboard/RankBadge";
 import { SectionHeader } from "@/components/dashboard/SectionHeader";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { MatchPredictionCard } from "@/components/dashboard/MatchPredictionCard";
 import { GroupLeaderboardCard } from "@/components/dashboard/GroupLeaderboardCard";
-import { toDashboardMatchCard } from "@/app/dashboard/toDashboardMatchCard";
+import { DashboardMatchCarousel } from "@/components/dashboard/DashboardMatchCarousel";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -43,7 +42,6 @@ export default async function DashboardPage() {
 
   return (
     <DashboardLayout
-      topNavItems={getTopNavItems()}
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="dashboard"
       user={user}
@@ -155,15 +153,7 @@ export default async function DashboardPage() {
       />
 
       {dash.kickoff.matchesToPredict.length > 0 ? (
-        <div className="mt-8 grid grid-cols-1 gap-8 md:grid-cols-2 lg:grid-cols-3">
-          {dash.kickoff.matchesToPredict.slice(0, 6).map((m) => (
-            <MatchPredictionCard
-              key={m.matchId}
-              match={toDashboardMatchCard(m)}
-              href={m.groupId ? `/groups/${m.groupId}?tab=matches` : "/groups"}
-            />
-          ))}
-        </div>
+        <DashboardMatchCarousel matches={dash.kickoff.matchesToPredict} />
       ) : (
         <div className="mt-8 rounded-xl border border-white/10 bg-white/5 p-8">
           <div className="font-display text-2xl font-black italic text-lime-100">

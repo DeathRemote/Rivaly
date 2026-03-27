@@ -1,17 +1,11 @@
 import Link from "next/link";
 import { Bell } from "lucide-react";
 
-// Navigation links removed from header (sidebar + bottom nav only).
-import type { DashboardNavItem } from "@/features/dashboard/mock";
 import { UserMenu } from "@/components/dashboard/UserMenu";
 
 export function DashboardTopNav({
-  activeKey,
-  items,
   user,
 }: {
-  activeKey: DashboardNavItem["key"];
-  items: DashboardNavItem[];
   user: { name: string; image: string | null };
 }) {
   return (

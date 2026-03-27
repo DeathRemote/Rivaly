@@ -2,12 +2,14 @@
 
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 
 import { cn } from "@/lib/cn";
 import { LegalModal, type LegalModalMode } from "@/components/ui/LegalModal";
 
 export function Footer({ className }: { className?: string }) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useState<LegalModalMode>("privacy");
 
@@ -15,6 +17,9 @@ export function Footer({ className }: { className?: string }) {
     setMode(nextMode);
     setOpen(true);
   }
+
+  // Admin is an in-app tool page; keep it clean (no footer).
+  if (pathname?.startsWith("/admin")) return null;
 
   return (
     <>

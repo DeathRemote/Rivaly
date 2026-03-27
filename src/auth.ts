@@ -18,6 +18,8 @@ type RivalyRole = "USER" | "ADMIN";
 type RivalyTier = "FREE" | "BASIC" | "PRO" | "ELITE" | "FRIENDS_AND_FAMILY";
 
 type RivalyJWT = JWT & {
+  /** Prisma User.id (cuid). Do not confuse with OAuth providerAccountId/sub. */
+  uid?: string;
   role?: RivalyRole;
   tier?: RivalyTier;
   username?: string | null;
@@ -86,14 +88,28 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     async jwt({ token, user }) {
       const t = token as RivalyJWT;
 
-      // Persist user id onto the token on sign-in.
-      if (user?.id) t.sub = user.id;
+      // IMPORTANT: Persist the Prisma User.id (cuid) onto the token on sign-in.
+      // Do not rely on `sub` always being a DB id (it can be provider subject in some flows).
+      if (user?.id) {
+        t.uid = user.id;
+        t.sub = user.id;
+      }
+
+      // If uid is missing (e.g. token restored from cookie), recover it via email.
+      if (!t.uid && t.email) {
+        const db = await prisma.user.findUnique({ where: { email: t.email }, select: { id: true } });
+        if (db?.id) {
+          t.uid = db.id;
+          t.sub = db.id;
+        }
+      }
 
       // Populate extra fields onto the JWT so we can use them in Server Components
       // without extra DB roundtrips.
-      if (t.sub && (!t.role || !t.tier || !t.username || !t.country)) {
+      const lookupId = t.uid ?? t.sub;
+      if (lookupId && (!t.role || !t.tier || !t.username || !t.country)) {
         const dbUser = await prisma.user.findUnique({
-          where: { id: t.sub },
+          where: { id: lookupId },
           select: {
             role: true,
             accountTier: true,
@@ -123,7 +139,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       const t = token as RivalyJWT;
       if (session.user) {
         const u = session.user as RivalySessionUser;
-        u.id = t.sub ?? undefined;
+        u.id = t.uid ?? t.sub ?? undefined;
         u.role = t.role;
         u.tier = t.tier;
         u.username = t.username;

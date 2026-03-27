@@ -128,7 +128,7 @@ function PrivacyPolicyContent() {
     <div>
       <Section title="Introduction">
         <p>
-          Rivaly ("we", "our", "us") operates a platform for sports predictions and social competition.
+          Rivaly (&quot;we&quot;, &quot;our&quot;, &quot;us&quot;) operates a platform for sports predictions and social competition.
           This Privacy Policy explains how we collect, use, and protect your information.
         </p>
         <p className="mt-2 text-sm opacity-70">Last updated: March 25, 2026</p>
