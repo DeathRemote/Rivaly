@@ -66,7 +66,7 @@ export async function POST(req: Request) {
     select: { id: true },
   });
 
-  revalidateTag("admin:catalog");
+  revalidateTag("admin:catalog", "default");
 
   return NextResponse.json({ ok: true, id: created.id });
 }

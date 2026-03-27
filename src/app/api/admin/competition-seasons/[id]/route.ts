@@ -27,7 +27,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
     select: { id: true, published: true },
   });
 
-  revalidateTag("admin:catalog");
+  revalidateTag("admin:catalog", "default");
 
   return NextResponse.json({ ok: true, season: updated });
 }

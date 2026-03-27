@@ -34,7 +34,7 @@ export async function PATCH(req: Request) {
     update: { enabled: parsed.data.enabled },
   });
 
-  revalidateTag("admin:catalog");
+  revalidateTag("admin:catalog", "default");
 
   return NextResponse.json({ ok: true, sport: updated });
 }

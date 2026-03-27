@@ -68,7 +68,7 @@ export async function PATCH(req: Request) {
   });
 
   // Invalidate cached admin reads.
-  revalidateTag("admin:stats");
+  revalidateTag("admin:stats", "default");
 
   return NextResponse.json({ ok: true, user: updated });
 }
