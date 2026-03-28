@@ -5,6 +5,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { SwipeMatch } from "@/lib/swipe-data";
 import { cn } from "@/lib/cn";
 
+type Overlay = { label: string; tone: "lime" | "cyan" | "neutral"; corner: "left" | "right" | "center" };
+
 export function SwipeCard({
   match,
   disabled,
@@ -29,9 +31,24 @@ export function SwipeCard({
   animDirection?: "left" | "right" | "down" | "up" | null;
 }) {
   const ref = useRef<HTMLDivElement | null>(null);
+
+  // PERF NOTE (mobile): pointermove can fire at a high rate. Avoid setState on every move.
+  // We update transform via rAF + refs, and only set React state when the overlay *meaningfully* changes.
+  const dragRef = useRef({
+    active: false,
+    startX: 0,
+    startY: 0,
+    x: 0,
+    y: 0,
+  });
+  const rafRef = useRef<number | null>(null);
+  const lastOverlayRef = useRef<Overlay | null>(null);
+
   const [cardHeight, setCardHeight] = useState<number>(
     typeof window === "undefined" ? 700 : window.innerHeight,
   );
+  const [dragActive, setDragActive] = useState(false);
+  const [overlay, setOverlay] = useState<Overlay | null>(null);
 
   useEffect(() => {
     const el = ref.current;
@@ -50,66 +67,93 @@ export function SwipeCard({
     return () => ro.disconnect();
   }, []);
 
-  const [drag, setDrag] = useState<{
-    x: number;
-    y: number;
-    active: boolean;
-    startX: number;
-    startY: number;
-  }>({
-    x: 0,
-    y: 0,
-    active: false,
-    startX: 0,
-    startY: 0,
-  });
-
   const kickoff = useMemo(() => new Date(match.kickoffAt), [match.kickoffAt]);
   const lockAt = useMemo(() => new Date(match.lockAt), [match.lockAt]);
 
-  const overlay = useMemo(() => {
-    if (!drag.active) return null;
-
-    const ax = Math.abs(drag.x);
-    const ay = Math.abs(drag.y);
+  function computeOverlay({ x, y }: { x: number; y: number }): Overlay | null {
+    const ax = Math.abs(x);
+    const ay = Math.abs(y);
 
     const thresholdX = 120;
-    // Draw triggers only when the card has been pulled ~1/3 of its height up/down.
     const thresholdY = cardHeight / 3;
 
-    // Draw overlay only when it would actually trigger on release.
     if (ay >= thresholdY && ay >= ax * 1.2) {
-      return { label: "DRAW", tone: "neutral" as const, corner: "center" as const };
+      return { label: "DRAW", tone: "neutral", corner: "center" };
     }
 
     if (ax >= thresholdX && ax >= ay) {
-      return drag.x < 0
-        ? { label: "HOME WIN", tone: "lime" as const, corner: "left" as const }
-        : { label: "AWAY WIN", tone: "cyan" as const, corner: "right" as const };
+      return x < 0
+        ? { label: "HOME WIN", tone: "lime", corner: "left" }
+        : { label: "AWAY WIN", tone: "cyan", corner: "right" };
     }
 
     return null;
-  }, [drag.active, drag.x, drag.y, cardHeight]);
+  }
 
-  const style = useMemo(() => {
-    if (animDirection) {
-      const x = animDirection === "left" ? -420 : animDirection === "right" ? 420 : 0;
-      const y = animDirection === "down" ? 280 : animDirection === "up" ? -280 : -20;
-      const r = animDirection === "left" ? -14 : animDirection === "right" ? 14 : 0;
-      return {
-        transform: `translate(${x}px, ${y}px) rotate(${r}deg)`,
-        transition: "transform 260ms ease, opacity 260ms ease",
-        opacity: 0,
-      } as const;
+  function applyTransform() {
+    const el = ref.current;
+    if (!el) return;
+
+    rafRef.current = null;
+
+    // If we’re playing the swipe-off animation, let React own the styles.
+    if (animDirection) return;
+
+    const { x, y, active } = dragRef.current;
+    const rot = x / 22;
+
+    el.style.transform = `translate3d(${x}px, ${y}px, 0) rotate(${rot}deg)`;
+    el.style.transition = active ? "none" : "transform 180ms ease";
+
+    const nextOverlay = active ? computeOverlay({ x, y }) : null;
+    const prevOverlay = lastOverlayRef.current;
+
+    const same =
+      prevOverlay?.label === nextOverlay?.label &&
+      prevOverlay?.tone === nextOverlay?.tone &&
+      prevOverlay?.corner === nextOverlay?.corner;
+
+    if (!same) {
+      lastOverlayRef.current = nextOverlay;
+      setOverlay(nextOverlay);
     }
+  }
 
-    const rot = drag.x / 22;
+  function scheduleFrame() {
+    if (rafRef.current != null) return;
+    rafRef.current = window.requestAnimationFrame(applyTransform);
+  }
+
+  // Reset transform when match changes or when an animation ends.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    // Let rAF compute handle non-animated transforms.
+    if (!animDirection) {
+      dragRef.current.x = 0;
+      dragRef.current.y = 0;
+      dragRef.current.active = false;
+      lastOverlayRef.current = null;
+
+      el.style.transform = "translate3d(0px, 0px, 0) rotate(0deg)";
+      el.style.transition = "transform 180ms ease";
+    }
+  }, [match.matchId, animDirection]);
+
+  const animatedStyle = useMemo(() => {
+    if (!animDirection) return undefined;
+
+    const x = animDirection === "left" ? -420 : animDirection === "right" ? 420 : 0;
+    const y = animDirection === "down" ? 280 : animDirection === "up" ? -280 : -20;
+    const r = animDirection === "left" ? -14 : animDirection === "right" ? 14 : 0;
 
     return {
-      transform: `translate(${drag.x}px, ${drag.y}px) rotate(${rot}deg)`,
-      transition: drag.active ? "none" : "transform 180ms ease",
+      transform: `translate3d(${x}px, ${y}px, 0) rotate(${r}deg)`,
+      transition: "transform 260ms ease, opacity 260ms ease",
+      opacity: 0,
     } as const;
-  }, [drag, animDirection]);
+  }, [animDirection]);
 
   return (
     <div
@@ -117,10 +161,11 @@ export function SwipeCard({
       className={cn(
         "relative z-50 h-full w-full rounded-[2rem] border border-white/10 bg-[#111417] overflow-hidden",
         "shadow-[0_30px_80px_rgba(0,0,0,0.55)]",
-        "touch-none", // critical for mobile: prevent browser scroll/gesture from hijacking the drag
+        "touch-none", // prevent browser scroll/gesture from hijacking the drag
+        "transform-gpu will-change-transform",
         disabled && "opacity-70",
       )}
-      style={style}
+      style={animatedStyle}
       onPointerDown={(e) => {
         if (disabled) return;
 
@@ -129,60 +174,77 @@ export function SwipeCard({
         if (target.closest("button") || target.closest("input") || target.closest("a")) return;
 
         (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+
+        dragRef.current.active = true;
+        setDragActive(true);
+        dragRef.current.startX = e.clientX;
+        dragRef.current.startY = e.clientY;
+        dragRef.current.x = 0;
+        dragRef.current.y = 0;
+
         onDragActiveChange?.(true);
-        setDrag({ x: 0, y: 0, active: true, startX: e.clientX, startY: e.clientY });
+        scheduleFrame();
       }}
       onPointerMove={(e) => {
         if (disabled) return;
-        if (!drag.active) return;
-        setDrag((d) => ({
-          ...d,
-          x: e.clientX - d.startX,
-          y: e.clientY - d.startY,
-        }));
+        if (!dragRef.current.active) return;
+
+        dragRef.current.x = e.clientX - dragRef.current.startX;
+        dragRef.current.y = e.clientY - dragRef.current.startY;
+        scheduleFrame();
       }}
       onPointerUp={() => {
         if (disabled) return;
-        const thresholdX = 120;
 
-        // Draw: require the card to travel ~1/3 of its own height up/down.
-        // This matches the "top is 1/3 down" / "bottom is 1/3 up" mental model.
+        const thresholdX = 120;
         const thresholdY = cardHeight / 3;
 
-        const x = drag.x;
-        const y = drag.y;
+        const x = dragRef.current.x;
+        const y = dragRef.current.y;
+
+        dragRef.current.active = false;
+        setDragActive(false);
+        dragRef.current.startX = 0;
+        dragRef.current.startY = 0;
+        dragRef.current.x = 0;
+        dragRef.current.y = 0;
 
         onDragActiveChange?.(false);
-        setDrag({ x: 0, y: 0, active: false, startX: 0, startY: 0 });
+        scheduleFrame();
 
         const ax = Math.abs(x);
         const ay = Math.abs(y);
 
-        // Prefer the dominant axis (more "Tinder" feel)
-        // Horizontal should stay easy; vertical (Draw) should require stronger intent.
         if (ax >= thresholdX && ax >= ay) {
           if (x <= -thresholdX) onSwipeLeft?.();
           else if (x >= thresholdX) onSwipeRight?.();
           return;
         }
 
-        // Draw: require bigger movement AND clear vertical dominance.
         if (ay >= thresholdY && ay >= ax * 1.2) {
           if (y <= -thresholdY) onSwipeUp?.();
           else if (y >= thresholdY) onSwipeDown?.();
         }
       }}
       onPointerCancel={() => {
+        dragRef.current.active = false;
+        setDragActive(false);
+        dragRef.current.startX = 0;
+        dragRef.current.startY = 0;
+        dragRef.current.x = 0;
+        dragRef.current.y = 0;
+
         onDragActiveChange?.(false);
-        setDrag({ x: 0, y: 0, active: false, startX: 0, startY: 0 });
+        scheduleFrame();
       }}
     >
       <div className="relative h-full p-6 sm:p-8 flex flex-col">
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-lime-300/10 blur-[120px]" />
-        <div className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-cyan-300/10 blur-[120px]" />
+        {/* Reduce blur cost on mobile a bit; these are purely decorative */}
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-lime-300/10 blur-[80px] sm:blur-[120px]" />
+        <div className="pointer-events-none absolute -left-24 -bottom-24 h-64 w-64 rounded-full bg-cyan-300/10 blur-[80px] sm:blur-[120px]" />
 
         {/* Swipe overlay */}
-        {overlay ? (
+        {dragActive && overlay ? (
           <div
             className={cn(
               "pointer-events-none absolute top-6 z-20 rounded-2xl px-4 py-2",
@@ -209,7 +271,8 @@ export function SwipeCard({
           </div>
 
           <div className="mt-3 text-[10px] font-black uppercase tracking-[0.22em] text-white/45">
-            Locks {lockAt.toLocaleString(undefined, {
+            Locks{" "}
+            {lockAt.toLocaleString(undefined, {
               weekday: "short",
               month: "short",
               day: "2-digit",
@@ -220,7 +283,6 @@ export function SwipeCard({
         </div>
 
         <div className="mt-6 text-center">
-
           <div className="mt-3">
             {/* Mobile: stacked to prevent overflow. Desktop+: side-by-side */}
             <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-5">
