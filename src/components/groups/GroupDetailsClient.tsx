@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/cn";
@@ -23,8 +23,22 @@ export function GroupDetailsClient({
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [open, setOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
+
+  const inviteLink = useMemo(() => {
+    const base = process.env.NEXT_PUBLIC_APP_URL;
+    if (base) return `${base.replace(/\/$/, "")}/join/${inviteCode}`;
+    if (typeof window !== "undefined") return `${window.location.origin}/join/${inviteCode}`;
+    return `/join/${inviteCode}`;
+  }, [inviteCode]);
+
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1400);
+    return () => window.clearTimeout(t);
+  }, [copied]);
 
   return (
     <>
@@ -42,10 +56,18 @@ export function GroupDetailsClient({
           <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
             <button
               type="button"
-              onClick={() => setOpen(true)}
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(inviteLink);
+                  setCopied(true);
+                } catch {
+                  // Clipboard can fail on some browsers/contexts; fall back to showing the modal.
+                  setOpen(true);
+                }
+              }}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-5 py-2.5 sm:px-6 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-white/80 transition hover:bg-white/5 hover:text-lime-100"
             >
-              Invite Friends
+              {copied ? "Copied!" : "Copy invite link"}
             </button>
 
             {canDelete ? (
