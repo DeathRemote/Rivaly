@@ -9,13 +9,11 @@ export function DashboardLayout({
   activeKey,
   user,
   children,
-  hideMobileFab,
 }: {
   sideNavItems: DashboardNavItem[];
   activeKey: DashboardNavItem["key"];
   user: { name: string; image: string | null; rankLabel: string };
   children: React.ReactNode;
-  hideMobileFab?: boolean;
 }) {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden lg:overflow-x-visible">

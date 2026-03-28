@@ -34,15 +34,20 @@ export default function RootLayout({
       lang="en"
       className={`${fontDisplay.variable} ${fontBody.variable} dark h-full scroll-smooth antialiased`}
     >
-      <body className="min-h-screen bg-black text-white">
-        {/* AdSense Script (must be beforeInteractive for verification) */}
+      <head>
+        {/*
+          AdSense Script.
+          Keeping it in <head> avoids React/Next warnings about script tags during rendering.
+        */}
         <Script
           id="adsense-script"
           src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4406678040423469"
           strategy="beforeInteractive"
           crossOrigin="anonymous"
         />
+      </head>
 
+      <body className="min-h-screen bg-black text-white">
         <div className="min-h-screen flex flex-col">
           <main className="flex-1">{children}</main>
           <Footer />

@@ -30,7 +30,6 @@ export default async function AdminPage() {
       sideNavItems={getSideNavItems({ isAdmin: true })}
       activeKey="admin"
       user={user}
-      hideMobileFab
     >
       <div className="mx-auto w-full max-w-6xl px-6 py-10">
         <AdminPageClient initialStats={stats} initialSports={sports} initialCatalog={catalog} />
