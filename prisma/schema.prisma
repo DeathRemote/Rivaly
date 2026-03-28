@@ -44,6 +44,10 @@ model User {
   // Groups
   createdGroups    Group[]       @relation("UserCreatedGroups")
   groupMemberships GroupMember[]
+  groupAccuracyAggregates GroupMemberAccuracyAggregate[]
+
+  // Aggregates
+  predictionStatsAggregate UserPredictionStatsAggregate?
 
   // Optional: only present for users who sign up with email+password.
   password UserPassword?
@@ -172,6 +176,10 @@ model Group {
   members GroupMember[]
   pointsEvents PointsEvent[]
 
+  // Precomputed aggregates
+  memberAccuracyAggregates GroupMemberAccuracyAggregate[]
+  momentumAggregate GroupMomentumAggregate?
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
@@ -195,6 +203,64 @@ model GroupMember {
   @@unique([groupId, userId])
   @@index([userId])
   @@index([groupId])
+}
+
+model GroupMemberAccuracyAggregate {
+  id                String   @id @default(cuid())
+  groupId            String
+  userId             String
+  scoredTotal        Int      @default(0)
+  correctTotal       Int      @default(0)
+  last7d             Int      @default(0)
+  prev7d             Int      @default(0)
+  accuracyPctCached  Float?
+
+  updatedAt          DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, userId])
+  @@index([groupId])
+  @@index([userId])
+}
+
+model GroupMomentumAggregate {
+  id                 String   @id @default(cuid())
+  groupId             String  @unique
+
+  totalScored         Int      @default(0)
+  correctScored       Int      @default(0)
+  memberCountSnapshot Int      @default(0)
+  momentumPctCached   Int      @default(0)
+
+  windowStart         DateTime
+  windowEnd           DateTime
+
+  updatedAt           DateTime @updatedAt
+
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
+}
+
+model UserPredictionStatsAggregate {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+
+  lifetimeTotal   Int      @default(0)
+  lifetimeCorrect Int      @default(0)
+  lifetimePoints  Int      @default(0)
+  avgPoints       Float    @default(0)
+
+  recent30dTotal   Int     @default(0)
+  recent30dCorrect Int     @default(0)
+
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([updatedAt])
 }
 
 enum PredictionSource {
