@@ -215,7 +215,8 @@ async function _getGroupMomentum(groupId: string) {
       (SELECT COUNT(*) FROM "GroupMember" WHERE "groupId" = ${groupId}) as "memberCount";
   `;
 
-  const r0 = rows[0] ?? { total: 0n, correct: 0n, memberCount: 0n };
+  // Avoid bigint literals (0n) because this repo targets < ES2020 in TS builds.
+  const r0 = rows[0] ?? { total: BigInt(0), correct: BigInt(0), memberCount: BigInt(0) };
 
   const total = Number(r0.total);
   const correct = Number(r0.correct);
