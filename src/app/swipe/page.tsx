@@ -26,7 +26,6 @@ export default async function SwipePage() {
     <DashboardLayout
       sideNavItems={getSideNavItems({ isAdmin })}
       activeKey="swipe"
-      hideMobileFab
       user={{
         name: session.user.username ?? session.user.name ?? "Kinetic Player",
         image: session.user.image ?? null,

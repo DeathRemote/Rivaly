@@ -155,7 +155,8 @@ async function _getDashboardData(userId: string) {
 export const getDashboardData = unstable_cache(
   async (userId: string) => _getDashboardData(userId),
   ["dashboard-data"],
-  { revalidate: 30 },
+  // Dashboard can tolerate staleness; reduces revalidation bursts.
+  { revalidate: 120 },
 );
 
 function pickSpotlightGroup(
