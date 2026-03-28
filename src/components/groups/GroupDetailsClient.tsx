@@ -61,13 +61,21 @@ export function GroupDetailsClient({
                   await navigator.clipboard.writeText(inviteLink);
                   setCopied(true);
                 } catch {
-                  // Clipboard can fail on some browsers/contexts; fall back to showing the modal.
+                  // Clipboard can fail on some browsers/contexts; fall back to showing the code.
                   setOpen(true);
                 }
               }}
               className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-5 py-2.5 sm:px-6 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-white/80 transition hover:bg-white/5 hover:text-lime-100"
             >
               {copied ? "Copied!" : "Copy invite link"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-5 py-2.5 sm:px-6 sm:py-3 text-[10px] sm:text-xs font-black uppercase tracking-[0.22em] text-white/70 transition hover:bg-white/5 hover:text-white"
+            >
+              Show invite code
             </button>
 
             {canDelete ? (
