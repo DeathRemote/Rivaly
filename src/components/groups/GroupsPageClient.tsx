@@ -40,7 +40,7 @@ export function GroupsPageClient({
             Competitive Arena
           </span>
           <h1 className="font-display text-5xl font-black tracking-tighter text-white md:text-6xl">
-            GROUPS <span className="text-lime-100 italic">{title.toUpperCase()}</span>
+            <span className="text-lime-100 italic">{title.toUpperCase()}</span>
           </h1>
           <p className="mt-4 max-w-xl text-sm font-medium leading-relaxed text-white/60">
             Join high-stakes leagues or dominate your private circles. Track performance against the
