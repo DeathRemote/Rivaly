@@ -56,7 +56,30 @@ const SeasonsResponseSchema = z.object({
   seasons: z.array(SeasonSchema).nullable().optional(),
 });
 
+const LeagueSchema = z.object({
+  idLeague: z.string().min(1),
+  strLeague: z.string().min(1),
+  strSport: z.string().optional().nullable(),
+  strLeagueAlternate: z.string().optional().nullable(),
+  strCountry: z.string().optional().nullable(),
+});
+
+const AllLeaguesResponseSchema = z.object({
+  leagues: z.array(LeagueSchema).nullable().optional(),
+});
+
+const LookupLeagueResponseSchema = z.object({
+  leagues: z.array(
+    LeagueSchema.extend({
+      strBadge: z.string().optional().nullable(),
+    }),
+  )
+    .nullable()
+    .optional(),
+});
+
 export type TheSportsDbEvent = z.infer<typeof TheSportsDbEventSchema>;
+export type TheSportsDbLeague = z.infer<typeof LeagueSchema>;
 
 export class TheSportsDbClient {
   private readonly apiKey: string;
@@ -67,6 +90,21 @@ export class TheSportsDbClient {
     // TheSportsDB free key in docs is 123. We default to that for local dev.
     this.apiKey = (opts?.apiKey ?? process.env.THE_SPORTS_DB_API_KEY ?? "123").trim();
     this.baseUrl = (opts?.baseUrl ?? "https://www.thesportsdb.com/api/v1/json").trim();
+  }
+
+  async listAllLeagues() {
+    // Returns all leagues across sports. We'll filter client-side (e.g. Soccer only).
+    const url = `${this.baseUrl}/${this.apiKey}/all_leagues.php`;
+    const json = await this.fetchJson(url);
+    const parsed = AllLeaguesResponseSchema.parse(json);
+    return parsed.leagues ?? [];
+  }
+
+  async lookupLeague(leagueId: string) {
+    const url = `${this.baseUrl}/${this.apiKey}/lookupleague.php?id=${encodeURIComponent(leagueId)}`;
+    const json = await this.fetchJson(url);
+    const parsed = LookupLeagueResponseSchema.parse(json);
+    return parsed.leagues?.[0] ?? null;
   }
 
   async listSeasonsForLeague(leagueId: string) {

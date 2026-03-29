@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import type { Sport } from "@prisma/client";
 
 import { cn } from "@/lib/cn";
@@ -49,12 +49,21 @@ export function AdminPageClient({
     [catalog, activeSport],
   );
 
-  const [newCompetition, setNewCompetition] = useState({
-    name: "",
-    country: "",
-    seasonLabel: "",
-    published: true,
-  });
+  const [leagueSearch, setLeagueSearch] = useState("");
+  const [leagueResults, setLeagueResults] = useState<
+    Array<{ idLeague: string; name: string; alternateName: string | null }>
+  >([]);
+  const [leagueSearchState, setLeagueSearchState] = useState<"idle" | "loading" | "error">("idle");
+  const [selectedLeague, setSelectedLeague] = useState<
+    null | { idLeague: string; name: string; alternateName: string | null }
+  >(null);
+
+  const [leagueSeasons, setLeagueSeasons] = useState<
+    Array<{ seasonLabel: string; providerSeasonId: string | null }>
+  >([]);
+  const [seasonLabel, setSeasonLabel] = useState("");
+  const [seasonProviderId, setSeasonProviderId] = useState<string | null>(null);
+  const [importMessage, setImportMessage] = useState<string | null>(null);
 
   const [userEmail, setUserEmail] = useState("");
   const [userResult, setUserResult] = useState<
@@ -96,6 +105,35 @@ export function AdminPageClient({
       setCatalog(compsJson.competitions as AdminCompetition[]);
     }
   }
+
+  // Provider-backed league search (debounced)
+  // Note: we only enable this for Soccer right now.
+  // Avoid hammering the API by waiting briefly after the user stops typing.
+  useEffect(() => {
+    if (activeSport !== "SOCCER") return;
+
+    const q = leagueSearch.trim();
+    if (q.length < 2) return;
+
+    const t = setTimeout(() => {
+      setLeagueSearchState("loading");
+      fetch(`/api/admin/providers/thesportsdb/leagues/search?q=${encodeURIComponent(q)}`, {
+        cache: "no-store",
+      })
+        .then((r) => r.json())
+        .then((json) => {
+          if (json?.ok && Array.isArray(json.results)) {
+            setLeagueResults(json.results);
+            setLeagueSearchState("idle");
+          } else {
+            setLeagueSearchState("error");
+          }
+        })
+        .catch(() => setLeagueSearchState("error"));
+    }, 450);
+
+    return () => clearTimeout(t);
+  }, [leagueSearch, activeSport]);
 
   return (
     <div className="space-y-10">
@@ -264,62 +302,195 @@ export function AdminPageClient({
           ))}
         </div>
 
-        {/* Add new competition */}
+        {/* Import competition season (API-backed) */}
         <div className="rounded-xl border border-white/10 bg-white/5 p-5">
-          <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">Add competition</div>
-          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
-            <input
-              value={newCompetition.name}
-              onChange={(e) => setNewCompetition((p) => ({ ...p, name: e.target.value }))}
-              placeholder="Competition name"
-              className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
-            />
-            <input
-              value={newCompetition.country}
-              onChange={(e) => setNewCompetition((p) => ({ ...p, country: e.target.value }))}
-              placeholder="Country (optional)"
-              className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
-            />
-            <input
-              value={newCompetition.seasonLabel}
-              onChange={(e) => setNewCompetition((p) => ({ ...p, seasonLabel: e.target.value }))}
-              placeholder="Season label (optional)"
-              className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
-            />
-            <button
-              type="button"
-              disabled={busy || newCompetition.name.trim().length < 2}
-              onClick={() => {
-                startTransition(async () => {
-                  const res = await fetch("/api/admin/competitions", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                      sport: activeSport,
-                      name: newCompetition.name,
-                      country: newCompetition.country || undefined,
-                      published: newCompetition.published,
-                      seasonLabel: newCompetition.seasonLabel || undefined,
-                      seasonPublished: newCompetition.published,
-                    }),
-                  });
-                  if (res.ok) {
-                    setNewCompetition({ name: "", country: "", seasonLabel: "", published: true });
-                    await refreshSportsAndCatalog();
-                  }
-                });
-              }}
-              className={cn(
-                "h-11 rounded-xl",
-                "bg-gradient-to-br from-[#f3ffca] to-[#beee00]",
-                "text-xs font-black uppercase tracking-[0.22em] text-[#3a4a00]",
-                "hover:brightness-105 transition",
-                "disabled:opacity-40 disabled:cursor-not-allowed",
-              )}
-            >
-              Add
-            </button>
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">
+                Import competition season
+              </div>
+              <div className="mt-1 text-sm text-white/50">
+                Soccer imports are provider-backed (TheSportsDB). No free-text competitions.
+              </div>
+            </div>
+            {importMessage ? <div className="text-xs text-white/60">{importMessage}</div> : null}
           </div>
+
+          {activeSport !== "SOCCER" ? (
+            <div className="mt-4 text-sm text-white/50">
+              Provider-backed import is only implemented for Soccer right now.
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <div className="md:col-span-2">
+                <input
+                  value={leagueSearch}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setImportMessage(null);
+                    setLeagueSearch(next);
+                    setSelectedLeague(null);
+                    setLeagueSeasons([]);
+                    setSeasonLabel("");
+                    setSeasonProviderId(null);
+
+                    if (next.trim().length < 2) {
+                      setLeagueResults([]);
+                      setLeagueSearchState("idle");
+                    }
+                  }}
+                  placeholder="Search competition (e.g. Allsvenskan, Premier League…)"
+                  className="h-11 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+                />
+                {leagueSearchState === "loading" ? (
+                  <div className="mt-2 text-xs text-white/40">Searching…</div>
+                ) : null}
+                {leagueSearchState === "error" ? (
+                  <div className="mt-2 text-xs text-[#ffd2c8]">Search failed.</div>
+                ) : null}
+
+                {leagueResults.length > 0 && !selectedLeague ? (
+                  <div className="mt-3 max-h-52 overflow-auto rounded-xl border border-white/10 bg-black/30">
+                    <div className="divide-y divide-white/10">
+                      {leagueResults.map((r) => (
+                        <button
+                          key={r.idLeague}
+                          type="button"
+                          className={cn(
+                            "w-full px-4 py-3 text-left",
+                            "hover:bg-white/5 transition",
+                          )}
+                          onClick={() => {
+                            startTransition(async () => {
+                              setImportMessage(null);
+                              setSelectedLeague(r);
+                              setLeagueResults([]);
+                              setLeagueSearch(r.name);
+                              setSeasonLabel("");
+                              setSeasonProviderId(null);
+                              setLeagueSeasons([]);
+
+                              const res = await fetch(
+                                `/api/admin/providers/thesportsdb/leagues/${encodeURIComponent(r.idLeague)}/seasons`,
+                                { cache: "no-store" },
+                              );
+                              const json = await res.json();
+                              if (json?.ok && Array.isArray(json.seasons)) {
+                                setLeagueSeasons(json.seasons);
+                                if (json.seasons[0]?.seasonLabel) {
+                                  setSeasonLabel(json.seasons[0].seasonLabel);
+                                  setSeasonProviderId(json.seasons[0].providerSeasonId ?? null);
+                                }
+                              }
+                            });
+                          }}
+                        >
+                          <div className="text-sm font-semibold text-white/80">{r.name}</div>
+                          {r.alternateName ? (
+                            <div className="mt-1 text-xs text-white/40">aka {r.alternateName}</div>
+                          ) : null}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedLeague ? (
+                  <div className="mt-3 rounded-xl border border-white/10 bg-black/20 p-3 text-xs text-white/50">
+                    Selected: <span className="text-white/80 font-bold">{selectedLeague.name}</span> · id={selectedLeague.idLeague}
+                  </div>
+                ) : null}
+              </div>
+
+              <div>
+                <select
+                  value={seasonLabel}
+                  disabled={!selectedLeague || leagueSeasons.length === 0}
+                  onChange={(e) => {
+                    const next = e.target.value;
+                    setSeasonLabel(next);
+                    const hit = leagueSeasons.find((s) => s.seasonLabel === next);
+                    setSeasonProviderId(hit?.providerSeasonId ?? null);
+                  }}
+                  className={cn(
+                    "h-11 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white",
+                    !selectedLeague && "opacity-50",
+                  )}
+                >
+                  {leagueSeasons.length === 0 ? (
+                    <option value="">Select season…</option>
+                  ) : (
+                    leagueSeasons.map((s) => (
+                      <option key={s.seasonLabel} value={s.seasonLabel}>
+                        {s.seasonLabel}
+                      </option>
+                    ))
+                  )}
+                </select>
+                <div className="mt-2 text-[11px] text-white/35">
+                  Missing a season? You can type it below.
+                </div>
+                <input
+                  value={seasonLabel}
+                  onChange={(e) => setSeasonLabel(e.target.value)}
+                  disabled={!selectedLeague}
+                  placeholder="Or type season label"
+                  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25 disabled:opacity-50"
+                />
+              </div>
+
+              <button
+                type="button"
+                disabled={
+                  busy ||
+                  activeSport !== "SOCCER" ||
+                  !selectedLeague ||
+                  seasonLabel.trim().length < 1
+                }
+                onClick={() => {
+                  startTransition(async () => {
+                    setImportMessage("Importing…");
+                    const res = await fetch("/api/admin/competition-seasons/import", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        sport: "SOCCER",
+                        provider: "THESPORTSDB",
+                        providerLeagueId: selectedLeague.idLeague,
+                        seasonLabel: seasonLabel.trim(),
+                        providerSeasonId: seasonProviderId ?? undefined,
+                        syncMatches: true,
+                      }),
+                    });
+
+                    const json = await res.json().catch(() => null);
+                    if (!res.ok || !json?.ok) {
+                      setImportMessage(json?.error ? `Import failed: ${json.error}` : "Import failed");
+                      return;
+                    }
+
+                    const fixturesOk = json.fixtures?.ok !== false;
+                    setImportMessage(
+                      fixturesOk
+                        ? "Imported + synced matches."
+                        : `Imported, but match sync failed: ${json.fixtures?.error ?? "unknown"}`,
+                    );
+
+                    await refreshSportsAndCatalog();
+                  });
+                }}
+                className={cn(
+                  "h-11 rounded-xl",
+                  "bg-gradient-to-br from-[#f3ffca] to-[#beee00]",
+                  "text-xs font-black uppercase tracking-[0.22em] text-[#3a4a00]",
+                  "hover:brightness-105 transition",
+                  "disabled:opacity-40 disabled:cursor-not-allowed",
+                )}
+              >
+                Import
+              </button>
+            </div>
+          )}
         </div>
 
         <div className="space-y-3">
@@ -382,65 +553,156 @@ export function AdminPageClient({
                   {c.seasons.map((s) => (
                     <div
                       key={s.id}
-                      className="flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-black/20 p-4"
+                      className={cn(
+                        "flex items-center justify-between gap-4 rounded-xl border border-white/10 bg-black/20 p-4",
+                        s.archivedAt && "opacity-60",
+                      )}
                     >
-                      <div>
-                        <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">
-                          {s.seasonLabel}
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">
+                            {s.seasonLabel}
+                          </div>
+                          {s.archivedAt ? (
+                            <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-black uppercase tracking-[0.22em] text-white/50">
+                              Archived
+                            </span>
+                          ) : null}
                         </div>
+
                         <div className="mt-1 text-sm text-white/40">
-                          {s.published ? "Enabled in group creation" : "Hidden from group creation"}
+                          {s.archivedAt
+                            ? "Archived (not available for group creation)"
+                            : s.published
+                              ? "Enabled in group creation"
+                              : "Hidden from group creation"}
+                        </div>
+
+                        <div className="mt-2 text-[11px] text-white/35">
+                          Last synced: {s.fixturesSyncedAt ? new Date(s.fixturesSyncedAt).toLocaleString() : "—"}
+                          {s.fixturesSyncError ? (
+                            <span className="block mt-1 text-[#ffd2c8]">Sync error: {s.fixturesSyncError}</span>
+                          ) : null}
                         </div>
                       </div>
 
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() => {
-                          startTransition(async () => {
-                            const next = !s.published;
-                            setCatalog((prev) =>
-                              prev.map((p) =>
-                                p.id !== c.id
-                                  ? p
-                                  : {
-                                      ...p,
-                                      seasons: p.seasons.map((ss) => (ss.id === s.id ? { ...ss, published: next } : ss)),
-                                    },
-                              ),
-                            );
-
-                            const res = await fetch(`/api/admin/competition-seasons/${s.id}`, {
-                              method: "PATCH",
-                              headers: { "Content-Type": "application/json" },
-                              body: JSON.stringify({ published: next }),
-                            });
-
-                            if (!res.ok) {
+                      <div className="flex items-center gap-2 flex-wrap justify-end">
+                        <button
+                          type="button"
+                          disabled={busy || !!s.archivedAt}
+                          onClick={() => {
+                            startTransition(async () => {
+                              const next = !s.published;
                               setCatalog((prev) =>
                                 prev.map((p) =>
                                   p.id !== c.id
                                     ? p
                                     : {
                                         ...p,
-                                        seasons: p.seasons.map((ss) => (ss.id === s.id ? { ...ss, published: s.published } : ss)),
+                                        seasons: p.seasons.map((ss) => (ss.id === s.id ? { ...ss, published: next } : ss)),
                                       },
                                 ),
                               );
-                            }
-                          });
-                        }}
-                        className={cn(
-                          "h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.22em]",
-                          "border border-white/10 transition",
-                          s.published
-                            ? "bg-lime-300/10 text-lime-100 hover:bg-lime-300/15"
-                            : "bg-white/5 text-white/60 hover:bg-white/10",
-                          busy && "opacity-60 cursor-not-allowed",
-                        )}
-                      >
-                        {s.published ? "Enabled" : "Disabled"}
-                      </button>
+
+                              const res = await fetch(`/api/admin/competition-seasons/${s.id}`, {
+                                method: "PATCH",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ published: next }),
+                              });
+
+                              if (!res.ok) {
+                                setCatalog((prev) =>
+                                  prev.map((p) =>
+                                    p.id !== c.id
+                                      ? p
+                                      : {
+                                          ...p,
+                                          seasons: p.seasons.map((ss) => (ss.id === s.id ? { ...ss, published: s.published } : ss)),
+                                        },
+                                  ),
+                                );
+                              }
+                            });
+                          }}
+                          className={cn(
+                            "h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.22em]",
+                            "border border-white/10 transition",
+                            s.published
+                              ? "bg-lime-300/10 text-lime-100 hover:bg-lime-300/15"
+                              : "bg-white/5 text-white/60 hover:bg-white/10",
+                            (busy || s.archivedAt) && "opacity-60 cursor-not-allowed",
+                          )}
+                        >
+                          {s.published ? "Enabled" : "Disabled"}
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={busy || !!s.archivedAt}
+                          onClick={() => {
+                            startTransition(async () => {
+                              setImportMessage("Syncing matches…");
+                              const res = await fetch(`/api/admin/competition-seasons/${s.id}/sync-matches`, {
+                                method: "POST",
+                              });
+                              const json = await res.json().catch(() => null);
+                              if (!res.ok || !json?.ok) {
+                                setImportMessage(json?.error ? `Sync failed: ${json.error}` : "Sync failed");
+                                await refreshSportsAndCatalog();
+                                return;
+                              }
+                              setImportMessage("Matches synced.");
+                              await refreshSportsAndCatalog();
+                            });
+                          }}
+                          className={cn(
+                            "h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.22em]",
+                            "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition",
+                            (busy || s.archivedAt) && "opacity-60 cursor-not-allowed",
+                          )}
+                        >
+                          Sync matches
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() => {
+                            const ok = confirm(
+                              "Delete competition season? If it is already in use, it will be archived instead of hard-deleted.",
+                            );
+                            if (!ok) return;
+
+                            startTransition(async () => {
+                              const res = await fetch(`/api/admin/competition-seasons/${s.id}`, {
+                                method: "DELETE",
+                              });
+                              const json = await res.json().catch(() => null);
+                              if (!res.ok || !json?.ok) {
+                                setImportMessage(json?.error ? `Delete failed: ${json.error}` : "Delete failed");
+                                return;
+                              }
+
+                              if (json.action === "archived") {
+                                setImportMessage(
+                                  `Archived instead of deleted (in use). Groups=${json.usage?.groupsCount ?? 0}, Matches=${json.usage?.matchesCount ?? 0}.`,
+                                );
+                              } else {
+                                setImportMessage("Deleted.");
+                              }
+
+                              await refreshSportsAndCatalog();
+                            });
+                          }}
+                          className={cn(
+                            "h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.22em]",
+                            "border border-[#ff7351]/30 bg-[#d53d18]/10 text-[#ffd2c8] hover:bg-[#d53d18]/20 transition",
+                            busy && "opacity-60 cursor-not-allowed",
+                          )}
+                        >
+                          Delete
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
