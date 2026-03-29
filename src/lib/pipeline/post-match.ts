@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { Provider } from "@prisma/client";
+import { Prisma, Provider } from "@prisma/client";
 
 import { TheSportsDbClient } from "@/lib/providers/thesportsdb/client";
 import { scorePredictionPoints } from "@/lib/scoring/predictions";
@@ -148,43 +148,40 @@ export async function syncAndProcessFinishedMatches(opts?: {
           actual: { home: homeScore, away: awayScore },
         });
 
-        // Upsert ledger event (unique prevents double scoring)
-        const event = await tx.pointsEvent.upsert({
-          where: {
-            groupId_userId_matchId_type: {
+        // Ledger event: must be truly idempotent.
+        // IMPORTANT: we only increment GroupMember.points if we successfully CREATE a new PointsEvent.
+        // Otherwise, repeated job runs / concurrent runs could double-increment points.
+        affectedGroupIds.add(mbr.groupId);
+        affectedUserIds.add(mbr.userId);
+
+        try {
+          const event = await tx.pointsEvent.create({
+            data: {
               groupId: mbr.groupId,
               userId: mbr.userId,
               matchId: m.id,
               type: "PREDICTION_SCORED",
+              points: scored.points,
+              reason: scored.reason,
+              meta: scored.meta,
             },
-          },
-          create: {
-            groupId: mbr.groupId,
-            userId: mbr.userId,
-            matchId: m.id,
-            type: "PREDICTION_SCORED",
-            points: scored.points,
-            reason: scored.reason,
-            meta: scored.meta,
-          },
-          update: {
-            // If we ever want to re-score, we'd need a different strategy.
-            points: scored.points,
-            reason: scored.reason,
-            meta: scored.meta,
-          },
-          select: { id: true, points: true },
-        });
+            select: { points: true },
+          });
 
-        await tx.groupMember.updateMany({
-          where: { groupId: mbr.groupId, userId: mbr.userId },
-          data: { points: { increment: event.points } },
-        });
+          await tx.groupMember.updateMany({
+            where: { groupId: mbr.groupId, userId: mbr.userId },
+            data: { points: { increment: event.points } },
+          });
 
-        affectedGroupIds.add(mbr.groupId);
-        affectedUserIds.add(mbr.userId);
-
-        pointsEvents++;
+          pointsEvents++;
+        } catch (err) {
+          // Unique constraint (groupId,userId,matchId,type) => already scored.
+          if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+            // no-op
+          } else {
+            throw err;
+          }
+        }
       }
 
       await tx.match.update({
