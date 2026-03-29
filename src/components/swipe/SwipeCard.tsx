@@ -84,7 +84,8 @@ export function SwipeCard({
     let cancelled = false;
 
     const compute = () => {
-      const maxLines = window.innerWidth >= 768 ? 2 : 3;
+      // Always allow up to 3 lines to avoid desktop-only truncation like "West Ham…".
+      const maxLines = 3;
 
       // Try a small set of scales from 1 → 0.72 and pick the first that fits for BOTH.
       const scales = [1, 0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72];
@@ -95,8 +96,29 @@ export function SwipeCard({
         const lh = Number.isFinite(lineHeightPx) && lineHeightPx > 0 ? lineHeightPx : 1.05 * 16;
         const maxHeight = lh * maxLines + 0.5;
 
-        // With -webkit-line-clamp, scrollHeight represents the full content height (unclamped).
-        return el.scrollHeight <= maxHeight;
+        // With -webkit-line-clamp, scrollHeight can be unreliable across browsers.
+        // Temporarily remove the clamp to measure the natural content height.
+        const styleAny = el.style as unknown as {
+          webkitLineClamp?: string;
+          WebkitLineClamp?: string;
+        };
+        const prevClamp = styleAny.webkitLineClamp ?? styleAny.WebkitLineClamp ?? "";
+
+        // Disable clamping for measurement.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).webkitLineClamp = "unset";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).WebkitLineClamp = "unset";
+
+        const natural = el.scrollHeight;
+
+        // Restore.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).webkitLineClamp = prevClamp || "";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).WebkitLineClamp = prevClamp || "";
+
+        return natural <= maxHeight;
       };
 
       let chosen = scales[scales.length - 1];
@@ -365,7 +387,6 @@ export function SwipeCard({
                     "leading-[1.05]",
                     "overflow-hidden",
                     "[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]",
-                    "md:[-webkit-line-clamp:2]",
                   )}
                 >
                   {match.home.shortName ?? match.home.name}
@@ -386,7 +407,6 @@ export function SwipeCard({
                     "leading-[1.05]",
                     "overflow-hidden",
                     "[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]",
-                    "md:[-webkit-line-clamp:2]",
                   )}
                 >
                   {match.away.shortName ?? match.away.name}
