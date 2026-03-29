@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SwipeMatch } from "@/lib/swipe-data";
 import { cn } from "@/lib/cn";
@@ -69,6 +69,69 @@ export function SwipeCard({
 
   const kickoff = useMemo(() => new Date(match.kickoffAt), [match.kickoffAt]);
   const lockAt = useMemo(() => new Date(match.lockAt), [match.lockAt]);
+
+  // Team name scaling (shared between home/away so they look consistent).
+  // Avoid per-frame work: compute once on match change + on resize.
+  const homeNameRef = useRef<HTMLDivElement | null>(null);
+  const awayNameRef = useRef<HTMLDivElement | null>(null);
+  const [nameScale, setNameScale] = useState(1);
+
+  useEffect(() => {
+    const homeEl = homeNameRef.current;
+    const awayEl = awayNameRef.current;
+    if (!homeEl || !awayEl) return;
+
+    let cancelled = false;
+
+    const compute = () => {
+      const maxLines = window.innerWidth >= 768 ? 2 : 3;
+
+      // Try a small set of scales from 1 → 0.72 and pick the first that fits for BOTH.
+      const scales = [1, 0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72];
+
+      const fits = (el: HTMLElement) => {
+        const cs = window.getComputedStyle(el);
+        const lineHeightPx = Number.parseFloat(cs.lineHeight || "0");
+        const lh = Number.isFinite(lineHeightPx) && lineHeightPx > 0 ? lineHeightPx : 1.05 * 16;
+        const maxHeight = lh * maxLines + 0.5;
+
+        // With -webkit-line-clamp, scrollHeight represents the full content height (unclamped).
+        return el.scrollHeight <= maxHeight;
+      };
+
+      let chosen = scales[scales.length - 1];
+
+      for (const s of scales) {
+        homeEl.style.setProperty("--name-scale", String(s));
+        awayEl.style.setProperty("--name-scale", String(s));
+
+        if (fits(homeEl) && fits(awayEl)) {
+          chosen = s;
+          break;
+        }
+      }
+
+      homeEl.style.removeProperty("--name-scale");
+      awayEl.style.removeProperty("--name-scale");
+
+      if (!cancelled) setNameScale(chosen);
+    };
+
+    const raf = window.requestAnimationFrame(compute);
+
+    const ro = new ResizeObserver(() => {
+      window.requestAnimationFrame(compute);
+    });
+
+    ro.observe(homeEl);
+    ro.observe(awayEl);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [match.matchId]);
 
   function computeOverlay({ x, y }: { x: number; y: number }): Overlay | null {
     const ax = Math.abs(x);
@@ -288,12 +351,14 @@ export function SwipeCard({
             <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-5">
               <div className="min-w-0 max-w-full text-center">
                 <div
+                  ref={homeNameRef}
+                  style={{ "--name-scale": nameScale } as React.CSSProperties}
                   className={cn(
                     // Strong typography, but responsive.
                     "font-display font-black italic tracking-tight text-white",
                     // Responsive font sizing without container queries (more compatible; no missing text on some browsers).
-                    // Mobile-first: scales with viewport, capped for desktop.
-                    "text-[clamp(1.65rem,6vw,3.15rem)]",
+                    // Use a shared CSS var scale so home/away always match.
+                    "text-[calc(clamp(1.65rem,6vw,3.15rem)*var(--name-scale,1))]",
                     // Clean multi-line wrapping: keep words intact, clamp lines, no overflow.
                     "whitespace-normal break-normal hyphens-none",
                     "[text-wrap:balance]",
@@ -311,9 +376,11 @@ export function SwipeCard({
 
               <div className="min-w-0 max-w-full text-center">
                 <div
+                  ref={awayNameRef}
+                  style={{ "--name-scale": nameScale } as React.CSSProperties}
                   className={cn(
                     "font-display font-black italic tracking-tight text-white",
-                    "text-[clamp(1.65rem,6vw,3.15rem)]",
+                    "text-[calc(clamp(1.65rem,6vw,3.15rem)*var(--name-scale,1))]",
                     "whitespace-normal break-normal hyphens-none",
                     "[text-wrap:balance]",
                     "leading-[1.05]",
