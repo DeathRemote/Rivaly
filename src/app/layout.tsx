@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { Lexend, Manrope } from "next/font/google";
 import "./globals.css";
 
 import { Footer } from "@/components/layout/Footer";
+import { AdsenseScript } from "@/components/ads/AdsenseScript";
 
 const fontDisplay = Lexend({
   subsets: ["latin"],
@@ -35,14 +35,11 @@ export default function RootLayout({
       className={`${fontDisplay.variable} ${fontBody.variable} dark h-full scroll-smooth antialiased`}
     >
       <body className="min-h-screen bg-black text-white">
-        {/* AdSense Script (must be beforeInteractive for verification) */}
-        <Script
-          id="adsense-script"
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-4406678040423469"
-          strategy="beforeInteractive"
-          crossOrigin="anonymous"
-        />
-
+        {/*
+          AdSense loads client-side to avoid hydration mismatches.
+          (The script can mutate its own tag / be rewritten by Google before React hydrates.)
+        */}
+        <AdsenseScript />
         <div className="min-h-screen flex flex-col">
           <main className="flex-1">{children}</main>
           <Footer />

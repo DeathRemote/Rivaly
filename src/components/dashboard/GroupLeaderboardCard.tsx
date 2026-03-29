@@ -73,7 +73,8 @@ export function GroupLeaderboardCard({
                     ) : (
                       <div className="relative h-8 w-8 overflow-hidden rounded-full bg-white/10">
                         <Image
-                          src={`https://api.dicebear.com/9.x/identicon/svg?seed=${encodeURIComponent(row.name)}`}
+                          // Use PNG to avoid Next/Image SVG restrictions.
+                          src={`https://api.dicebear.com/9.x/identicon/png?size=64&seed=${encodeURIComponent(row.name)}`}
                           alt={row.name}
                           fill
                         />

@@ -62,7 +62,7 @@ export function SidebarAd({
       <div className="min-h-[250px]">
         {/*
           Manual AdSense unit.
-          Note: global AdSense script is loaded in app/layout.tsx.
+          Note: global AdSense script is loaded client-side via components/ads/AdsenseScript.
         */}
         <ins
           key={adKey}

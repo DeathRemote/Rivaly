@@ -59,49 +59,18 @@ export default async function ProfilePage() {
   // Basic stats
   const totalPredictions = await prisma.prediction.count({ where: { userId } });
 
-  // Only predictions whose match is finished & has a result are scorable.
-  const scorablePredictions = await prisma.prediction.findMany({
-    where: {
-      userId,
-      match: {
-        status: "FINISHED",
-        result: { isNot: null },
-      },
-    },
+  // Precomputed stats (keeps profile load light).
+  const agg = await prisma.userPredictionStatsAggregate.findUnique({
+    where: { userId },
     select: {
-      homeScore: true,
-      awayScore: true,
-      updatedAt: true,
-      match: {
-        select: {
-          id: true,
-          kickoffAt: true,
-          finalizedAt: true,
-          homeTeam: { select: { name: true, shortName: true } },
-          awayTeam: { select: { name: true, shortName: true } },
-          result: { select: { homeScore: true, awayScore: true } },
-        },
-      },
+      lifetimeTotal: true,
+      lifetimeCorrect: true,
     },
-    orderBy: { updatedAt: "desc" },
-    take: 250, // enough for profile aggregates; keep it bounded.
   });
 
-  let correct = 0;
-  let wrong = 0;
-
-  for (const p of scorablePredictions) {
-    const r = p.match.result;
-    if (!r) continue;
-
-    const predictedOutcome = outcome(p.homeScore, p.awayScore);
-    const actualOutcome = outcome(r.homeScore, r.awayScore);
-
-    if (predictedOutcome === actualOutcome) correct++;
-    else wrong++;
-  }
-
-  const totalScored = correct + wrong;
+  const totalScored = agg?.lifetimeTotal ?? 0;
+  const correct = agg?.lifetimeCorrect ?? 0;
+  const wrong = Math.max(0, totalScored - correct);
   const accuracyPct = totalScored === 0 ? 0 : (correct / totalScored) * 100;
 
   const confidencePct = deriveConfidencePct({

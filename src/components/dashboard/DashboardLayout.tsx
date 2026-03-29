@@ -9,13 +9,11 @@ export function DashboardLayout({
   activeKey,
   user,
   children,
-  hideMobileFab,
 }: {
   sideNavItems: DashboardNavItem[];
   activeKey: DashboardNavItem["key"];
   user: { name: string; image: string | null; rankLabel: string };
   children: React.ReactNode;
-  hideMobileFab?: boolean;
 }) {
   return (
     <div className="min-h-screen bg-background text-foreground overflow-x-hidden lg:overflow-x-visible">
@@ -27,18 +25,6 @@ export function DashboardLayout({
       </main>
 
       <MobileBottomNav />
-
-      {!hideMobileFab ? (
-        <div className="lg:hidden fixed bottom-24 right-6 z-40">
-          <button
-            type="button"
-            className="h-14 w-14 rounded-full bg-gradient-to-br from-lime-100 to-lime-400 text-black shadow-2xl shadow-lime-400/30 active:scale-90 transition"
-            aria-label="Create prediction"
-          >
-            +
-          </button>
-        </div>
-      ) : null}
     </div>
   );
 }

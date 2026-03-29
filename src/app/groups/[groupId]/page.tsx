@@ -103,43 +103,47 @@ export default async function GroupDetailsPage({
 
   const membershipRow = group.members.find((m) => m.userId === userId);
 
-  const accuracyByUser = await getGroupMemberAccuracies(group.id);
+  const accuracyByUser = tab === "leaderboard" ? await getGroupMemberAccuracies(group.id) : null;
 
-  const [completedFeed, momentum] =
+  const completedFeed =
+    tab === "leaderboard" ? await getGroupCompletedMatchFeed({ groupId: group.id, limitMatches: 6 }) : [];
+
+  const momentum = tab === "leaderboard" ? await getGroupMomentum(group.id) : null;
+
+  const leaderboard: LeaderboardRowData[] =
     tab === "leaderboard"
-      ? await Promise.all([
-          getGroupCompletedMatchFeed({ groupId: group.id, limitMatches: 6 }),
-          getGroupMomentum(group.id),
-        ])
-      : [[], null];
+      ? group.members.map((m, idx) => {
+          const acc = accuracyByUser?.[m.userId];
 
-  const leaderboard: LeaderboardRowData[] = group.members.map((m, idx) => {
-    const acc = accuracyByUser[m.userId];
-    const accuracyPct = acc && acc.scored > 0 ? Math.round((acc.correct / acc.scored) * 100) : 0;
+          const accuracyPct = acc && acc.scored > 0 ? Math.round((acc.correct / acc.scored) * 100) : 0;
 
-    // Trend v0: compare event count last 7D vs previous 7D.
-    const trend =
-      acc && acc.last7d !== acc.prev7d
-        ? acc.last7d > acc.prev7d
-          ? "up"
-          : "down"
-        : "flat";
+          // Trend v0: compare event count last 7D vs previous 7D.
+          const trend =
+            acc && acc.last7d !== acc.prev7d
+              ? acc.last7d > acc.prev7d
+                ? "up"
+                : "down"
+              : "flat";
 
-    return {
-      rank: idx + 1,
-      name: m.user.username ?? m.user.name ?? "Unknown",
-      points: m.points,
-      accuracyPct,
-      trend,
-      isYou: m.userId === userId,
-    };
-  });
+          return {
+            rank: idx + 1,
+            name: m.user.username ?? m.user.name ?? "Unknown",
+            points: m.points,
+            accuracyPct,
+            trend,
+            isYou: m.userId === userId,
+          };
+        })
+      : [];
 
-  const currentUserAccuracy = (() => {
-    const acc = accuracyByUser[userId];
-    if (!acc || acc.scored === 0) return 0;
-    return Math.round((acc.correct / acc.scored) * 100);
-  })();
+  const currentUserAccuracy =
+    tab === "leaderboard"
+      ? (() => {
+          const acc = accuracyByUser?.[userId];
+          if (!acc || acc.scored === 0) return 0;
+          return Math.round((acc.correct / acc.scored) * 100);
+        })()
+      : 0;
 
   // Table tab: ensure standings exist (and are reasonably fresh) for the linked competition season.
   if (tab === "table" && group.competitionSeasonId) {

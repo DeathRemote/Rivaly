@@ -1,3 +1,5 @@
+import { unstable_cache } from "next/cache";
+
 import { prisma } from "@/lib/prisma";
 
 export type SwipeMatch = {
@@ -12,7 +14,7 @@ export type SwipeMatch = {
   groupId: string;
 };
 
-export async function getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
+async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
   const now = new Date();
 
   const groups = await prisma.group.findMany({
@@ -87,7 +89,8 @@ export async function getSwipeMatchesForUser(userId: string): Promise<SwipeMatch
 
     const firstKickoffBySeason = new Map<string, Date>();
     for (const m of upcoming) {
-      if (!firstKickoffBySeason.has(m.competitionSeasonId)) firstKickoffBySeason.set(m.competitionSeasonId, m.kickoffAt);
+      if (!firstKickoffBySeason.has(m.competitionSeasonId))
+        firstKickoffBySeason.set(m.competitionSeasonId, m.kickoffAt);
     }
 
     const bucketMs = 72 * 60 * 60 * 1000;
@@ -139,3 +142,10 @@ export async function getSwipeMatchesForUser(userId: string): Promise<SwipeMatch
 
   return out;
 }
+
+export const getSwipeMatchesForUser = unstable_cache(
+  async (userId: string) => _getSwipeMatchesForUser(userId),
+  ["swipe-matches-for-user"],
+  // Swipe + dashboard call this frequently; tolerate small staleness to reduce DB spikes.
+  { revalidate: 30 },
+);

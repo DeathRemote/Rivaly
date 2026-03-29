@@ -46,7 +46,7 @@ export function GroupHero({
           </div>
 
           <h1 className="font-display text-3xl sm:text-4xl md:text-6xl font-black tracking-tighter text-white">
-            {group.name} <span className="text-lime-100 italic">PRIME</span>
+            {group.name}
           </h1>
           <p className="mt-2 md:mt-3 max-w-2xl text-sm font-medium text-white/60">
             {group.description ||

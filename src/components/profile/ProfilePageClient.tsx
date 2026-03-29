@@ -92,12 +92,32 @@ export function ProfilePageClient({
       <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
         <div>
           <div className="text-[10px] font-black uppercase tracking-[0.22em] text-red-200/70">
-            Danger zone
+            Account actions
           </div>
+
           <p className="mt-2 text-sm text-white/50">
-            Deleting your account permanently removes your user and associated data.
+            You can sign out or permanently delete your account.
           </p>
-          <div className="mt-4">
+
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+            <button
+              type="button"
+              disabled={pending}
+              onClick={() => {
+                startTransition(async () => {
+                  try {
+                    const { signOut } = await import("next-auth/react");
+                    await signOut({ callbackUrl: "/" });
+                  } catch {
+                    window.location.href = "/";
+                  }
+                });
+              }}
+              className="h-11 rounded-xl border border-white/10 bg-black/25 px-5 text-xs font-black uppercase tracking-[0.18em] text-white/80 hover:bg-white/5"
+            >
+              {pending ? "Signing out…" : "Logout"}
+            </button>
+
             <button
               type="button"
               onClick={() => {
