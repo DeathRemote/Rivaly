@@ -10,8 +10,11 @@ export async function POST(req: Request) {
   const url = new URL(req.url);
   const batchSize = Number(url.searchParams.get("batchSize") ?? "25");
 
-  const res = await recomputeAllGroupAggregates({ batchSize: Number.isFinite(batchSize) ? batchSize : 25 });
-  return NextResponse.json({ ok: true, ...res });
+  const res = await recomputeAllGroupAggregates({
+    batchSize: Number.isFinite(batchSize) ? batchSize : 25,
+  });
+
+  return NextResponse.json(res);
 }
 
 export async function GET(req: Request) {
