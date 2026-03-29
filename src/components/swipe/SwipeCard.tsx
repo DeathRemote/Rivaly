@@ -287,7 +287,23 @@ export function SwipeCard({
             {/* Mobile: stacked to prevent overflow. Desktop+: side-by-side */}
             <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-5">
               <div className="min-w-0 max-w-full text-center">
-                <div className="font-display text-3xl sm:text-4xl md:text-5xl font-black italic tracking-tight text-white break-words">
+                <div
+                  className={cn(
+                    // Container-query based responsive sizing; avoids JS measuring.
+                    "[container-type:inline-size]",
+                    // Strong typography, but can scale down.
+                    "font-display font-black italic tracking-tight text-white",
+                    // Clamp font size based on available inline-size.
+                    "text-[clamp(1.65rem,9cqi,3.15rem)]",
+                    // Clean multi-line wrapping: keep words intact, clamp lines, no overflow.
+                    "whitespace-normal break-normal hyphens-none",
+                    "[text-wrap:balance]",
+                    "leading-[1.05]",
+                    "overflow-hidden",
+                    "[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]",
+                    "md:[-webkit-line-clamp:2]",
+                  )}
+                >
                   {match.home.shortName ?? match.home.name}
                 </div>
               </div>
@@ -295,7 +311,19 @@ export function SwipeCard({
               <div className="font-display text-xl md:text-2xl font-black italic text-white/25">VS</div>
 
               <div className="min-w-0 max-w-full text-center">
-                <div className="font-display text-3xl sm:text-4xl md:text-5xl font-black italic tracking-tight text-white break-words">
+                <div
+                  className={cn(
+                    "[container-type:inline-size]",
+                    "font-display font-black italic tracking-tight text-white",
+                    "text-[clamp(1.65rem,9cqi,3.15rem)]",
+                    "whitespace-normal break-normal hyphens-none",
+                    "[text-wrap:balance]",
+                    "leading-[1.05]",
+                    "overflow-hidden",
+                    "[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]",
+                    "md:[-webkit-line-clamp:2]",
+                  )}
+                >
                   {match.away.shortName ?? match.away.name}
                 </div>
               </div>
