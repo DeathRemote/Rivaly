@@ -289,12 +289,11 @@ export function SwipeCard({
               <div className="min-w-0 max-w-full text-center">
                 <div
                   className={cn(
-                    // Container-query based responsive sizing; avoids JS measuring.
-                    "[container-type:inline-size]",
-                    // Strong typography, but can scale down.
+                    // Strong typography, but responsive.
                     "font-display font-black italic tracking-tight text-white",
-                    // Clamp font size based on available inline-size.
-                    "text-[clamp(1.65rem,9cqi,3.15rem)]",
+                    // Responsive font sizing without container queries (more compatible; no missing text on some browsers).
+                    // Mobile-first: scales with viewport, capped for desktop.
+                    "text-[clamp(1.65rem,6vw,3.15rem)]",
                     // Clean multi-line wrapping: keep words intact, clamp lines, no overflow.
                     "whitespace-normal break-normal hyphens-none",
                     "[text-wrap:balance]",
@@ -313,9 +312,8 @@ export function SwipeCard({
               <div className="min-w-0 max-w-full text-center">
                 <div
                   className={cn(
-                    "[container-type:inline-size]",
                     "font-display font-black italic tracking-tight text-white",
-                    "text-[clamp(1.65rem,9cqi,3.15rem)]",
+                    "text-[clamp(1.65rem,6vw,3.15rem)]",
                     "whitespace-normal break-normal hyphens-none",
                     "[text-wrap:balance]",
                     "leading-[1.05]",
