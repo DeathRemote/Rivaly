@@ -84,10 +84,10 @@ export function SwipeCard({
     let cancelled = false;
 
     const compute = () => {
-      // Always allow up to 3 lines to avoid desktop-only truncation like "West Ham…".
+      // Always allow up to 3 lines.
       const maxLines = 3;
 
-      // Try a small set of scales from 1 → 0.55 and pick the first that fits for BOTH.
+      // Try a small set of scales from 1 → 0.48 and pick the first that fits for BOTH.
       // (Some club names have long single words, e.g. "Wolverhampton", which must fit without mid-word breaks.)
       const scales = [
         1,
@@ -106,16 +106,19 @@ export function SwipeCard({
         0.61,
         0.58,
         0.55,
+        0.52,
+        0.5,
+        0.48,
       ];
 
-      const fits = (el: HTMLElement) => {
+      const getMaxHeight = (el: HTMLElement) => {
         const cs = window.getComputedStyle(el);
         const lineHeightPx = Number.parseFloat(cs.lineHeight || "0");
         const lh = Number.isFinite(lineHeightPx) && lineHeightPx > 0 ? lineHeightPx : 1.05 * 16;
-        const maxHeight = lh * maxLines + 0.5;
+        return lh * maxLines + 0.5;
+      };
 
-        // With -webkit-line-clamp, scrollHeight can be unreliable across browsers.
-        // Temporarily remove the clamp to measure the natural content height.
+      const measureNatural = (el: HTMLElement) => {
         const styleAny = el.style as unknown as {
           webkitLineClamp?: string;
           WebkitLineClamp?: string;
@@ -138,23 +141,69 @@ export function SwipeCard({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (el.style as any).WebkitLineClamp = prevClamp || "";
 
-        // Fit requirements:
-        // - height within N lines
-        // - no horizontal overflow (important for long single words)
-        const heightOk = naturalHeight <= maxHeight;
-        const widthOk = naturalWidth <= containerWidth + 0.5;
-
-        return heightOk && widthOk;
+        return { naturalHeight, naturalWidth, containerWidth };
       };
+
+      // Text measurement helper: ensures the longest single word fits in the column.
+      // This handles cases where scrollWidth lies (because of -webkit-box) and prevents mid-word clipping.
+      const measureMaxWordWidth = (el: HTMLElement, text: string) => {
+        const cs = window.getComputedStyle(el);
+        const font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontSize} / ${cs.lineHeight} ${cs.fontFamily}`;
+        const letterSpacingPx = Number.parseFloat(cs.letterSpacing || "0");
+        const letterSpacing = Number.isFinite(letterSpacingPx) ? letterSpacingPx : 0;
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return 0;
+        ctx.font = font;
+
+        const words = text
+          .split(/\s+/)
+          .map((w) => w.trim())
+          .filter(Boolean);
+
+        let max = 0;
+        for (const w of words) {
+          const base = ctx.measureText(w).width;
+          const spaced = base + Math.max(0, w.length - 1) * letterSpacing;
+          if (spaced > max) max = spaced;
+        }
+
+        return max;
+      };
+
+      const homeText = homeEl.textContent ?? "";
+      const awayText = awayEl.textContent ?? "";
+
+      const homeLongestWord = measureMaxWordWidth(homeEl, homeText);
+      const awayLongestWord = measureMaxWordWidth(awayEl, awayText);
+
+      const homeColWidth = homeEl.clientWidth;
+      const awayColWidth = awayEl.clientWidth;
+
+      // Scale required so longest single word fits without clipping.
+      const wordScale = Math.min(
+        1,
+        homeLongestWord > 0 ? homeColWidth / homeLongestWord : 1,
+        awayLongestWord > 0 ? awayColWidth / awayLongestWord : 1,
+      );
 
       let chosen = scales[scales.length - 1];
 
+      // First: pick a scale that satisfies the 3-line max height for both.
       for (const s of scales) {
-        homeEl.style.setProperty("--name-scale", String(s));
-        awayEl.style.setProperty("--name-scale", String(s));
+        const scaled = Math.min(s, wordScale);
 
-        if (fits(homeEl) && fits(awayEl)) {
-          chosen = s;
+        homeEl.style.setProperty("--name-scale", String(scaled));
+        awayEl.style.setProperty("--name-scale", String(scaled));
+
+        const home = measureNatural(homeEl);
+        const away = measureNatural(awayEl);
+
+        const heightOk = home.naturalHeight <= getMaxHeight(homeEl) && away.naturalHeight <= getMaxHeight(awayEl);
+
+        if (heightOk) {
+          chosen = scaled;
           break;
         }
       }
