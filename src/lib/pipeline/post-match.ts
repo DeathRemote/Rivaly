@@ -5,6 +5,11 @@ import { TheSportsDbClient } from "@/lib/providers/thesportsdb/client";
 import { scorePredictionPoints } from "@/lib/scoring/predictions";
 import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 import { mapTheSportsDbStatus } from "@/lib/importers/thesportsdb/map";
+import {
+  recomputeGroupMemberAccuracyAggregate,
+  recomputeGroupMomentumAggregate,
+  recomputeUserPredictionStatsAggregate,
+} from "@/lib/aggregates/recompute";
 
 export async function syncAndProcessFinishedMatches(opts?: {
   maxMatches?: number;
@@ -131,6 +136,9 @@ export async function syncAndProcessFinishedMatches(opts?: {
 
       let pointsEvents = 0;
 
+      const affectedGroupIds = new Set<string>();
+      const affectedUserIds = new Set<string>();
+
       for (const mbr of eligibleMembers) {
         const p = predictionByUserId.get(mbr.userId);
         if (!p) continue;
@@ -173,6 +181,9 @@ export async function syncAndProcessFinishedMatches(opts?: {
           data: { points: { increment: event.points } },
         });
 
+        affectedGroupIds.add(mbr.groupId);
+        affectedUserIds.add(mbr.userId);
+
         pointsEvents++;
       }
 
@@ -181,8 +192,29 @@ export async function syncAndProcessFinishedMatches(opts?: {
         data: { processedAt: new Date() },
       });
 
-      return { pointsEvents };
+      return {
+        pointsEvents,
+        affectedGroupIds: Array.from(affectedGroupIds),
+        affectedUserIds: Array.from(affectedUserIds),
+      };
     });
+
+    // Update aggregates after scoring is committed.
+    // Important: do this AFTER the scoring transaction so jobs see a consistent state.
+    // Also keep it sequential + deduped to avoid introducing new pool spikes.
+    try {
+      for (const groupId of out.affectedGroupIds) {
+        await recomputeGroupMemberAccuracyAggregate(groupId);
+        await recomputeGroupMomentumAggregate(groupId);
+      }
+
+      // Recompute per affected user once (deduped). Keep sequential.
+      for (const userId of out.affectedUserIds) {
+        await recomputeUserPredictionStatsAggregate(userId);
+      }
+    } catch (err) {
+      console.warn("[aggregates] recompute failed after match processing:", err instanceof Error ? err.message : err);
+    }
 
     // Standings update after processing.
     let standingsSynced = false;
