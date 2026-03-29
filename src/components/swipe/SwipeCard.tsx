@@ -87,8 +87,26 @@ export function SwipeCard({
       // Always allow up to 3 lines to avoid desktop-only truncation like "West Ham…".
       const maxLines = 3;
 
-      // Try a small set of scales from 1 → 0.72 and pick the first that fits for BOTH.
-      const scales = [1, 0.96, 0.92, 0.88, 0.84, 0.8, 0.76, 0.72];
+      // Try a small set of scales from 1 → 0.55 and pick the first that fits for BOTH.
+      // (Some club names have long single words, e.g. "Wolverhampton", which must fit without mid-word breaks.)
+      const scales = [
+        1,
+        0.97,
+        0.94,
+        0.91,
+        0.88,
+        0.85,
+        0.82,
+        0.79,
+        0.76,
+        0.73,
+        0.7,
+        0.67,
+        0.64,
+        0.61,
+        0.58,
+        0.55,
+      ];
 
       const fits = (el: HTMLElement) => {
         const cs = window.getComputedStyle(el);
@@ -110,7 +128,9 @@ export function SwipeCard({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (el.style as any).WebkitLineClamp = "unset";
 
-        const natural = el.scrollHeight;
+        const naturalHeight = el.scrollHeight;
+        const naturalWidth = el.scrollWidth;
+        const containerWidth = el.clientWidth;
 
         // Restore.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -118,7 +138,13 @@ export function SwipeCard({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (el.style as any).WebkitLineClamp = prevClamp || "";
 
-        return natural <= maxHeight;
+        // Fit requirements:
+        // - height within N lines
+        // - no horizontal overflow (important for long single words)
+        const heightOk = naturalHeight <= maxHeight;
+        const widthOk = naturalWidth <= containerWidth + 0.5;
+
+        return heightOk && widthOk;
       };
 
       let chosen = scales[scales.length - 1];
