@@ -312,6 +312,9 @@ model CompetitionSeason {
   seasonLabel      String // e.g. "2026"
   published        Boolean  @default(false)
 
+  // Soft-delete / hide from admin + group creation without breaking existing relations.
+  archivedAt       DateTime?
+
   provider         Provider?
   providerSeasonId String?
 
@@ -320,6 +323,10 @@ model CompetitionSeason {
 
   // Standings sync metadata
   standingsUpdatedAt DateTime?
+
+  // Fixtures sync metadata
+  fixturesSyncedAt  DateTime?
+  fixturesSyncError String?
 
   competition      Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
   phases           CompetitionPhase[]
@@ -333,6 +340,7 @@ model CompetitionSeason {
   @@unique([competitionId, seasonLabel])
   @@unique([provider, providerSeasonId])
   @@index([published])
+  @@index([archivedAt])
 }
 
 model CompetitionPhase {
