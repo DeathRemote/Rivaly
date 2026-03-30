@@ -449,6 +449,12 @@ export function AdminPageClient({
                 }
                 onClick={() => {
                   startTransition(async () => {
+                    const league = selectedLeague;
+                    if (!league) {
+                      setImportMessage("Select a league first.");
+                      return;
+                    }
+
                     setImportMessage("Importing…");
                     const res = await fetch("/api/admin/competition-seasons/import", {
                       method: "POST",
@@ -456,7 +462,7 @@ export function AdminPageClient({
                       body: JSON.stringify({
                         sport: "SOCCER",
                         provider: "THESPORTSDB",
-                        providerLeagueId: selectedLeague.idLeague,
+                        providerLeagueId: league.idLeague,
                         seasonLabel: seasonLabel.trim(),
                         providerSeasonId: seasonProviderId ?? undefined,
                         syncMatches: true,
