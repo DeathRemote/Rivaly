@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 
 import type { SwipeMatch } from "@/lib/swipe-data";
 import { cn } from "@/lib/cn";
@@ -69,6 +69,166 @@ export function SwipeCard({
 
   const kickoff = useMemo(() => new Date(match.kickoffAt), [match.kickoffAt]);
   const lockAt = useMemo(() => new Date(match.lockAt), [match.lockAt]);
+
+  // Team name scaling (shared between home/away so they look consistent).
+  // Avoid per-frame work: compute once on match change + on resize.
+  const homeNameRef = useRef<HTMLDivElement | null>(null);
+  const awayNameRef = useRef<HTMLDivElement | null>(null);
+  const [nameScale, setNameScale] = useState(1);
+
+  useEffect(() => {
+    const homeEl = homeNameRef.current;
+    const awayEl = awayNameRef.current;
+    if (!homeEl || !awayEl) return;
+
+    let cancelled = false;
+
+    const compute = () => {
+      // Always allow up to 3 lines.
+      const maxLines = 3;
+
+      // Try a small set of scales from 1 → 0.48 and pick the first that fits for BOTH.
+      // (Some club names have long single words, e.g. "Wolverhampton", which must fit without mid-word breaks.)
+      const scales = [
+        1,
+        0.97,
+        0.94,
+        0.91,
+        0.88,
+        0.85,
+        0.82,
+        0.79,
+        0.76,
+        0.73,
+        0.7,
+        0.67,
+        0.64,
+        0.61,
+        0.58,
+        0.55,
+        0.52,
+        0.5,
+        0.48,
+      ];
+
+      const getMaxHeight = (el: HTMLElement) => {
+        const cs = window.getComputedStyle(el);
+        const lineHeightPx = Number.parseFloat(cs.lineHeight || "0");
+        const lh = Number.isFinite(lineHeightPx) && lineHeightPx > 0 ? lineHeightPx : 1.05 * 16;
+        return lh * maxLines + 0.5;
+      };
+
+      const measureNatural = (el: HTMLElement) => {
+        const styleAny = el.style as unknown as {
+          webkitLineClamp?: string;
+          WebkitLineClamp?: string;
+        };
+        const prevClamp = styleAny.webkitLineClamp ?? styleAny.WebkitLineClamp ?? "";
+
+        // Disable clamping for measurement.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).webkitLineClamp = "unset";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).WebkitLineClamp = "unset";
+
+        const naturalHeight = el.scrollHeight;
+        const naturalWidth = el.scrollWidth;
+        const containerWidth = el.clientWidth;
+
+        // Restore.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).webkitLineClamp = prevClamp || "";
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (el.style as any).WebkitLineClamp = prevClamp || "";
+
+        return { naturalHeight, naturalWidth, containerWidth };
+      };
+
+      // Text measurement helper: ensures the longest single word fits in the column.
+      // This handles cases where scrollWidth lies (because of -webkit-box) and prevents mid-word clipping.
+      const measureMaxWordWidth = (el: HTMLElement, text: string) => {
+        const cs = window.getComputedStyle(el);
+        const font = `${cs.fontStyle} ${cs.fontVariant} ${cs.fontWeight} ${cs.fontSize} / ${cs.lineHeight} ${cs.fontFamily}`;
+        const letterSpacingPx = Number.parseFloat(cs.letterSpacing || "0");
+        const letterSpacing = Number.isFinite(letterSpacingPx) ? letterSpacingPx : 0;
+
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return 0;
+        ctx.font = font;
+
+        const words = text
+          .split(/\s+/)
+          .map((w) => w.trim())
+          .filter(Boolean);
+
+        let max = 0;
+        for (const w of words) {
+          const base = ctx.measureText(w).width;
+          const spaced = base + Math.max(0, w.length - 1) * letterSpacing;
+          if (spaced > max) max = spaced;
+        }
+
+        return max;
+      };
+
+      const homeText = homeEl.textContent ?? "";
+      const awayText = awayEl.textContent ?? "";
+
+      const homeLongestWord = measureMaxWordWidth(homeEl, homeText);
+      const awayLongestWord = measureMaxWordWidth(awayEl, awayText);
+
+      const homeColWidth = homeEl.clientWidth;
+      const awayColWidth = awayEl.clientWidth;
+
+      // Scale required so longest single word fits without clipping.
+      const wordScale = Math.min(
+        1,
+        homeLongestWord > 0 ? homeColWidth / homeLongestWord : 1,
+        awayLongestWord > 0 ? awayColWidth / awayLongestWord : 1,
+      );
+
+      let chosen = scales[scales.length - 1];
+
+      // First: pick a scale that satisfies the 3-line max height for both.
+      for (const s of scales) {
+        const scaled = Math.min(s, wordScale);
+
+        homeEl.style.setProperty("--name-scale", String(scaled));
+        awayEl.style.setProperty("--name-scale", String(scaled));
+
+        const home = measureNatural(homeEl);
+        const away = measureNatural(awayEl);
+
+        const heightOk = home.naturalHeight <= getMaxHeight(homeEl) && away.naturalHeight <= getMaxHeight(awayEl);
+
+        if (heightOk) {
+          chosen = scaled;
+          break;
+        }
+      }
+
+      homeEl.style.removeProperty("--name-scale");
+      awayEl.style.removeProperty("--name-scale");
+
+      if (!cancelled) setNameScale(chosen);
+    };
+
+    const raf = window.requestAnimationFrame(compute);
+
+    const ro = new ResizeObserver(() => {
+      window.requestAnimationFrame(compute);
+    });
+
+    ro.observe(homeEl);
+    ro.observe(awayEl);
+
+    return () => {
+      cancelled = true;
+      window.cancelAnimationFrame(raf);
+      ro.disconnect();
+    };
+  }, [match.matchId]);
 
   function computeOverlay({ x, y }: { x: number; y: number }): Overlay | null {
     const ax = Math.abs(x);
@@ -287,7 +447,23 @@ export function SwipeCard({
             {/* Mobile: stacked to prevent overflow. Desktop+: side-by-side */}
             <div className="flex flex-col md:flex-row items-center justify-center gap-3 md:gap-5">
               <div className="min-w-0 max-w-full text-center">
-                <div className="font-display text-3xl sm:text-4xl md:text-5xl font-black italic tracking-tight text-white break-words">
+                <div
+                  ref={homeNameRef}
+                  style={{ "--name-scale": nameScale } as React.CSSProperties}
+                  className={cn(
+                    // Strong typography, but responsive.
+                    "font-display font-black italic tracking-tight text-white",
+                    // Responsive font sizing without container queries (more compatible; no missing text on some browsers).
+                    // Use a shared CSS var scale so home/away always match.
+                    "text-[calc(clamp(1.65rem,6vw,3.15rem)*var(--name-scale,1))]",
+                    // Clean multi-line wrapping: keep words intact, clamp lines, no overflow.
+                    "whitespace-normal break-normal hyphens-none",
+                    "[text-wrap:balance]",
+                    "leading-[1.05]",
+                    "overflow-hidden",
+                    "[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]",
+                  )}
+                >
                   {match.home.shortName ?? match.home.name}
                 </div>
               </div>
@@ -295,7 +471,19 @@ export function SwipeCard({
               <div className="font-display text-xl md:text-2xl font-black italic text-white/25">VS</div>
 
               <div className="min-w-0 max-w-full text-center">
-                <div className="font-display text-3xl sm:text-4xl md:text-5xl font-black italic tracking-tight text-white break-words">
+                <div
+                  ref={awayNameRef}
+                  style={{ "--name-scale": nameScale } as React.CSSProperties}
+                  className={cn(
+                    "font-display font-black italic tracking-tight text-white",
+                    "text-[calc(clamp(1.65rem,6vw,3.15rem)*var(--name-scale,1))]",
+                    "whitespace-normal break-normal hyphens-none",
+                    "[text-wrap:balance]",
+                    "leading-[1.05]",
+                    "overflow-hidden",
+                    "[display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:3]",
+                  )}
+                >
                   {match.away.shortName ?? match.away.name}
                 </div>
               </div>

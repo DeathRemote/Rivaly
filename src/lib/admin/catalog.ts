@@ -15,10 +15,13 @@ export type AdminCompetition = {
     id: string;
     seasonLabel: string;
     published: boolean;
+    archivedAt: string | null;
     startsAt: string | null;
     endsAt: string | null;
     provider: string | null;
     providerSeasonId: string | null;
+    fixturesSyncedAt: string | null;
+    fixturesSyncError: string | null;
   }>;
 };
 
@@ -39,10 +42,13 @@ async function readCatalog(): Promise<AdminCompetition[]> {
           id: true,
           seasonLabel: true,
           published: true,
+          archivedAt: true,
           startsAt: true,
           endsAt: true,
           provider: true,
           providerSeasonId: true,
+          fixturesSyncedAt: true,
+          fixturesSyncError: true,
         },
       },
     },
@@ -52,8 +58,10 @@ async function readCatalog(): Promise<AdminCompetition[]> {
     ...c,
     seasons: c.seasons.map((s) => ({
       ...s,
+      archivedAt: s.archivedAt ? s.archivedAt.toISOString() : null,
       startsAt: s.startsAt ? s.startsAt.toISOString() : null,
       endsAt: s.endsAt ? s.endsAt.toISOString() : null,
+      fixturesSyncedAt: s.fixturesSyncedAt ? s.fixturesSyncedAt.toISOString() : null,
     })),
   }));
 }

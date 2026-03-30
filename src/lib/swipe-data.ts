@@ -36,7 +36,20 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
     groupIdsBySeason.set(g.competitionSeasonId, arr);
   }
 
-  // Swipe needs: matches open now. Plus season-start exception (opening bucket) if nothing is open.
+  async function excludeAlreadyPredicted<T extends { id: string }>(items: T[]) {
+    if (items.length === 0) return [] as T[];
+
+    const existing = await prisma.prediction.findMany({
+      where: { userId, matchId: { in: items.map((m) => m.id) } },
+      select: { matchId: true },
+    });
+
+    const predicted = new Set(existing.map((p) => p.matchId));
+    return items.filter((m) => !predicted.has(m.id));
+  }
+
+  // Swipe needs: matches open now.
+  // If there are no *remaining* matches after excluding already predicted, fall back to a small upcoming bucket.
   const standardOpen = await prisma.match.findMany({
     where: {
       competitionSeasonId: { in: seasonIds },
@@ -57,11 +70,12 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
     take: 80,
   });
 
-  let matches = standardOpen;
+  let matches = await excludeAlreadyPredicted(standardOpen);
 
   if (matches.length === 0) {
-    // Season-start exception: show the first bucket (first 72 hours from the earliest kickoff) per season
-    // if the season hasn't started yet.
+    // Upcoming bucket: show the first bucket (first 72 hours from the earliest kickoff) per season.
+    // This prevents "All caught up" when the only open matches are already predicted,
+    // but another season has fixtures farther out (e.g. outside visibleAt window).
     const upcoming = await prisma.match.findMany({
       where: {
         competitionSeasonId: { in: seasonIds },
@@ -89,13 +103,14 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
 
     const firstKickoffBySeason = new Map<string, Date>();
     for (const m of upcoming) {
-      if (!firstKickoffBySeason.has(m.competitionSeasonId))
+      if (!firstKickoffBySeason.has(m.competitionSeasonId)) {
         firstKickoffBySeason.set(m.competitionSeasonId, m.kickoffAt);
+      }
     }
 
     const bucketMs = 72 * 60 * 60 * 1000;
 
-    matches = upcoming.filter((m) => {
+    const bucket = upcoming.filter((m) => {
       const seasonStart = m.competitionSeason.startsAt;
       if (seasonStart && seasonStart.getTime() <= now.getTime()) return false;
 
@@ -104,23 +119,15 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
 
       return m.kickoffAt.getTime() <= first.getTime() + bucketMs;
     });
+
+    matches = await excludeAlreadyPredicted(bucket);
   }
 
   if (matches.length === 0) return [];
 
-  const matchIds = matches.map((m) => m.id);
-
-  const existing = await prisma.prediction.findMany({
-    where: { userId, matchId: { in: matchIds } },
-    select: { matchId: true },
-  });
-
-  const predicted = new Set(existing.map((p) => p.matchId));
-
   const out: SwipeMatch[] = [];
 
   for (const m of matches) {
-    if (predicted.has(m.id)) continue;
 
     const seasonGroupIds = groupIdsBySeason.get(m.competitionSeasonId) ?? [];
     const groupId = seasonGroupIds[0];
