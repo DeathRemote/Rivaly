@@ -1,12 +1,23 @@
 import Link from "next/link";
 
 import { SignOutButton } from "@/components/auth/SignOutButton";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 
 export function DashboardShell({
   user,
 }: {
   user: { name: string | null; email: string | null; image: string | null };
 }) {
+  // Temporary momentum heuristic until we wire real streak/ELO/activity.
+  // Computes a 0..100 score based on profile completeness.
+  const momentum = (() => {
+    let score = 0;
+    if (user.email) score += 34;
+    if (user.name) score += 33;
+    if (user.image) score += 33;
+    return Math.max(0, Math.min(100, score));
+  })();
+
   return (
     <div className="min-h-screen bg-[#0c0e11] text-[#f9f9fd]">
       <header className="h-16 border-b border-white/10 flex items-center justify-between px-6">
@@ -42,8 +53,8 @@ export function DashboardShell({
             <div className="mt-1 text-xs text-white/60">
               Placeholder for streaks / ELO / daily activity.
             </div>
-            <div className="mt-4 h-2 rounded-full bg-black/40 overflow-hidden">
-              <div className="h-full w-2/3 bg-gradient-to-r from-[#f3ffca] to-[#beee00]" />
+            <div className="mt-4">
+              <ProgressBar value={momentum} />
             </div>
           </div>
 
