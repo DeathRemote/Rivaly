@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 
 export const dynamic = "force-dynamic";
 
@@ -124,9 +125,7 @@ export default async function JoinByInviteCodePage({
           </div>
         </div>
 
-        <div className="h-1.5 w-full bg-black/60">
-          <div className="h-full w-2/3 bg-gradient-to-r from-[#f3ffca] to-[#beee00]" />
-        </div>
+        <ProgressBar value={66} heightClassName="h-1.5" trackClassName="bg-black/60" />
       </div>
     </div>
   );

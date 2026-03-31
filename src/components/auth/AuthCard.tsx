@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { signIn } from "next-auth/react";
 
 import { countries } from "@/lib/countries";
+import { ProgressBar } from "@/components/ui/ProgressBar";
 
 type Mode = "login" | "signup";
 
@@ -246,9 +247,7 @@ export function AuthCard({
         </div>
       </div>
 
-      <div className="h-1.5 w-full bg-black/60">
-        <div className="h-full w-2/3 bg-gradient-to-r from-[#f3ffca] to-[#beee00]" />
-      </div>
+      <ProgressBar value={66} heightClassName="h-1.5" trackClassName="bg-black/60" />
 
       <div className="px-8 py-5 text-center text-[9px] font-bold uppercase tracking-[0.2em] text-white/30">
         By continuing, you agree to Rivaly&apos;s terms.
