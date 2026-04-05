@@ -1,23 +1,11 @@
 import { NextResponse } from "next/server";
 
+import { requireJobAuth } from "@/lib/jobs/auth";
 import { syncAndProcessFinishedMatches } from "@/lib/pipeline/post-match";
 
-function assertAuthorized(req: Request) {
-  const required = process.env.JOB_SECRET;
-  if (!required) return;
-
-  const url = new URL(req.url);
-  const token = url.searchParams.get("token");
-  const header = req.headers.get("x-job-secret");
-
-  const ok = (token && token === required) || (header && header === required);
-  if (!ok) {
-    throw new Error("UNAUTHORIZED");
-  }
-}
-
 async function runJob(req: Request) {
-  assertAuthorized(req);
+  const auth = await requireJobAuth(req);
+  if (!auth.ok) return auth.response;
 
   const result = await syncAndProcessFinishedMatches({
     maxMatches: 50,
@@ -25,29 +13,15 @@ async function runJob(req: Request) {
     lookaheadMinutes: 60,
   });
 
-  return NextResponse.json({ ok: true, result });
+  return NextResponse.json({ ok: true, auth: auth.mode, result });
 }
 
 export async function POST(req: Request) {
-  try {
-    return await runJob(req);
-  } catch (err) {
-    if (err instanceof Error && err.message === "UNAUTHORIZED") {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
-    throw err;
-  }
+  return runJob(req);
 }
 
 // Vercel Cron may call GET by default depending on configuration.
 // We support GET as an alias for POST so the job still runs.
 export async function GET(req: Request) {
-  try {
-    return await runJob(req);
-  } catch (err) {
-    if (err instanceof Error && err.message === "UNAUTHORIZED") {
-      return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
-    }
-    throw err;
-  }
+  return runJob(req);
 }
