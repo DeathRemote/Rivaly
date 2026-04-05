@@ -95,7 +95,7 @@ describe("syncAndProcessFinishedMatches", () => {
 
     prisma.pointsEvent.create.mockResolvedValueOnce({ points: 3 });
 
-    const res = await syncAndProcessFinishedMatches({ maxMatches: 1 });
+    const res = await syncAndProcessFinishedMatches({ maxMatches: 1, lookbackHours: 24 });
 
     expect(res.skipped).toBe(false);
     expect(res.scanned).toBe(1);
