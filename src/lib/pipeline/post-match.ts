@@ -17,26 +17,29 @@ export async function syncAndProcessFinishedMatches(opts?: {
   lookaheadMinutes?: number;
 }) {
   const maxMatches = opts?.maxMatches ?? 25;
-  // NOTE: Cron jobs can be delayed / paused; keep a wider net so we don't miss scoring.
-  // We still bound the scan by kickoffAt window to avoid hammering the provider.
-  const lookbackHours = opts?.lookbackHours ?? 24;
-  const lookaheadMinutes = opts?.lookaheadMinutes ?? 60;
+
+  // IMPORTANT DESIGN CHOICE:
+  // Provider status can lag reality (e.g. remains "2H" after the match is actually done).
+  // If we only look at a narrow kickoffAt window, we can miss scoring entirely.
+  // So we primarily scan for "unprocessed" matches within a bounded recent period.
+  //
+  // Overrides remain for dev/tests, but defaults are chosen for reliability.
+  const lookbackHours = opts?.lookbackHours ?? 24 * 7; // 7 days
+  const lookaheadMinutes = opts?.lookaheadMinutes ?? 0; // we don't need to look ahead for finished scoring
 
   const now = new Date();
   const from = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
   const to = new Date(now.getTime() + lookaheadMinutes * 60 * 1000);
 
-  // Candidates: relevant window + not processed.
-  // Keep it tight so the cron can run every 5 minutes without hammering the provider.
+  // Candidates: unprocessed + recent-ish.
+  // We do NOT filter by status here — if a match is FINISHED but unprocessed, we must still pick it up.
+  // We also avoid looking too far back to prevent hammering the provider.
   const candidates = await prisma.match.findMany({
     where: {
-      kickoffAt: { gte: from, lte: to },
       processedAt: null,
       provider: Provider.THESPORTSDB,
       providerMatchId: { not: null },
-      // IMPORTANT: include FINISHED when processedAt is null.
-      // Otherwise a match can get stuck forever if its status is set to FINISHED but scoring never completed.
-      status: { in: ["SCHEDULED", "LIVE", "UNKNOWN", "POSTPONED", "FINISHED"] },
+      kickoffAt: { gte: from, lte: to },
     },
     orderBy: { kickoffAt: "asc" },
     take: maxMatches,
@@ -48,6 +51,13 @@ export async function syncAndProcessFinishedMatches(opts?: {
   if (candidates.length === 0) {
     return { skipped: true as const, scanned: 0, processed: [] as const };
   }
+
+  console.info("[post-match] candidates:", {
+    scanned: candidates.length,
+    from: from.toISOString(),
+    to: to.toISOString(),
+    maxMatches,
+  });
 
   const client = new TheSportsDbClient();
 
