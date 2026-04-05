@@ -12,6 +12,17 @@ import { requireAdminApi } from "@/lib/admin/api-auth";
 export async function requireJobAuth(req: Request) {
   const configured = process.env.JOB_SECRET;
 
+  // Vercel Cron cannot set headers; it often calls GET.
+  // Support `?token=...` for cron/manual curl.
+  const urlToken = (() => {
+    try {
+      const url = new URL(req.url);
+      return url.searchParams.get("token");
+    } catch {
+      return null;
+    }
+  })();
+
   const headerSecret =
     req.headers.get("x-job-secret") ||
     (() => {
@@ -20,7 +31,9 @@ export async function requireJobAuth(req: Request) {
       return m?.[1] ?? null;
     })();
 
-  if (configured && headerSecret && headerSecret === configured) {
+  const presented = urlToken || headerSecret;
+
+  if (configured && presented && presented === configured) {
     return { ok: true as const, mode: "secret" as const };
   }
 
@@ -30,9 +43,6 @@ export async function requireJobAuth(req: Request) {
 
   return {
     ok: false as const,
-    response: NextResponse.json(
-      { ok: false, error: "Unauthorized" },
-      { status: 401 },
-    ),
+    response: NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 }),
   };
 }
