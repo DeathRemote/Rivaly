@@ -17,7 +17,9 @@ export async function syncAndProcessFinishedMatches(opts?: {
   lookaheadMinutes?: number;
 }) {
   const maxMatches = opts?.maxMatches ?? 25;
-  const lookbackHours = opts?.lookbackHours ?? 6;
+  // NOTE: Cron jobs can be delayed / paused; keep a wider net so we don't miss scoring.
+  // We still bound the scan by kickoffAt window to avoid hammering the provider.
+  const lookbackHours = opts?.lookbackHours ?? 24;
   const lookaheadMinutes = opts?.lookaheadMinutes ?? 60;
 
   const now = new Date();
@@ -32,7 +34,9 @@ export async function syncAndProcessFinishedMatches(opts?: {
       processedAt: null,
       provider: Provider.THESPORTSDB,
       providerMatchId: { not: null },
-      status: { in: ["SCHEDULED", "LIVE", "UNKNOWN", "POSTPONED"] },
+      // IMPORTANT: include FINISHED when processedAt is null.
+      // Otherwise a match can get stuck forever if its status is set to FINISHED but scoring never completed.
+      status: { in: ["SCHEDULED", "LIVE", "UNKNOWN", "POSTPONED", "FINISHED"] },
     },
     orderBy: { kickoffAt: "asc" },
     take: maxMatches,
