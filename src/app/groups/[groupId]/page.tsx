@@ -112,28 +112,39 @@ export default async function GroupDetailsPage({
 
   const leaderboard: LeaderboardRowData[] =
     tab === "leaderboard"
-      ? group.members.map((m, idx) => {
-          const acc = accuracyByUser?.[m.userId];
+      ? (() => {
+          // DENSE_RANK by points (ties share the same rank).
+          let currentRank = 0;
+          let lastPoints: number | null = null;
 
-          const accuracyPct = acc && acc.scored > 0 ? Math.round((acc.correct / acc.scored) * 100) : 0;
+          return group.members.map((m) => {
+            if (lastPoints === null || m.points !== lastPoints) {
+              currentRank++;
+              lastPoints = m.points;
+            }
 
-          // Trend v0: compare event count last 7D vs previous 7D.
-          const trend =
-            acc && acc.last7d !== acc.prev7d
-              ? acc.last7d > acc.prev7d
-                ? "up"
-                : "down"
-              : "flat";
+            const acc = accuracyByUser?.[m.userId];
 
-          return {
-            rank: idx + 1,
-            name: m.user.username ?? m.user.name ?? "Unknown",
-            points: m.points,
-            accuracyPct,
-            trend,
-            isYou: m.userId === userId,
-          };
-        })
+            const accuracyPct = acc && acc.scored > 0 ? Math.round((acc.correct / acc.scored) * 100) : 0;
+
+            // Trend v0: compare event count last 7D vs previous 7D.
+            const trend =
+              acc && acc.last7d !== acc.prev7d
+                ? acc.last7d > acc.prev7d
+                  ? "up"
+                  : "down"
+                : "flat";
+
+            return {
+              rank: currentRank,
+              name: m.user.username ?? m.user.name ?? "Unknown",
+              points: m.points,
+              accuracyPct,
+              trend,
+              isYou: m.userId === userId,
+            };
+          });
+        })()
       : [];
 
   const currentUserAccuracy =
