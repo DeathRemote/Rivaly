@@ -471,6 +471,8 @@ model StandingsRow {
   wins                Int
   draws               Int
   losses              Int
+  goalsFor            Int @default(0)
+  goalsAgainst        Int @default(0)
   goalDifference      Int
   points              Int
 

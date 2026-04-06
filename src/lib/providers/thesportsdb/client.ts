@@ -42,6 +42,11 @@ const TableRowSchema = z.object({
   intWin: z.coerce.number(),
   intDraw: z.coerce.number(),
   intLoss: z.coerce.number(),
+
+  // Some leagues include these; keep optional for compatibility.
+  intGoalsFor: z.coerce.number().optional().nullable(),
+  intGoalsAgainst: z.coerce.number().optional().nullable(),
+
   intGoalDifference: z.coerce.number().optional().nullable(),
   intPoints: z.coerce.number(),
 });
