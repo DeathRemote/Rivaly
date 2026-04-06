@@ -24,7 +24,7 @@ export async function syncAndProcessFinishedMatches(opts?: {
   // So we primarily scan for "unprocessed" matches within a bounded recent period.
   //
   // Overrides remain for dev/tests, but defaults are chosen for reliability.
-  const lookbackHours = opts?.lookbackHours ?? 24 * 7; // 7 days
+  const lookbackHours = opts?.lookbackHours ?? 10; // 10 hours
   const lookaheadMinutes = opts?.lookaheadMinutes ?? 0; // we don't need to look ahead for finished scoring
 
   const now = new Date();
