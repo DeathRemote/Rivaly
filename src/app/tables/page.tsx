@@ -38,14 +38,21 @@ async function getRelevantTablesUncached(userId: string): Promise<TablesPageTabl
 
   const standings = await prisma.standingsRow.findMany({
     where: { competitionSeasonId: { in: seasonList.map((s) => s.id) } },
-    orderBy: [{ competitionSeasonId: "asc" }, { position: "asc" }],
+    orderBy: [
+      { competitionSeasonId: "asc" },
+      { points: "desc" },
+      { goalsFor: "desc" },
+      { goalsAgainst: "asc" },
+      { team: { name: "asc" } },
+    ],
     select: {
       competitionSeasonId: true,
       teamId: true,
-      position: true,
       played: true,
       goalDifference: true,
       points: true,
+      goalsFor: true,
+      goalsAgainst: true,
       team: { select: { name: true, shortName: true } },
     },
   });
@@ -62,10 +69,11 @@ async function getRelevantTablesUncached(userId: string): Promise<TablesPageTabl
   for (const r of standings) {
     const t = bySeason.get(r.competitionSeasonId);
     if (!t) continue;
+    // Position is derived from the sorted order (ties resolved by tiebreakers).
     t.rows.push({
       teamId: r.teamId,
       teamName: r.team.shortName ?? r.team.name,
-      position: r.position,
+      position: t.rows.length + 1,
       played: r.played,
       goalDifference: r.goalDifference,
       points: r.points,

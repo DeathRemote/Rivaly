@@ -42,6 +42,11 @@ const TableRowSchema = z.object({
   intWin: z.coerce.number(),
   intDraw: z.coerce.number(),
   intLoss: z.coerce.number(),
+
+  // Some leagues include these; keep optional for compatibility.
+  intGoalsFor: z.coerce.number().optional().nullable(),
+  intGoalsAgainst: z.coerce.number().optional().nullable(),
+
   intGoalDifference: z.coerce.number().optional().nullable(),
   intPoints: z.coerce.number(),
 });
@@ -87,8 +92,10 @@ export class TheSportsDbClient {
 
   constructor(opts?: { apiKey?: string; baseUrl?: string }) {
     // NOTE: env vars often pick up accidental whitespace; trim to avoid 404s from malformed URLs.
-    // TheSportsDB free key in docs is 123. We default to that for local dev.
-    this.apiKey = (opts?.apiKey ?? process.env.THE_SPORTS_DB_API_KEY ?? "123").trim();
+    // Prefer THE_SPORTS_DB_API_KEY when set; fall back to the free key (123) only when empty.
+    const rawKey = (opts?.apiKey ?? process.env.THE_SPORTS_DB_API_KEY ?? "").trim();
+    this.apiKey = rawKey.length > 0 ? rawKey : "123";
+
     this.baseUrl = (opts?.baseUrl ?? "https://www.thesportsdb.com/api/v1/json").trim();
   }
 

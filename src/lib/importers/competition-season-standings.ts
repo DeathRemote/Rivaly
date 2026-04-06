@@ -30,7 +30,31 @@ export async function syncCompetitionSeasonStandings(opts: {
 
   let upserted = 0;
 
-  for (const r of rows) {
+  // IMPORTANT: tables can change shape as matches finish. If we only upsert returned rows,
+  // any missing teams keep stale data and the table looks "unsorted"/wrong.
+  // Safer approach: replace the whole season snapshot each sync.
+  if (!opts.dryRun) {
+    await prisma.standingsRow.deleteMany({ where: { competitionSeasonId: season.id } });
+  }
+
+  // Sort + compute positions ourselves to ensure consistent ordering.
+  // Desired tiebreakers: points DESC, goalsFor DESC, goalsAgainst ASC.
+  const sorted = [...rows].sort((a, b) => {
+    if (b.intPoints !== a.intPoints) return b.intPoints - a.intPoints;
+
+    const agf = a.intGoalsFor ?? 0;
+    const bgf = b.intGoalsFor ?? 0;
+    if (bgf !== agf) return bgf - agf;
+
+    const aga = a.intGoalsAgainst ?? 0;
+    const bga = b.intGoalsAgainst ?? 0;
+    if (aga !== bga) return aga - bga;
+
+    // fall back to provider rank for stability
+    return a.intRank - b.intRank;
+  });
+
+  for (const [idx, r] of sorted.entries()) {
     if (!r.idTeam) continue;
 
     const team = await prisma.team.upsert({
@@ -62,23 +86,29 @@ export async function syncCompetitionSeasonStandings(opts: {
       create: {
         competitionSeasonId: season.id,
         teamId: team.id,
-        position: r.intRank,
+        position: idx + 1,
         played: r.intPlayed,
         wins: r.intWin,
         draws: r.intDraw,
         losses: r.intLoss,
-        goalDifference: r.intGoalDifference ?? 0,
+        goalsFor: r.intGoalsFor ?? 0,
+        goalsAgainst: r.intGoalsAgainst ?? 0,
+        goalDifference:
+          r.intGoalDifference ?? (r.intGoalsFor != null && r.intGoalsAgainst != null ? r.intGoalsFor - r.intGoalsAgainst : 0),
         points: r.intPoints,
         provider: Provider.THESPORTSDB,
         providerTeamId: r.idTeam,
       },
       update: {
-        position: r.intRank,
+        position: idx + 1,
         played: r.intPlayed,
         wins: r.intWin,
         draws: r.intDraw,
         losses: r.intLoss,
-        goalDifference: r.intGoalDifference ?? 0,
+        goalsFor: r.intGoalsFor ?? 0,
+        goalsAgainst: r.intGoalsAgainst ?? 0,
+        goalDifference:
+          r.intGoalDifference ?? (r.intGoalsFor != null && r.intGoalsAgainst != null ? r.intGoalsFor - r.intGoalsAgainst : 0),
         points: r.intPoints,
       },
     });

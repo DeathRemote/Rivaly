@@ -17,7 +17,12 @@ export async function GroupTableTab({ competitionSeasonId }: { competitionSeason
   const rows = await prisma.standingsRow.findMany({
     where: { competitionSeasonId },
     include: { team: true },
-    orderBy: { position: "asc" },
+    orderBy: [
+      { points: "desc" },
+      { goalsFor: "desc" },
+      { goalsAgainst: "asc" },
+      { team: { name: "asc" } },
+    ],
   });
 
   return (
@@ -59,9 +64,9 @@ export async function GroupTableTab({ competitionSeasonId }: { competitionSeason
               </tr>
             </thead>
             <tbody>
-              {rows.map((r) => (
+              {rows.map((r, idx) => (
                 <tr key={r.id} className="border-t border-white/10 text-white/80">
-                  <td className="px-4 py-3 font-black text-white">{r.position}</td>
+                  <td className="px-4 py-3 font-black text-white">{idx + 1}</td>
                   <td className="px-4 py-3 font-semibold">{r.team.name}</td>
                   <td className="px-4 py-3">{r.played}</td>
                   <td className="px-4 py-3">{r.wins}</td>
