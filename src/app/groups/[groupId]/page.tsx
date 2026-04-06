@@ -136,6 +136,7 @@ export default async function GroupDetailsPage({
                 : "flat";
 
             return {
+              userId: m.userId,
               rank: currentRank,
               name: m.user.username ?? m.user.name ?? "Unknown",
               points: m.points,
