@@ -19,7 +19,7 @@ export function GroupLeaderboard({
         {rows.length ? (
           <div className="space-y-1">
             {rows.map((row) => (
-              <LeaderboardRow key={row.rank} row={row} />
+              <LeaderboardRow key={row.userId} row={row} />
             ))}
           </div>
         ) : (

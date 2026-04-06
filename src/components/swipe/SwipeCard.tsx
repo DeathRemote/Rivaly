@@ -211,13 +211,40 @@ export function SwipeCard({
       homeEl.style.removeProperty("--name-scale");
       awayEl.style.removeProperty("--name-scale");
 
-      if (!cancelled) setNameScale(chosen);
+      if (cancelled) return;
+
+      // Hysteresis: only shrink to fit; don't "grow" on subsequent measurements.
+      // This prevents visible bouncing when layout or font metrics settle.
+      setNameScale((prev) => {
+        if (!Number.isFinite(prev) || prev <= 0) return chosen;
+        if (Math.abs(prev - chosen) < 0.01) return prev;
+        return chosen < prev ? chosen : prev;
+      });
     };
 
-    const raf = window.requestAnimationFrame(compute);
+    // Fonts and layout can settle after first paint (especially on mobile), which can cause
+    // repeated re-measure → reflow loops and visible "bouncing".
+    // Strategy:
+    // - wait for fonts to be ready before the first compute when possible
+    // - debounce resize-triggered recomputes
+    const runCompute = () => window.requestAnimationFrame(compute);
 
+    // Initial compute
+    const raf = window.requestAnimationFrame(() => {
+      const fonts = (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts;
+      if (fonts?.ready) {
+        fonts.ready
+          .then(() => runCompute())
+          .catch(() => runCompute());
+      } else {
+        runCompute();
+      }
+    });
+
+    let resizeTimer: number | null = null;
     const ro = new ResizeObserver(() => {
-      window.requestAnimationFrame(compute);
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => runCompute(), 60);
     });
 
     ro.observe(homeEl);
@@ -226,6 +253,7 @@ export function SwipeCard({
     return () => {
       cancelled = true;
       window.cancelAnimationFrame(raf);
+      if (resizeTimer != null) window.clearTimeout(resizeTimer);
       ro.disconnect();
     };
   }, [match.matchId]);
