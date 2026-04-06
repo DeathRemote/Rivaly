@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { type GroupCardData } from "@/components/groups/GroupCard";
@@ -69,6 +70,26 @@ export default async function GroupsPage({
         })
       : [];
 
+  // Compute your rank per group in one query (avoid N+1).
+  const yourRankByGroupId =
+    tab === "my" && myGroups.length > 0
+      ? new Map(
+          (
+            await prisma.$queryRaw<Array<{ groupId: string; rank: number }>>`
+              SELECT "groupId", "rank" FROM (
+                SELECT
+                  "groupId",
+                  "userId",
+                  DENSE_RANK() OVER (PARTITION BY "groupId" ORDER BY "points" DESC) AS "rank"
+                FROM "GroupMember"
+                WHERE "groupId" IN (${Prisma.join(myGroups.map((m) => m.groupId))})
+              ) t
+              WHERE "userId" = ${userId}
+            `
+          ).map((row) => [row.groupId, row.rank] as const),
+        )
+      : new Map<string, number>();
+
   const groups: GroupCardData[] =
     tab === "my"
       ? myGroups.map((m) => {
@@ -79,10 +100,7 @@ export default async function GroupsPage({
             isYou: row.userId === userId,
           }));
 
-          // Rank calculation: we need to know where the user sits. For now, compute
-          // rank by counting how many members have strictly higher points.
-          // (This is correct and can be optimized later.)
-          const yourRank = null;
+          const yourRank = yourRankByGroupId.get(m.groupId) ?? null;
 
           return {
             id: m.group.id,
