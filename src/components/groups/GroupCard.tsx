@@ -21,7 +21,16 @@ export type GroupCardData = {
 
 export function GroupCard({ group }: { group: GroupCardData }) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6 shadow-[0px_24px_48px_rgba(0,0,0,0.35)] transition hover:-translate-y-1 hover:bg-white/[0.07]">
+    <Link
+      href={`/groups/${group.id}`}
+      aria-label={`View group ${group.name}`}
+      className={cn(
+        "group relative block overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-6",
+        "shadow-[0px_24px_48px_rgba(0,0,0,0.35)] transition",
+        "hover:-translate-y-1 hover:bg-white/[0.07]",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-lime-300/40 focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+      )}
+    >
       <div className="pointer-events-none absolute -right-10 -top-10 h-44 w-44 rounded-full bg-lime-300/10 blur-[70px]" />
       <div className="pointer-events-none absolute -left-10 -bottom-10 h-44 w-44 rounded-full bg-orange-300/10 blur-[70px]" />
 
@@ -64,7 +73,7 @@ export function GroupCard({ group }: { group: GroupCardData }) {
                   key={row.position}
                   className={cn(
                     "flex items-center justify-between rounded-xl border border-white/5 bg-black/20 px-3 py-2",
-                    "transition hover:bg-black/30",
+                    "transition group-hover:bg-black/30",
                     row.isYou && "border-lime-300/30 bg-lime-300/5",
                   )}
                 >
@@ -95,20 +104,19 @@ export function GroupCard({ group }: { group: GroupCardData }) {
         </div>
 
         <div className="mt-6">
-          <Link
-            href={`/groups/${group.id}`}
+          <div
             className={cn(
               "inline-flex w-full items-center justify-center rounded-xl border border-white/10 bg-black/20 py-3",
               "text-xs font-black uppercase tracking-[0.22em] text-lime-100",
-              "transition hover:border-lime-300/40 hover:bg-lime-300/10",
+              "transition group-hover:border-lime-300/40 group-hover:bg-lime-300/10",
               "active:scale-[0.99]",
             )}
           >
             View Group
-          </Link>
+          </div>
         </div>
       </div>
-    </div>
+    </Link>
   );
 }
 
