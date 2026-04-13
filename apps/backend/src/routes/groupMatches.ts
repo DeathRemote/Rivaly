@@ -62,8 +62,22 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
         status: { not: "CANCELED" },
       };
 
+      if (query.bucket === "kickoff") {
+        // Matches open for prediction: visibleAt <= now < lockAt
+        baseWhere.status = { in: ["SCHEDULED", "LIVE", "UNKNOWN"] };
+        baseWhere.visibleAt = { lte: now };
+        baseWhere.lockAt = { gt: now };
+        // no cursor for kickoff (small list). If you want cursor, we can add it later.
+      }
+
       if (query.bucket === "upcoming") {
+        // Future matches that are NOT currently open for prediction.
+        // This includes:
+        // - Not yet visible (now < visibleAt)
+        // - Locked (now >= lockAt) but not finished yet
         baseWhere.kickoffAt = { gt: now };
+        baseWhere.NOT = { visibleAt: { lte: now }, lockAt: { gt: now } };
+
         if (cursorKickoffAt && cursorId) {
           baseWhere.OR = [
             { kickoffAt: { gt: cursorKickoffAt } },
@@ -80,13 +94,6 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
             { kickoffAt: cursorKickoffAt, id: { lt: cursorId } },
           ];
         }
-      }
-
-      if (query.bucket === "kickoff") {
-        baseWhere.status = { in: ["SCHEDULED", "LIVE", "UNKNOWN"] };
-        baseWhere.visibleAt = { lte: now };
-        baseWhere.lockAt = { gt: now };
-        // no cursor for kickoff (small list). If you want cursor, we can add it later.
       }
 
       const matches = await prisma.match.findMany({
