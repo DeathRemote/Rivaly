@@ -19,6 +19,9 @@ export type GroupDetailsPayload = {
     role: "MEMBER" | "ADMIN";
     points: number;
   };
+  viewer: {
+    accuracyPct: number;
+  };
   inviteCode: string | null;
   canDelete: boolean;
 };
@@ -46,6 +49,11 @@ export async function registerGroupDetailsRoutes(app: FastifyInstance) {
             select: { role: true, points: true },
             take: 1,
           },
+          memberAccuracyAggregates: {
+            where: { userId },
+            select: { scoredTotal: true, correctTotal: true },
+            take: 1,
+          },
         },
       });
 
@@ -53,6 +61,11 @@ export async function registerGroupDetailsRoutes(app: FastifyInstance) {
 
       const membership = group.members[0];
       if (!membership) return reply.code(403).send({ error: "Forbidden" });
+
+      const acc = group.memberAccuracyAggregates[0] ?? null;
+      const scored = acc?.scoredTotal ?? 0;
+      const correct = acc?.correctTotal ?? 0;
+      const accuracyPct = scored > 0 ? Math.round((correct / scored) * 100) : 0;
 
       const payload: GroupDetailsPayload = {
         group: {
@@ -67,6 +80,9 @@ export async function registerGroupDetailsRoutes(app: FastifyInstance) {
         membership: {
           role: membership.role,
           points: membership.points,
+        },
+        viewer: {
+          accuracyPct,
         },
         inviteCode: group.inviteCode,
         canDelete: group.createdById === userId || membership.role === "ADMIN",

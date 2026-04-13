@@ -17,6 +17,9 @@ export type GroupDetailsPayload = {
     role: "MEMBER" | "ADMIN";
     points: number;
   };
+  viewer: {
+    accuracyPct: number;
+  };
   inviteCode: string | null;
   canDelete: boolean;
 };

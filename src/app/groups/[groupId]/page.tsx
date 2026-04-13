@@ -71,7 +71,7 @@ export default async function GroupDetailsPage({
 
   const membershipRow = details.membership;
 
-  const currentUserAccuracy = 0;
+  const currentUserAccuracy = details.viewer.accuracyPct;
 
   return (
     <DashboardLayout
