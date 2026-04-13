@@ -7,6 +7,7 @@ import { registerSwipeRoutes } from "./routes/swipe.js";
 import { registerPredictionRoutes } from "./routes/predictions.js";
 import { registerTablesRoutes } from "./routes/tables.js";
 import { registerDashboardRoutes } from "./routes/dashboard.js";
+import { registerGroupRoutes } from "./routes/groups.js";
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
@@ -65,6 +66,7 @@ await registerSwipeRoutes(app);
 await registerPredictionRoutes(app);
 await registerTablesRoutes(app);
 await registerDashboardRoutes(app);
+await registerGroupRoutes(app);
 
 app.get("/api/public/competition-seasons/:id", async (req, reply) => {
   const params = z
@@ -97,6 +99,9 @@ app.get("/", async () => {
       "GET /api/internal/table-seasons",
       "GET /api/internal/tables?seasonId=...",
       "GET /api/internal/dashboard",
+      "GET /api/internal/groups?tab=my|public",
+      "POST /api/internal/groups/join",
+      "GET /api/public/invites/:inviteCode",
     ],
     hasDatabaseUrl: Boolean(env.DATABASE_URL),
     corsOriginsConfigured: allowedOrigins.length > 0,
