@@ -5,7 +5,7 @@ import type { FastifyInstance } from "fastify";
 import { prisma } from "../prisma.js";
 import { requireUserAuth } from "../auth.js";
 
-type TableRow = {
+export type TableRow = {
   teamId: string;
   teamName: string;
   position: number;
@@ -19,16 +19,22 @@ export type TablesSeasonOption = {
   title: string;
 };
 
+export type TablesGroupTable = {
+  competitionGroupId: string;
+  key: string;
+  name: string;
+  rows: TableRow[];
+};
+
 export type TablesPayload = {
   seasonId: string;
   title: string;
-  league: { rows: TableRow[] } | null;
-  groups: Array<{ competitionGroupId: string; key: string; name: string; rows: TableRow[] }>;
   updatedAt: string | null;
+  league: { rows: TableRow[] } | null;
+  groups: TablesGroupTable[];
 };
 
 export async function registerTablesRoutes(app: FastifyInstance) {
-  // List seasons the user has access to (via group membership)
   app.get("/api/internal/table-seasons", async (req, reply) => {
     try {
       const { userId } = await requireUserAuth(req.headers.authorization);
@@ -47,7 +53,7 @@ export async function registerTablesRoutes(app: FastifyInstance) {
         },
       });
 
-      const unique = new Map<string, TablesSeasonOption & { updatedAt: Date | null }>();
+      const unique = new Map<string, { seasonId: string; title: string; updatedAt: Date | null }>();
       for (const g of seasons) {
         const s = g.competitionSeason;
         if (!s) continue;
@@ -60,8 +66,7 @@ export async function registerTablesRoutes(app: FastifyInstance) {
         }
       }
 
-      // Sort: most recently updated first (fallback by title)
-      const out = Array.from(unique.values())
+      const out: TablesSeasonOption[] = Array.from(unique.values())
         .sort((a, b) => {
           const at = a.updatedAt?.getTime() ?? 0;
           const bt = b.updatedAt?.getTime() ?? 0;
@@ -77,26 +82,18 @@ export async function registerTablesRoutes(app: FastifyInstance) {
     }
   });
 
-  // Load a single season tables (league + group stage tables)
   app.get("/api/internal/tables", async (req, reply) => {
     try {
       const { userId } = await requireUserAuth(req.headers.authorization);
 
-      const query = z
-        .object({
-          seasonId: z.string().min(1),
-        })
-        .parse(req.query);
+      const query = z.object({ seasonId: z.string().min(1) }).parse(req.query);
 
-      // Authorization: must have membership in any group tied to this season.
+      // Must belong to at least one group in this season.
       const membership = await prisma.groupMember.findFirst({
         where: { userId, group: { competitionSeasonId: query.seasonId } },
         select: { id: true },
       });
-
-      if (!membership) {
-        return reply.code(403).send({ error: "Forbidden" });
-      }
+      if (!membership) return reply.code(403).send({ error: "Forbidden" });
 
       const season = await prisma.competitionSeason.findUnique({
         where: { id: query.seasonId },
@@ -107,60 +104,25 @@ export async function registerTablesRoutes(app: FastifyInstance) {
           competition: { select: { name: true } },
         },
       });
-
-      if (!season) {
-        return reply.code(404).send({ error: "CompetitionSeason not found" });
-      }
+      if (!season) return reply.code(404).send({ error: "CompetitionSeason not found" });
 
       const title = `${season.competition.name} ${season.seasonLabel}`;
 
-      // LEAGUE TABLE (provider snapshot)
-      const leagueRows = await prisma.standingsRow.findMany({
-        where: {
-          competitionSeasonId: season.id,
-          // league table snapshot uses scope = season:<id>
-          scope: `season:${season.id}`,
-        },
-        orderBy: [{ position: "asc" }, { team: { name: "asc" } }],
-        select: {
-          teamId: true,
-          played: true,
-          goalDifference: true,
-          points: true,
-          team: { select: { name: true, shortName: true } },
-          goalsFor: true,
-          goalsAgainst: true,
-        },
-      });
+      // GROUP STAGE tables (preferred when present)
+      const groups = await loadGroupStageTables(season.id);
 
-      const league = leagueRows.length
-        ? {
-            rows: leagueRows.map((r, idx) => ({
-              teamId: r.teamId,
-              teamName: r.team.shortName ?? r.team.name,
-              position: idx + 1,
-              played: r.played,
-              goalDifference: r.goalDifference,
-              points: r.points,
-            })),
-          }
-        : null;
-
-      // GROUP STAGE TABLES (derived from finished matches)
-      const groups = await computeGroupStageTables(season.id);
+      // LEAGUE table: only show if there are no groups (league-based or league-phase comps).
+      const league = groups.length === 0 ? await loadLeagueTable(season.id) : null;
 
       const payload: TablesPayload = {
         seasonId: season.id,
         title,
+        updatedAt: season.standingsUpdatedAt ? season.standingsUpdatedAt.toISOString() : null,
         league,
         groups,
-        updatedAt: season.standingsUpdatedAt ? season.standingsUpdatedAt.toISOString() : null,
       };
 
-      // Cache guidance: this endpoint is user-authenticated, but the payload is season-scoped.
-      // We keep it private and short; client/UI can cache in-memory.
       reply.header("Cache-Control", "private, max-age=30");
-
       return payload;
     } catch (err: any) {
       const status = err?.statusCode ?? 400;
@@ -169,8 +131,42 @@ export async function registerTablesRoutes(app: FastifyInstance) {
   });
 }
 
-async function computeGroupStageTables(competitionSeasonId: string) {
-  // Load competition groups for GROUP_STAGE phases.
+async function loadLeagueTable(competitionSeasonId: string) {
+  const rows = await prisma.standingsRow.findMany({
+    where: {
+      competitionSeasonId,
+      scope: `season:${competitionSeasonId}`,
+    },
+    orderBy: [{ position: "asc" }, { team: { name: "asc" } }],
+    select: {
+      teamId: true,
+      played: true,
+      goalDifference: true,
+      points: true,
+      team: { select: { name: true, shortName: true } },
+    },
+  });
+
+  if (!rows.length) return null;
+
+  return {
+    rows: rows.map((r, idx) => ({
+      teamId: r.teamId,
+      teamName: r.team.shortName ?? r.team.name,
+      position: idx + 1,
+      played: r.played,
+      goalDifference: r.goalDifference,
+      points: r.points,
+    })),
+  };
+}
+
+async function loadGroupStageTables(competitionSeasonId: string): Promise<TablesGroupTable[]> {
+  // We store computed group standings under scope:
+  // season:<seasonId>:phase:<phaseId>:group:<groupId>
+  // But to show teams with 0 played, we also ensure group membership exists
+  // by seeding from matches (in case standings haven't synced yet).
+
   const groups = await prisma.competitionGroup.findMany({
     where: {
       competitionPhase: {
@@ -178,26 +174,73 @@ async function computeGroupStageTables(competitionSeasonId: string) {
         type: "GROUP_STAGE",
       },
     },
-    select: {
-      id: true,
-      key: true,
-      name: true,
-      order: true,
-    },
+    select: { id: true, key: true, name: true, order: true, competitionPhaseId: true },
     orderBy: [{ order: "asc" }, { key: "asc" }],
   });
 
-  if (groups.length === 0) return [] as Array<{ competitionGroupId: string; key: string; name: string; rows: TableRow[] }>;
+  if (!groups.length) return [];
 
-  const groupIds = groups.map((g) => g.id);
+  const phaseId = groups[0]!.competitionPhaseId;
 
-  // Load all matches so we can include teams that haven't played yet.
-  // Only FINISHED matches contribute points/goals.
+  const standings = await prisma.standingsRow.findMany({
+    where: {
+      competitionSeasonId,
+      competitionPhaseId: phaseId,
+      competitionGroupId: { in: groups.map((g) => g.id) },
+      scope: { startsWith: `season:${competitionSeasonId}:phase:${phaseId}:group:` },
+    },
+    orderBy: [{ competitionGroupId: "asc" }, { position: "asc" }, { team: { name: "asc" } }],
+    select: {
+      competitionGroupId: true,
+      teamId: true,
+      position: true,
+      played: true,
+      goalDifference: true,
+      points: true,
+      team: { select: { name: true, shortName: true } },
+    },
+  });
+
+  const rowsByGroup = new Map<string, TableRow[]>();
+  for (const r of standings) {
+    const gid = r.competitionGroupId;
+    if (!gid) continue;
+    const arr = rowsByGroup.get(gid) ?? [];
+    arr.push({
+      teamId: r.teamId,
+      teamName: r.team.shortName ?? r.team.name,
+      position: r.position,
+      played: r.played,
+      goalDifference: r.goalDifference,
+      points: r.points,
+    });
+    rowsByGroup.set(gid, arr);
+  }
+
+  // If standings are missing or incomplete, compute from matches as a fallback.
+  // This also ensures teams with 0 played show up.
+  const fallback = await computeGroupStageTablesFromMatches(competitionSeasonId, groups.map((g) => g.id));
+
+  return groups.map((g) => {
+    const cachedRows = rowsByGroup.get(g.id);
+    const fallbackRows = fallback.get(g.id) ?? [];
+    return {
+      competitionGroupId: g.id,
+      key: g.key,
+      name: g.name,
+      rows: cachedRows?.length ? cachedRows : fallbackRows,
+    };
+  });
+}
+
+async function computeGroupStageTablesFromMatches(
+  competitionSeasonId: string,
+  groupIds: string[],
+): Promise<Map<string, TableRow[]>> {
   const matches = await prisma.match.findMany({
     where: {
       competitionSeasonId,
       competitionGroupId: { in: groupIds },
-      // Ignore canceled/postponed for the purpose of seeding teams.
       status: { notIn: ["CANCELED"] },
     },
     select: {
@@ -211,20 +254,12 @@ async function computeGroupStageTables(competitionSeasonId: string) {
     },
   });
 
-  type Stats = {
-    teamId: string;
-    teamName: string;
-    played: number;
-    gf: number;
-    ga: number;
-    points: number;
-  };
-
+  type Stats = { teamId: string; teamName: string; played: number; gf: number; ga: number; points: number };
   const statsByGroup = new Map<string, Map<string, Stats>>();
 
-  function ensure(groupId: string, teamId: string, teamName: string) {
-    const byTeam = statsByGroup.get(groupId) ?? new Map<string, Stats>();
-    statsByGroup.set(groupId, byTeam);
+  function ensure(gid: string, teamId: string, teamName: string) {
+    const byTeam = statsByGroup.get(gid) ?? new Map<string, Stats>();
+    statsByGroup.set(gid, byTeam);
     const s = byTeam.get(teamId) ?? { teamId, teamName, played: 0, gf: 0, ga: 0, points: 0 };
     byTeam.set(teamId, s);
     return s;
@@ -237,15 +272,12 @@ async function computeGroupStageTables(competitionSeasonId: string) {
     const homeName = m.homeTeam.shortName ?? m.homeTeam.name;
     const awayName = m.awayTeam.shortName ?? m.awayTeam.name;
 
-    // Seed teams even if they haven't played yet.
     const home = ensure(gid, m.homeTeamId, homeName);
     const away = ensure(gid, m.awayTeamId, awayName);
 
-    // Only finished matches with results contribute.
     if (m.status !== "FINISHED" || !m.result) continue;
 
     const res = m.result;
-
     home.played++;
     away.played++;
 
@@ -255,11 +287,9 @@ async function computeGroupStageTables(competitionSeasonId: string) {
     away.gf += res.awayScore;
     away.ga += res.homeScore;
 
-    if (res.homeScore > res.awayScore) {
-      home.points += 3;
-    } else if (res.homeScore < res.awayScore) {
-      away.points += 3;
-    } else {
+    if (res.homeScore > res.awayScore) home.points += 3;
+    else if (res.homeScore < res.awayScore) away.points += 3;
+    else {
       home.points += 1;
       away.points += 1;
     }
@@ -287,13 +317,15 @@ async function computeGroupStageTables(competitionSeasonId: string) {
     }));
   }
 
-  return groups.map((g) => {
-    const byTeam = statsByGroup.get(g.id) ?? new Map<string, Stats>();
-    return {
-      competitionGroupId: g.id,
-      key: g.key,
-      name: g.name,
-      rows: toRows(byTeam),
-    };
-  });
+  const out = new Map<string, TableRow[]>();
+  for (const [gid, byTeam] of statsByGroup.entries()) {
+    out.set(gid, toRows(byTeam));
+  }
+
+  // Ensure every groupId exists in map
+  for (const gid of groupIds) {
+    if (!out.has(gid)) out.set(gid, []);
+  }
+
+  return out;
 }

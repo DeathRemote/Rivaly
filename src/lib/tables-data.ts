@@ -17,12 +17,19 @@ export type TablesSeasonOption = {
   title: string;
 };
 
+export type TablesGroupTable = {
+  competitionGroupId: string;
+  key: string;
+  name: string;
+  rows: TableRow[];
+};
+
 export type TablesPayload = {
   seasonId: string;
   title: string;
-  league: { rows: TableRow[] } | null;
-  groups: Array<{ competitionGroupId: string; key: string; name: string; rows: TableRow[] }>;
   updatedAt: string | null;
+  league: { rows: TableRow[] } | null;
+  groups: TablesGroupTable[];
 };
 
 async function _getTableSeasons(userId: string): Promise<TablesSeasonOption[]> {
@@ -65,6 +72,5 @@ export const getTableSeasonsForUser = unstable_cache(
 export const getTablesForSeason = unstable_cache(
   async (userId: string, seasonId: string) => _getTablesForSeason(userId, seasonId),
   ["tables-season"],
-  // Keep it short; standings can change frequently around matchdays.
   { revalidate: 60 },
 );
