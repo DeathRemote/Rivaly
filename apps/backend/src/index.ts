@@ -5,6 +5,7 @@ import { z } from "zod";
 import { prisma } from "./prisma.js";
 import { registerSwipeRoutes } from "./routes/swipe.js";
 import { registerPredictionRoutes } from "./routes/predictions.js";
+import { registerTablesRoutes } from "./routes/tables.js";
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
@@ -61,6 +62,7 @@ app.get("/api/public/ping", async () => {
 
 await registerSwipeRoutes(app);
 await registerPredictionRoutes(app);
+await registerTablesRoutes(app);
 
 app.get("/api/public/competition-seasons/:id", async (req, reply) => {
   const params = z
@@ -90,6 +92,8 @@ app.get("/", async () => {
       "GET /api/public/competition-seasons/:id",
       "GET /api/internal/swipe-matches?userId=...",
       "POST /api/internal/predictions",
+      "GET /api/internal/table-seasons",
+      "GET /api/internal/tables?seasonId=...",
     ],
     hasDatabaseUrl: Boolean(env.DATABASE_URL),
     corsOriginsConfigured: allowedOrigins.length > 0,
