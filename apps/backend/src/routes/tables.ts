@@ -138,7 +138,7 @@ export async function registerTablesRoutes(app: FastifyInstance) {
             rows: leagueRows.map((r, idx) => ({
               teamId: r.teamId,
               teamName: r.team.shortName ?? r.team.name,
-              position: r.points != null ? r.points : idx + 1,
+              position: idx + 1,
               played: r.played,
               goalDifference: r.goalDifference,
               points: r.points,
@@ -191,16 +191,18 @@ async function computeGroupStageTables(competitionSeasonId: string) {
 
   const groupIds = groups.map((g) => g.id);
 
-  // Only finished matches contribute.
+  // Load all matches so we can include teams that haven't played yet.
+  // Only FINISHED matches contribute points/goals.
   const matches = await prisma.match.findMany({
     where: {
       competitionSeasonId,
       competitionGroupId: { in: groupIds },
-      status: "FINISHED",
-      result: { isNot: null },
+      // Ignore canceled/postponed for the purpose of seeding teams.
+      status: { notIn: ["CANCELED"] },
     },
     select: {
       competitionGroupId: true,
+      status: true,
       homeTeamId: true,
       awayTeamId: true,
       result: { select: { homeScore: true, awayScore: true } },
@@ -230,14 +232,19 @@ async function computeGroupStageTables(competitionSeasonId: string) {
 
   for (const m of matches) {
     const gid = m.competitionGroupId;
-    const res = m.result;
-    if (!gid || !res) continue;
+    if (!gid) continue;
 
     const homeName = m.homeTeam.shortName ?? m.homeTeam.name;
     const awayName = m.awayTeam.shortName ?? m.awayTeam.name;
 
+    // Seed teams even if they haven't played yet.
     const home = ensure(gid, m.homeTeamId, homeName);
     const away = ensure(gid, m.awayTeamId, awayName);
+
+    // Only finished matches with results contribute.
+    if (m.status !== "FINISHED" || !m.result) continue;
+
+    const res = m.result;
 
     home.played++;
     away.played++;
