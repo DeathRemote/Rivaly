@@ -5,7 +5,8 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getBackendBaseUrl, getBackendInternalAuthHeader } from "@/lib/backend";
+import { getBackendBaseUrl, getBackendJwtSecret } from "@/lib/backend";
+import { signBackendUserToken } from "@/lib/backend-auth";
 import { inSeasonOpeningWindow, inStandardKickoffWindow } from "@/lib/prediction-window";
 
 const savePredictionSchema = z.object({
@@ -44,18 +45,19 @@ export async function savePredictionAction(
 
   // Prefer backend when configured (keeps writes off the Next.js runtime).
   const backendBase = getBackendBaseUrl();
-  const internalAuth = getBackendInternalAuthHeader();
+  const backendSecret = getBackendJwtSecret();
 
-  if (backendBase && internalAuth) {
+  if (backendBase && backendSecret) {
     try {
+      const bearer = await signBackendUserToken({ userId, secret: backendSecret });
+
       const res = await fetch(`${backendBase}/api/internal/predictions`, {
         method: "POST",
         headers: {
-          Authorization: internalAuth,
+          Authorization: `Bearer ${bearer}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          userId,
           matchId,
           homeScore,
           awayScore,

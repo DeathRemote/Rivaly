@@ -1,7 +1,8 @@
 import { unstable_cache } from "next/cache";
 
 import { prisma } from "@/lib/prisma";
-import { getBackendBaseUrl, getBackendInternalAuthHeader } from "@/lib/backend";
+import { getBackendBaseUrl, getBackendJwtSecret } from "@/lib/backend";
+import { signBackendUserToken } from "@/lib/backend-auth";
 
 export type SwipeMatch = {
   matchId: string;
@@ -18,12 +19,14 @@ export type SwipeMatch = {
 async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
   // Prefer backend when configured (keeps heavy queries off the Next.js runtime).
   const backendBase = getBackendBaseUrl();
-  const internalAuth = getBackendInternalAuthHeader();
+  const backendSecret = getBackendJwtSecret();
 
-  if (backendBase && internalAuth) {
-    const res = await fetch(`${backendBase}/api/internal/swipe-matches?userId=${encodeURIComponent(userId)}`, {
+  if (backendBase && backendSecret) {
+    const bearer = await signBackendUserToken({ userId, secret: backendSecret });
+
+    const res = await fetch(`${backendBase}/api/internal/swipe-matches`, {
       headers: {
-        Authorization: internalAuth,
+        Authorization: `Bearer ${bearer}`,
       },
       cache: "no-store",
     });

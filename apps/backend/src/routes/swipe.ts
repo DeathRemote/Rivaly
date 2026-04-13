@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 
 import { prisma } from "../prisma.js";
-import { requireInternalAuth } from "../auth.js";
+import { requireUserAuth } from "../auth.js";
 
 export type SwipeMatch = {
   matchId: string;
@@ -19,16 +19,15 @@ export type SwipeMatch = {
 export async function registerSwipeRoutes(app: FastifyInstance) {
   app.get("/api/internal/swipe-matches", async (req, reply) => {
     try {
-      requireInternalAuth(req.headers.authorization);
+      const { userId } = await requireUserAuth(req.headers.authorization);
 
       const query = z
         .object({
-          userId: z.string().min(1),
           limit: z.coerce.number().int().positive().max(200).optional().default(80),
         })
         .parse(req.query);
 
-      const matches = await getSwipeMatchesForUser(query.userId, query.limit);
+      const matches = await getSwipeMatchesForUser(userId, query.limit);
       return { matches };
     } catch (err: any) {
       const status = err?.statusCode ?? 400;

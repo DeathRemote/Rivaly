@@ -14,6 +14,8 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().optional(),
   // Prisma reads DATABASE_URL automatically, but validating early makes failures obvious.
   DATABASE_URL: z.string().min(1).optional(),
+  // Shared secret used to validate user JWTs issued by the web app.
+  BACKEND_JWT_SECRET: z.string().min(20).optional(),
 });
 
 const env = envSchema.parse(process.env);
@@ -91,6 +93,7 @@ app.get("/", async () => {
     ],
     hasDatabaseUrl: Boolean(env.DATABASE_URL),
     corsOriginsConfigured: allowedOrigins.length > 0,
+    backendJwtSecretConfigured: Boolean(env.BACKEND_JWT_SECRET),
   };
 });
 

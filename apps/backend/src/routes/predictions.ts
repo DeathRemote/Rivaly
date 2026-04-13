@@ -3,11 +3,10 @@ import { z } from "zod";
 import type { FastifyInstance } from "fastify";
 
 import { prisma } from "../prisma.js";
-import { requireInternalAuth } from "../auth.js";
+import { requireUserAuth } from "../auth.js";
 import { inSeasonOpeningWindow, inStandardKickoffWindow } from "../prediction-window.js";
 
 const savePredictionSchema = z.object({
-  userId: z.string().min(1),
   matchId: z.string().min(1),
   homeScore: z.number().int().min(0).max(99),
   awayScore: z.number().int().min(0).max(99),
@@ -30,10 +29,10 @@ export type SavePredictionResult =
 export async function registerPredictionRoutes(app: FastifyInstance) {
   app.post("/api/internal/predictions", async (req, reply) => {
     try {
-      requireInternalAuth(req.headers.authorization);
+      const { userId } = await requireUserAuth(req.headers.authorization);
 
       const body = savePredictionSchema.parse(req.body);
-      const { userId, matchId, homeScore, awayScore, source } = body;
+      const { matchId, homeScore, awayScore, source } = body;
 
       const match = await prisma.match.findUnique({
         where: { id: matchId },

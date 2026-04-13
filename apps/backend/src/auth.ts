@@ -1,20 +1,36 @@
 import { z } from "zod";
+import { jwtVerify } from "jose";
 
 const envSchema = z.object({
-  INTERNAL_API_TOKEN: z.string().min(20).optional(),
+  BACKEND_JWT_SECRET: z.string().min(20).optional(),
 });
 
 const env = envSchema.parse(process.env);
 
-export function requireInternalAuth(authHeader: string | undefined) {
-  const token = env.INTERNAL_API_TOKEN;
-  if (!token) {
+export async function requireUserAuth(authHeader: string | undefined): Promise<{ userId: string }> {
+  const secret = env.BACKEND_JWT_SECRET;
+  if (!secret) {
     // If not configured, fail closed.
-    throw Object.assign(new Error("INTERNAL_API_TOKEN is not configured"), { statusCode: 500 });
+    throw Object.assign(new Error("BACKEND_JWT_SECRET is not configured"), { statusCode: 500 });
   }
 
-  const expected = `Bearer ${token}`;
-  if (!authHeader || authHeader !== expected) {
+  if (!authHeader?.startsWith("Bearer ")) {
+    throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
+  }
+
+  const token = authHeader.slice("Bearer ".length).trim();
+
+  try {
+    const { payload } = await jwtVerify(token, new TextEncoder().encode(secret), {
+      issuer: "rivaly-web",
+      audience: "rivaly-backend",
+    });
+
+    const userId = typeof payload.sub === "string" ? payload.sub : null;
+    if (!userId) throw new Error("Missing sub");
+
+    return { userId };
+  } catch {
     throw Object.assign(new Error("Unauthorized"), { statusCode: 401 });
   }
 }
