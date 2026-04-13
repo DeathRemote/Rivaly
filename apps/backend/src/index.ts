@@ -8,6 +8,10 @@ import { registerPredictionRoutes } from "./routes/predictions.js";
 import { registerTablesRoutes } from "./routes/tables.js";
 import { registerDashboardRoutes } from "./routes/dashboard.js";
 import { registerGroupRoutes } from "./routes/groups.js";
+import { registerGroupDetailsRoutes } from "./routes/groupDetails.js";
+import { registerGroupLeaderboardRoutes } from "./routes/groupLeaderboard.js";
+import { registerGroupMatchesRoutes } from "./routes/groupMatches.js";
+import { registerGroupTablesRoutes } from "./routes/groupTables.js";
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
@@ -67,6 +71,10 @@ await registerPredictionRoutes(app);
 await registerTablesRoutes(app);
 await registerDashboardRoutes(app);
 await registerGroupRoutes(app);
+await registerGroupDetailsRoutes(app);
+await registerGroupLeaderboardRoutes(app);
+await registerGroupMatchesRoutes(app);
+await registerGroupTablesRoutes(app);
 
 app.get("/api/public/competition-seasons/:id", async (req, reply) => {
   const params = z
@@ -102,6 +110,10 @@ app.get("/", async () => {
       "GET /api/internal/groups?tab=my|public",
       "POST /api/internal/groups/join",
       "GET /api/public/invites/:inviteCode",
+      "GET /api/internal/groups/:groupId",
+      "GET /api/internal/groups/:groupId/leaderboard",
+      "GET /api/internal/groups/:groupId/matches",
+      "GET /api/internal/groups/:groupId/tables",
     ],
     hasDatabaseUrl: Boolean(env.DATABASE_URL),
     corsOriginsConfigured: allowedOrigins.length > 0,

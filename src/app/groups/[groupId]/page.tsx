@@ -1,30 +1,20 @@
 import { notFound, redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+
+import { getGroupDetails } from "@/lib/group-details-backend";
 
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { AccessDenied } from "@/components/groups/AccessDenied";
 import { GroupDetailsClient } from "@/components/groups/GroupDetailsClient";
 import { GroupTabs, type GroupTabKey } from "@/components/groups/GroupTabs";
-import { GroupLeaderboard } from "@/components/groups/GroupLeaderboard";
-import { type LeaderboardRowData } from "@/components/groups/LeaderboardRow";
-import { CompletedMatchesFeed } from "@/components/groups/CompletedMatchesFeed";
-import { GroupMomentumCard } from "@/components/groups/GroupMomentumCard";
-import { GroupMatchesTab } from "@/components/groups/matches/GroupMatchesTab";
+import { GroupLeaderboardRemote } from "@/components/groups/GroupLeaderboardRemote";
+import { GroupMatchesRemote } from "@/components/groups/GroupMatchesRemote";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
 import type { PhaseType } from "@/components/groups/matches/types";
-import type { MatchListItem } from "@/components/groups/matches/types";
-import { getMatchesForGroup } from "@/app/groups/[groupId]/matches/data";
-import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 
 import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
-import {
-  getGroupCompletedMatchFeed,
-  getGroupMemberAccuracies,
-  getGroupMomentum,
-} from "@/lib/group-stats";
 
 export default async function GroupDetailsPage({
   params,
@@ -44,52 +34,23 @@ export default async function GroupDetailsPage({
     tabParam === "matches" ? "matches" : tabParam === "table" ? "table" : "leaderboard"
   ) as GroupTabKey;
 
-  const group = await prisma.group.findUnique({
-    where: { id: groupId },
-    select: {
-      id: true,
-      name: true,
-      sport: true,
-      competition: true,
-      competitionSeasonId: true,
-      inviteCode: true,
-      createdById: true,
-      createdBy: {
-        select: {
-          id: true,
-          name: true,
-          username: true,
-        },
-      },
-      members: {
-        select: {
-          userId: true,
-          points: true,
-          role: true,
-          user: {
-            select: {
-              name: true,
-              username: true,
-              image: true,
-            },
-          },
-        },
-        orderBy: { points: "desc" },
-      },
-      _count: { select: { members: true } },
-    },
-  });
-
-  if (!group) notFound();
-
-  const membership = group.members.find((m) => m.userId === userId);
-  if (!membership) {
-    return (
-      <div className="min-h-screen bg-background text-foreground px-6 pt-24 pb-32">
-        <AccessDenied message="You’re not a member of this group. Ask for an invite code or join from the Groups page." />
-      </div>
-    );
+  let details;
+  try {
+    details = await getGroupDetails(userId, groupId);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("404") || msg.toLowerCase().includes("not found")) notFound();
+    if (msg.includes("403") || msg.toLowerCase().includes("forbidden")) {
+      return (
+        <div className="min-h-screen bg-background text-foreground px-6 pt-24 pb-32">
+          <AccessDenied message="You’re not a member of this group. Ask for an invite code or join from the Groups page." />
+        </div>
+      );
+    }
+    throw err;
   }
+
+  const group = details.group;
 
   const ownerEmail = process.env.OWNER_EMAIL;
   const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
@@ -101,138 +62,9 @@ export default async function GroupDetailsPage({
     rankLabel: accountTierLabel(session.user.tier),
   };
 
-  const membershipRow = group.members.find((m) => m.userId === userId);
+  const membershipRow = details.membership;
 
-  // Used for the GroupHero (always visible) and for the leaderboard rows.
-  // Cached + backed by aggregates, so this should be safe to fetch for all tabs.
-  const accuracyByUser = await getGroupMemberAccuracies(group.id);
-
-  const completedFeed =
-    tab === "leaderboard" ? await getGroupCompletedMatchFeed({ groupId: group.id, limitMatches: 6 }) : [];
-
-  const momentum = tab === "leaderboard" ? await getGroupMomentum(group.id) : null;
-
-  const leaderboard: LeaderboardRowData[] =
-    tab === "leaderboard"
-      ? (() => {
-          // DENSE_RANK by points (ties share the same rank).
-          let currentRank = 0;
-          let lastPoints: number | null = null;
-
-          return group.members.map((m) => {
-            if (lastPoints === null || m.points !== lastPoints) {
-              currentRank++;
-              lastPoints = m.points;
-            }
-
-            const acc = accuracyByUser?.[m.userId];
-
-            const accuracyPct = acc && acc.scored > 0 ? Math.round((acc.correct / acc.scored) * 100) : 0;
-
-            // Trend v0: compare event count last 7D vs previous 7D.
-            const trend =
-              acc && acc.last7d !== acc.prev7d
-                ? acc.last7d > acc.prev7d
-                  ? "up"
-                  : "down"
-                : "flat";
-
-            return {
-              userId: m.userId,
-              rank: currentRank,
-              name: m.user.username ?? m.user.name ?? "Unknown",
-              points: m.points,
-              accuracyPct,
-              trend,
-              isYou: m.userId === userId,
-            };
-          });
-        })()
-      : [];
-
-  const currentUserAccuracy = (() => {
-    const acc = accuracyByUser?.[userId];
-    if (!acc || acc.scored === 0) return 0;
-    return Math.round((acc.correct / acc.scored) * 100);
-  })();
-
-  // Table tab: ensure standings exist (and are reasonably fresh) for the linked competition season.
-  if (tab === "table" && group.competitionSeasonId) {
-    const [rowsCount, seasonMeta, latestFinishedMatch] = await Promise.all([
-      prisma.standingsRow.count({
-        where: { competitionSeasonId: group.competitionSeasonId },
-      }),
-      prisma.competitionSeason.findUnique({
-        where: { id: group.competitionSeasonId },
-        select: { standingsUpdatedAt: true },
-      }),
-      prisma.match.findFirst({
-        where: {
-          competitionSeasonId: group.competitionSeasonId,
-          status: "FINISHED",
-        },
-        orderBy: { updatedAt: "desc" },
-        select: { updatedAt: true },
-      }),
-    ]);
-
-    const needsInitial = rowsCount === 0;
-    const needsRefresh =
-      Boolean(seasonMeta?.standingsUpdatedAt) &&
-      Boolean(latestFinishedMatch?.updatedAt) &&
-      latestFinishedMatch!.updatedAt > seasonMeta!.standingsUpdatedAt!;
-
-    if (needsInitial || needsRefresh) {
-      try {
-        await syncCompetitionSeasonStandings({ competitionSeasonId: group.competitionSeasonId });
-      } catch (err) {
-        // Don't block the page; table may show stale/empty with a message.
-        console.warn("[standings] sync failed:", err instanceof Error ? err.message : err);
-      }
-    }
-  }
-
-  // Matches tab: merge saved group-scoped predictions into match list items so refreshes
-  // always reflect the real DB state.
-  const matchesForTab: MatchListItem[] =
-    tab === "matches"
-      ? await (async () => {
-          const baseMatches = await getMatchesForGroup({
-            groupId: group.id,
-            phaseType: "LEAGUE" satisfies PhaseType,
-          });
-          const baseMatchKeys = baseMatches.map((m) => m.id);
-
-          const predictions =
-            baseMatchKeys.length === 0
-              ? []
-              : await prisma.prediction.findMany({
-                  where: { userId, matchId: { in: baseMatchKeys } },
-                  select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
-                });
-
-          const predictionByKey = new Map<string, (typeof predictions)[number]>(
-            predictions.map((p) => [p.matchId, p] as const),
-          );
-
-          return baseMatches.map((m) => {
-            const p = predictionByKey.get(m.id);
-            if (!p) return m;
-
-            return {
-              ...m,
-              userPrediction: {
-                status: m.status === "FINAL" ? "COMPLETED" : "PREDICTED",
-                summary: `${p.homeScore}-${p.awayScore}`,
-                homeScore: p.homeScore,
-                awayScore: p.awayScore,
-                source: p.source,
-                updatedAt: p.updatedAt.toISOString(),
-              },
-            };
-          });
-        })()
-      : [];
+  const currentUserAccuracy = 0;
 
   return (
     <DashboardLayout
@@ -242,36 +74,27 @@ export default async function GroupDetailsPage({
     >
       <GroupDetailsClient
         groupId={group.id}
-        canDelete={group.createdById === userId || isAdmin}
+        canDelete={details.canDelete || isAdmin}
         group={{
           name: group.name,
           competition: group.competition,
           sportLabel: sportLabel(group.sport),
-          memberCount: group._count.members,
+          memberCount: group.memberCount,
           description: null,
           userStats: {
             points: membershipRow?.points ?? 0,
             accuracyPct: currentUserAccuracy,
           },
         }}
-        inviteCode={group.inviteCode}
+        inviteCode={details.inviteCode}
       />
 
       <GroupTabs groupId={group.id} active={tab} />
 
       {tab === "leaderboard" ? (
-        <div className="grid grid-cols-12 gap-8">
-          <div className="col-span-12 lg:col-span-7">
-            <GroupLeaderboard rows={leaderboard} />
-          </div>
-
-          <div className="col-span-12 lg:col-span-5 space-y-6">
-            <CompletedMatchesFeed items={completedFeed} />
-            {momentum ? <GroupMomentumCard momentum={momentum} /> : null}
-          </div>
-        </div>
+        <GroupLeaderboardRemote groupId={group.id} />
       ) : tab === "matches" ? (
-        <GroupMatchesTab phaseType={"LEAGUE" satisfies PhaseType} matches={matchesForTab} />
+        <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={"kickoff"} />
       ) : (
         <GroupTableTab competitionSeasonId={group.competitionSeasonId ?? ""} />
       )}
