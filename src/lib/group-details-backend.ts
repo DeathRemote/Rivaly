@@ -20,7 +20,7 @@ export type GroupDetailsPayload = {
   viewer: {
     accuracyPct: number;
   };
-  inviteCode: string | null;
+  inviteCode: string;
   canDelete: boolean;
 };
 
