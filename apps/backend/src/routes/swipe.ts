@@ -1,7 +1,9 @@
-import { unstable_cache } from "next/cache";
+import { z } from "zod";
 
-import { prisma } from "@/lib/prisma";
-import { getBackendBaseUrl, getBackendInternalAuthHeader } from "@/lib/backend";
+import type { FastifyInstance } from "fastify";
+
+import { prisma } from "../prisma.js";
+import { requireInternalAuth } from "../auth.js";
 
 export type SwipeMatch = {
   matchId: string;
@@ -11,33 +13,31 @@ export type SwipeMatch = {
   competitionLabel: string;
   home: { name: string; shortName?: string | null };
   away: { name: string; shortName?: string | null };
-  // A representative group context for navigation (saving is global, not group-scoped).
   groupId: string;
 };
 
-async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
-  // Prefer backend when configured (keeps heavy queries off the Next.js runtime).
-  const backendBase = getBackendBaseUrl();
-  const internalAuth = getBackendInternalAuthHeader();
+export async function registerSwipeRoutes(app: FastifyInstance) {
+  app.get("/api/internal/swipe-matches", async (req, reply) => {
+    try {
+      requireInternalAuth(req.headers.authorization);
 
-  if (backendBase && internalAuth) {
-    const res = await fetch(`${backendBase}/api/internal/swipe-matches?userId=${encodeURIComponent(userId)}`, {
-      headers: {
-        Authorization: internalAuth,
-      },
-      cache: "no-store",
-    });
+      const query = z
+        .object({
+          userId: z.string().min(1),
+          limit: z.coerce.number().int().positive().max(200).optional().default(80),
+        })
+        .parse(req.query);
 
-    if (!res.ok) {
-      // Fall back to local DB path instead of breaking swipe.
-      // (We can tighten this later once backend is proven stable.)
-      console.warn("Backend swipe-matches failed", res.status, await res.text());
-    } else {
-      const data = (await res.json()) as { matches: SwipeMatch[] };
-      return data.matches;
+      const matches = await getSwipeMatchesForUser(query.userId, query.limit);
+      return { matches };
+    } catch (err: any) {
+      const status = err?.statusCode ?? 400;
+      return reply.code(status).send({ error: err?.message ?? "Bad Request" });
     }
-  }
+  });
+}
 
+async function getSwipeMatchesForUser(userId: string, limit: number): Promise<SwipeMatch[]> {
   const now = new Date();
 
   const groups = await prisma.group.findMany({
@@ -45,10 +45,7 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
     select: { id: true, competitionSeasonId: true },
   });
 
-  const seasonIds = Array.from(
-    new Set(groups.map((g) => g.competitionSeasonId).filter(Boolean) as string[]),
-  );
-
+  const seasonIds = Array.from(new Set(groups.map((g) => g.competitionSeasonId).filter(Boolean) as string[]));
   if (seasonIds.length === 0) return [];
 
   const groupIdsBySeason = new Map<string, string[]>();
@@ -71,8 +68,6 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
     return items.filter((m) => !predicted.has(m.id));
   }
 
-  // Swipe needs: matches open now.
-  // If there are no *remaining* matches after excluding already predicted, fall back to a small upcoming bucket.
   const standardOpen = await prisma.match.findMany({
     where: {
       competitionSeasonId: { in: seasonIds },
@@ -90,15 +85,12 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
       awayTeam: { select: { name: true, shortName: true } },
     },
     orderBy: { kickoffAt: "asc" },
-    take: 80,
+    take: limit,
   });
 
   let matches = await excludeAlreadyPredicted(standardOpen);
 
   if (matches.length === 0) {
-    // Upcoming bucket: show the first bucket (first 72 hours from the earliest kickoff) per season.
-    // This prevents "All caught up" when the only open matches are already predicted,
-    // but another season has fixtures farther out (e.g. outside visibleAt window).
     const upcoming = await prisma.match.findMany({
       where: {
         competitionSeasonId: { in: seasonIds },
@@ -121,7 +113,7 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
         awayTeam: { select: { name: true, shortName: true } },
       },
       orderBy: [{ competitionSeasonId: "asc" }, { kickoffAt: "asc" }],
-      take: 250,
+      take: Math.max(250, limit * 3),
     });
 
     const firstKickoffBySeason = new Map<string, Date>();
@@ -151,7 +143,6 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
   const out: SwipeMatch[] = [];
 
   for (const m of matches) {
-
     const seasonGroupIds = groupIdsBySeason.get(m.competitionSeasonId) ?? [];
     const groupId = seasonGroupIds[0];
     if (!groupId) continue;
@@ -172,10 +163,3 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
 
   return out;
 }
-
-export const getSwipeMatchesForUser = unstable_cache(
-  async (userId: string) => _getSwipeMatchesForUser(userId),
-  ["swipe-matches-for-user"],
-  // Swipe + dashboard call this frequently; tolerate small staleness to reduce DB spikes.
-  { revalidate: 30 },
-);
