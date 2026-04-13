@@ -37,10 +37,14 @@ CREATE TABLE IF NOT EXISTS "CompetitionGroup" (
   CONSTRAINT "CompetitionGroup_pkey" PRIMARY KEY ("id")
 );
 
-ALTER TABLE "CompetitionGroup"
-  ADD CONSTRAINT IF NOT EXISTS "CompetitionGroup_competitionPhaseId_fkey"
-  FOREIGN KEY ("competitionPhaseId") REFERENCES "CompetitionPhase"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "CompetitionGroup"
+    ADD CONSTRAINT "CompetitionGroup_competitionPhaseId_fkey"
+    FOREIGN KEY ("competitionPhaseId") REFERENCES "CompetitionPhase"("id")
+    ON DELETE CASCADE ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS "CompetitionGroup_competitionPhaseId_key_key"
   ON "CompetitionGroup"("competitionPhaseId", "key");
@@ -54,10 +58,14 @@ ALTER TABLE "Match" ADD COLUMN IF NOT EXISTS "providerRound" INTEGER;
 ALTER TABLE "Match" ADD COLUMN IF NOT EXISTS "providerGroupKey" TEXT;
 ALTER TABLE "Match" ADD COLUMN IF NOT EXISTS "knockoutRound" "KnockoutRound";
 
-ALTER TABLE "Match"
-  ADD CONSTRAINT IF NOT EXISTS "Match_competitionGroupId_fkey"
-  FOREIGN KEY ("competitionGroupId") REFERENCES "CompetitionGroup"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "Match"
+    ADD CONSTRAINT "Match_competitionGroupId_fkey"
+    FOREIGN KEY ("competitionGroupId") REFERENCES "CompetitionGroup"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "Match_competitionGroupId_kickoffAt_idx"
   ON "Match"("competitionGroupId", "kickoffAt");
@@ -68,10 +76,14 @@ CREATE INDEX IF NOT EXISTS "Match_competitionPhaseId_kickoffAt_idx"
 -- 5) StandingsRow.competitionGroupId
 ALTER TABLE "StandingsRow" ADD COLUMN IF NOT EXISTS "competitionGroupId" TEXT;
 
-ALTER TABLE "StandingsRow"
-  ADD CONSTRAINT IF NOT EXISTS "StandingsRow_competitionGroupId_fkey"
-  FOREIGN KEY ("competitionGroupId") REFERENCES "CompetitionGroup"("id")
-  ON DELETE SET NULL ON UPDATE CASCADE;
+DO $$ BEGIN
+  ALTER TABLE "StandingsRow"
+    ADD CONSTRAINT "StandingsRow_competitionGroupId_fkey"
+    FOREIGN KEY ("competitionGroupId") REFERENCES "CompetitionGroup"("id")
+    ON DELETE SET NULL ON UPDATE CASCADE;
+EXCEPTION
+  WHEN duplicate_object THEN null;
+END $$;
 
 CREATE INDEX IF NOT EXISTS "StandingsRow_competitionGroupId_position_idx"
   ON "StandingsRow"("competitionGroupId", "position");
