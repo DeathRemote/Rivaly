@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { Provider } from "@prisma/client";
+import { CompetitionPhaseType, KnockoutRound, Provider } from "@prisma/client";
 
 import { TheSportsDbClient } from "@/lib/providers/thesportsdb/client";
 import { mapTheSportsDbEventToDomain } from "@/lib/importers/thesportsdb/map";
@@ -41,21 +41,25 @@ export async function importCompetitionSeasonFixtures(opts: {
     }
   }
 
-  // For now: single phase.
-  const phase = await prisma.competitionPhase.upsert({
-    where: {
-      competitionSeasonId_name: {
-        competitionSeasonId: season.id,
-        name: "Regular Season",
+  // Phase/stage detection: if TheSportsDB provides strGroup or special rounds, we model
+  // a Group Stage + Knockout. Otherwise default to a single League phase.
+  // Note: this is best-effort based on what the API returns.
+  const ensurePhase = async (name: string, order: number, type: CompetitionPhaseType) =>
+    prisma.competitionPhase.upsert({
+      where: {
+        competitionSeasonId_name: {
+          competitionSeasonId: season.id,
+          name,
+        },
       },
-    },
-    create: {
-      competitionSeasonId: season.id,
-      name: "Regular Season",
-      order: 1,
-    },
-    update: {},
-  });
+      create: {
+        competitionSeasonId: season.id,
+        name,
+        order,
+        type,
+      },
+      update: { type, order },
+    });
 
   // Prefer season-wide endpoint first (single request).
   // With premium keys, this should return the full season and avoids many round requests.
@@ -107,6 +111,53 @@ export async function importCompetitionSeasonFixtures(opts: {
   }
 
   const events = [...eventsById.values()];
+
+  const hasGroups = events.some((e) => Boolean(e.strGroup && String(e.strGroup).trim().length > 0));
+  const hasKnockoutHints = events.some((e) => (e.intRound != null && e.intRound >= 125) || (e.strEvent ?? "").toLowerCase().includes("final"));
+
+  const leaguePhase = !hasGroups ? await ensurePhase("Regular Season", 1, CompetitionPhaseType.LEAGUE) : null;
+  const groupPhase = hasGroups ? await ensurePhase("Group Stage", 1, CompetitionPhaseType.GROUP_STAGE) : null;
+  const knockoutPhase = hasKnockoutHints ? await ensurePhase("Knockout", 2, CompetitionPhaseType.KNOCKOUT) : null;
+
+  // Create groups for group-stage events.
+  const groupIdByKey = new Map<string, string>();
+  if (groupPhase && hasGroups) {
+    const rawKeys = Array.from(
+      new Set(
+        events
+          .map((e) => (e.strGroup ?? "").trim())
+          .filter((s) => s.length > 0)
+          // normalize common patterns: "Group A" -> "A"
+          .map((s) => {
+            const m = s.match(/group\s+([a-z])/i);
+            return m ? m[1].toUpperCase() : s.toUpperCase();
+          }),
+      ),
+    ).sort();
+
+    for (const [idx, key] of rawKeys.entries()) {
+      const g = await prisma.competitionGroup.upsert({
+        where: {
+          competitionPhaseId_key: {
+            competitionPhaseId: groupPhase.id,
+            key,
+          },
+        },
+        create: {
+          competitionPhaseId: groupPhase.id,
+          key,
+          name: key.length === 1 ? `Group ${key}` : key,
+          order: idx + 1,
+        },
+        update: {
+          name: key.length === 1 ? `Group ${key}` : key,
+          order: idx + 1,
+        },
+        select: { id: true, key: true },
+      });
+      groupIdByKey.set(g.key, g.id);
+    }
+  }
 
   let created = 0;
   let updated = 0;
@@ -163,17 +214,37 @@ export async function importCompetitionSeasonFixtures(opts: {
 
     if (opts.dryRun) continue;
 
+    const isGroupStageMatch = Boolean(groupPhase && mapped.providerGroupKey);
+    const isKnockoutMatch = Boolean(knockoutPhase && (mapped.knockoutRound || (mapped.providerRound ?? 0) >= 125));
+
+    const phaseId = isGroupStageMatch ? groupPhase!.id : isKnockoutMatch ? knockoutPhase?.id ?? null : leaguePhase?.id ?? groupPhase?.id ?? null;
+
+    const normalizedGroupKey = (mapped.providerGroupKey ?? "").trim().length
+      ? (() => {
+          const raw = (mapped.providerGroupKey ?? "").trim();
+          const m = raw.match(/group\s+([a-z])/i);
+          return m ? m[1].toUpperCase() : raw.toUpperCase();
+        })()
+      : null;
+
+    const competitionGroupId =
+      normalizedGroupKey && groupIdByKey.has(normalizedGroupKey) ? groupIdByKey.get(normalizedGroupKey)! : null;
+
     if (!existing) {
       await prisma.match.create({
         data: {
           competitionSeasonId: season.id,
-          competitionPhaseId: phase.id,
+          competitionPhaseId: phaseId,
+          competitionGroupId,
           homeTeamId: homeTeam.id,
           awayTeamId: awayTeam.id,
           kickoffAt: mapped.kickoffAt,
           status: mapped.status,
           provider: mapped.provider,
           providerMatchId: mapped.providerMatchId,
+          providerRound: mapped.providerRound ?? undefined,
+          providerGroupKey: mapped.providerGroupKey ?? undefined,
+          knockoutRound: mapped.knockoutRound ? (mapped.knockoutRound as KnockoutRound) : undefined,
           visibleAt,
           lockAt,
         },
@@ -184,11 +255,15 @@ export async function importCompetitionSeasonFixtures(opts: {
         where: { id: existing.id },
         data: {
           competitionSeasonId: season.id,
-          competitionPhaseId: phase.id,
+          competitionPhaseId: phaseId,
+          competitionGroupId,
           homeTeamId: homeTeam.id,
           awayTeamId: awayTeam.id,
           kickoffAt: mapped.kickoffAt,
           status: mapped.status,
+          providerRound: mapped.providerRound ?? undefined,
+          providerGroupKey: mapped.providerGroupKey ?? undefined,
+          knockoutRound: mapped.knockoutRound ? (mapped.knockoutRound as KnockoutRound) : undefined,
           visibleAt,
           lockAt,
         },

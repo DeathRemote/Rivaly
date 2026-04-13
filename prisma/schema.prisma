@@ -343,20 +343,47 @@ model CompetitionSeason {
   @@index([archivedAt])
 }
 
+enum CompetitionPhaseType {
+  LEAGUE
+  GROUP_STAGE
+  KNOCKOUT
+}
+
 model CompetitionPhase {
   id                 String   @id @default(cuid())
   competitionSeasonId String
   name               String   // e.g. "Regular Season"
   order              Int      @default(0)
+  type               CompetitionPhaseType @default(LEAGUE)
 
   competitionSeason  CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  matches            Match[]
+  standingsRows      StandingsRow[]
+  groups             CompetitionGroup[]
+
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@unique([competitionSeasonId, name])
+  @@index([competitionSeasonId, type])
+}
+
+model CompetitionGroup {
+  id                 String   @id @default(cuid())
+  competitionPhaseId String
+  key                String   // e.g. "A"
+  name               String   // e.g. "Group A"
+  order              Int      @default(0)
+
+  competitionPhase   CompetitionPhase @relation(fields: [competitionPhaseId], references: [id], onDelete: Cascade)
   matches            Match[]
   standingsRows      StandingsRow[]
 
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
-  @@unique([competitionSeasonId, name])
+  @@unique([competitionPhaseId, key])
+  @@index([competitionPhaseId, order])
 }
 
 model Team {
@@ -377,10 +404,24 @@ model Team {
   @@unique([provider, providerTeamId])
 }
 
+enum KnockoutRound {
+  R128
+  R64
+  R32
+  R16
+  QF
+  SF
+  FINAL
+  THIRD_PLACE
+  PLAYOFF
+  QUALIFIER
+}
+
 model Match {
   id                   String      @id @default(cuid())
   competitionSeasonId  String
   competitionPhaseId   String?
+  competitionGroupId   String?
 
   homeTeamId           String
   awayTeamId           String
@@ -390,6 +431,11 @@ model Match {
 
   provider             Provider?
   providerMatchId      String?
+  providerRound        Int?
+  providerGroupKey     String?
+
+  // For knockout matches (optional; can be derived from providerRound in importer)
+  knockoutRound        KnockoutRound?
 
   visibleAt            DateTime?
   lockAt               DateTime?
@@ -403,6 +449,7 @@ model Match {
 
   competitionSeason    CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
   competitionPhase     CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
+  competitionGroup     CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
 
   homeTeam             Team @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Restrict)
   awayTeam             Team @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Restrict)
@@ -412,6 +459,8 @@ model Match {
 
   @@unique([provider, providerMatchId])
   @@index([competitionSeasonId, kickoffAt])
+  @@index([competitionPhaseId, kickoffAt])
+  @@index([competitionGroupId, kickoffAt])
   @@index([status, kickoffAt])
 }
 
@@ -463,6 +512,13 @@ model StandingsRow {
   id                  String @id @default(cuid())
   competitionSeasonId String
   competitionPhaseId  String?
+  competitionGroupId  String?
+
+  // A deterministic key that scopes the row (league table vs a specific group table).
+  // Examples:
+  // - season:<seasonId>:phase:<phaseId>
+  // - season:<seasonId>:phase:<phaseId>:group:<groupId>
+  scope               String
 
   teamId              String
 
@@ -481,12 +537,15 @@ model StandingsRow {
 
   competitionSeason   CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
   competitionPhase    CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
+  competitionGroup    CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
   team                Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 
-  @@unique([competitionSeasonId, teamId])
-  @@unique([provider, providerTeamId])
+  @@unique([scope, teamId])
   @@index([competitionSeasonId, position])
+  @@index([competitionPhaseId, position])
+  @@index([competitionGroupId, position])
+  @@index([scope])
 }

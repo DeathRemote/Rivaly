@@ -29,6 +29,30 @@ export function mapTheSportsDbKickoffAt(e: TheSportsDbEvent): Date {
   throw new Error(`Cannot parse kickoffAt for event idEvent=${e.idEvent}`);
 }
 
+function inferKnockoutRound(opts: { providerRound?: number | null; eventName?: string | null }) {
+  const r = opts.providerRound ?? null;
+  const name = (opts.eventName ?? "").toLowerCase();
+
+  // TheSportsDB docs mention special round numbers (not exhaustive):
+  // 125=Quarter-Final, 150=Semi-Final, 200=Final, 400=Qualifier, 500=Pre-Season.
+  if (r === 125) return "QF" as const;
+  if (r === 150) return "SF" as const;
+  if (r === 200) return "FINAL" as const;
+  if (r === 170) return "SF" as const; // playoff semi-final
+  if (r === 180) return "FINAL" as const; // playoff final
+  if (r === 160) return "PLAYOFF" as const;
+  if (r === 400) return "QUALIFIER" as const;
+
+  if (name.includes("quarter")) return "QF" as const;
+  if (name.includes("semi")) return "SF" as const;
+  if (name.includes("final") && !name.includes("semi") && !name.includes("quarter")) return "FINAL" as const;
+  if (name.includes("round of 16") || name.includes("last 16")) return "R16" as const;
+  if (name.includes("round of 32") || name.includes("last 32")) return "R32" as const;
+  if (name.includes("round of 64") || name.includes("last 64")) return "R64" as const;
+
+  return null;
+}
+
 export function mapTheSportsDbEventToDomain(e: TheSportsDbEvent) {
   if (!e.idEvent) throw new Error("Missing idEvent");
 
@@ -41,11 +65,17 @@ export function mapTheSportsDbEventToDomain(e: TheSportsDbEvent) {
   if (!e.idHomeTeam) throw new Error(`Missing idHomeTeam for event idEvent=${e.idEvent}`);
   if (!e.idAwayTeam) throw new Error(`Missing idAwayTeam for event idEvent=${e.idEvent}`);
 
+  const knockoutRound = inferKnockoutRound({ providerRound: e.intRound, eventName: e.strEvent });
+
   return {
     provider: Provider.THESPORTSDB,
     providerMatchId: e.idEvent,
     kickoffAt: mapTheSportsDbKickoffAt(e),
     status: mapTheSportsDbStatus(e.strStatus),
+
+    providerRound: e.intRound ?? null,
+    providerGroupKey: e.strGroup ?? null,
+    knockoutRound,
 
     homeTeam: {
       provider: Provider.THESPORTSDB,
