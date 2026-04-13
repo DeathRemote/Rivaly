@@ -21,7 +21,16 @@ function Spinner({ label }: { label?: string }) {
   );
 }
 
-function StandingsTable({ rows }: { rows: NonNullable<TablesPayload["league"]>["rows"] }) {
+type StandingsRow = {
+  teamId: string;
+  teamName: string;
+  position: number;
+  played: number;
+  goalDifference: number;
+  points: number;
+};
+
+function StandingsTable({ rows }: { rows: StandingsRow[] }) {
   return (
     <div className="mt-5 overflow-x-auto">
       <table className="w-full min-w-[520px] text-left">
@@ -60,6 +69,11 @@ export function TablesPageClient({
   const options = useMemo(() => seasons.map((s) => ({ id: s.seasonId, label: s.title })), [seasons]);
   const [activeId, setActiveId] = useState<string>(options[0]?.id ?? "");
 
+  // Keep activeId in sync when seasons load/change.
+  useEffect(() => {
+    if (!activeId && options[0]?.id) setActiveId(options[0].id);
+  }, [activeId, options]);
+
   const cacheRef = useRef(new Map<string, TablesPayload>());
   const [state, setState] = useState<TablesPageState>({
     loading: Boolean(activeId),
@@ -81,15 +95,8 @@ export function TablesPageClient({
 
     (async () => {
       try {
-        const res = await fetch(`/api/internal/tables?seasonId=${encodeURIComponent(activeId)}`, {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-        });
-
-        if (!res.ok) {
-          const txt = await res.text();
-          throw new Error(txt || `HTTP ${res.status}`);
-        }
+        const res = await fetch(`/api/internal/tables?seasonId=${encodeURIComponent(activeId)}`);
+        if (!res.ok) throw new Error(await res.text());
 
         const data = (await res.json()) as TablesPayload;
         cacheRef.current.set(activeId, data);
@@ -98,7 +105,11 @@ export function TablesPageClient({
         setState({ loading: false, error: null, data });
       } catch (e) {
         if (!alive) return;
-        setState({ loading: false, error: e instanceof Error ? e.message : "Tables temporarily unavailable.", data: null });
+        setState({
+          loading: false,
+          error: e instanceof Error ? e.message : "Tables temporarily unavailable.",
+          data: null,
+        });
       }
     })();
 
@@ -131,7 +142,7 @@ export function TablesPageClient({
         <div className="text-[10px] font-black uppercase tracking-[0.28em] text-white/45">Tables</div>
         <h1 className="mt-2 font-display text-4xl font-black italic tracking-tight text-white">Tables</h1>
         <p className="mt-2 text-sm font-medium text-white/60">
-          League tables and group-stage tables are shown only for leagues tied to your groups.
+          League tables and group-stage tables are shown only for competitions tied to your groups.
         </p>
       </div>
 
@@ -189,23 +200,21 @@ export function TablesPageClient({
       {!state.loading && !state.error && state.data ? (
         <div className="space-y-6">
           {/* League */}
-          <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <div className="flex items-end justify-between gap-4">
-              <div>
-                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">Competition</div>
-                <h2 className="mt-1 font-display text-2xl font-black italic tracking-tight text-white">
-                  {state.data.title}
-                </h2>
+          {state.data.league?.rows?.length ? (
+            <section className="rounded-3xl border border-white/10 bg-white/5 p-6">
+              <div className="flex items-end justify-between gap-4">
+                <div>
+                  <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">Competition</div>
+                  <h2 className="mt-1 font-display text-2xl font-black italic tracking-tight text-white">
+                    {state.data.title}
+                  </h2>
+                </div>
+                <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">League table</div>
               </div>
-              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">League table</div>
-            </div>
 
-            {state.data.league?.rows?.length ? (
               <StandingsTable rows={state.data.league.rows} />
-            ) : (
-              <div className="mt-4 text-sm font-medium text-white/55">No league table available yet.</div>
-            )}
-          </section>
+            </section>
+          ) : null}
 
           {/* Groups */}
           {state.data.groups?.length ? (
@@ -227,12 +236,16 @@ export function TablesPageClient({
                     {g.rows.length ? (
                       <StandingsTable rows={g.rows} />
                     ) : (
-                      <div className="mt-3 text-sm font-medium text-white/55">No finished matches yet.</div>
+                      <div className="mt-3 text-sm font-medium text-white/55">No matches yet.</div>
                     )}
                   </div>
                 ))}
               </div>
             </section>
+          ) : null}
+
+          {!state.data.league?.rows?.length && !state.data.groups?.length ? (
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">No tables available yet.</div>
           ) : null}
         </div>
       ) : null}
