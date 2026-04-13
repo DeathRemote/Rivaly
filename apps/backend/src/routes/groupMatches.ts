@@ -16,7 +16,7 @@ export type GroupMatchListItem = {
   home: { name: string; shortName?: string | null };
   away: { name: string; shortName?: string | null };
   userPrediction?: {
-    status: "PREDICTED" | "COMPLETED";
+    status: "NOT_PREDICTED" | "PREDICTED" | "LOCKED" | "COMPLETED";
     summary?: string;
     homeScore?: number;
     awayScore?: number;
@@ -63,20 +63,18 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
       };
 
       if (query.bucket === "kickoff") {
-        // Matches open for prediction: visibleAt <= now < lockAt
+        // Kickoff tab = everything in the "prediction window" and onwards until the match completes.
+        // That means: visibleAt <= now and NOT finished/canceled/postponed.
+        // Includes locked matches (now >= lockAt) so users can still see what they predicted.
         baseWhere.status = { in: ["SCHEDULED", "LIVE", "UNKNOWN"] };
         baseWhere.visibleAt = { lte: now };
-        baseWhere.lockAt = { gt: now };
-        // no cursor for kickoff (small list). If you want cursor, we can add it later.
+        // no lockAt filter
       }
 
       if (query.bucket === "upcoming") {
-        // Future matches that are NOT currently open for prediction.
-        // This includes:
-        // - Not yet visible (now < visibleAt)
-        // - Locked (now >= lockAt) but not finished yet
-        baseWhere.kickoffAt = { gt: now };
-        baseWhere.NOT = { visibleAt: { lte: now }, lockAt: { gt: now } };
+        // Upcoming tab = not yet in prediction window.
+        baseWhere.status = { in: ["SCHEDULED", "LIVE", "UNKNOWN"] };
+        baseWhere.visibleAt = { gt: now };
 
         if (cursorKickoffAt && cursorId) {
           baseWhere.OR = [
@@ -120,7 +118,7 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
         take: query.bucket === "kickoff" ? 50 : query.limit + 1,
       });
 
-      // Load predictions for these matches (for upcoming/completed; kickoff excludes predicted)
+      // Load predictions for these matches.
       const matchIds = matches.map((m) => m.id);
       const preds =
         matchIds.length === 0
@@ -131,12 +129,7 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
             });
       const predByMatchId = new Map(preds.map((p) => [p.matchId, p] as const));
 
-      const filteredKickoff =
-        query.bucket !== "kickoff"
-          ? matches
-          : matches.filter((m) => !predByMatchId.has(m.id));
-
-      const page = query.bucket === "kickoff" ? filteredKickoff : matches.slice(0, query.limit);
+      const page = query.bucket === "kickoff" ? matches : matches.slice(0, query.limit);
       const hasMore = query.bucket === "kickoff" ? false : matches.length > query.limit;
 
       const out: GroupMatchListItem[] = page.map((m) => {
@@ -157,9 +150,12 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
         const lockAt = (m.lockAt ?? m.kickoffAt).toISOString();
         const visibleAt = (m.visibleAt ?? m.kickoffAt).toISOString();
 
+        const lockAtDate = m.lockAt ?? m.kickoffAt;
+        const locked = now.getTime() >= lockAtDate.getTime();
+
         const userPrediction: GroupMatchListItem["userPrediction"] = p
           ? {
-              status: status === "FINAL" ? "COMPLETED" : "PREDICTED",
+              status: status === "FINAL" ? "COMPLETED" : locked ? "LOCKED" : "PREDICTED",
               summary: `${p.homeScore}-${p.awayScore}`,
               homeScore: p.homeScore,
               awayScore: p.awayScore,

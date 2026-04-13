@@ -8,7 +8,7 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { AccessDenied } from "@/components/groups/AccessDenied";
 import { GroupDetailsClient } from "@/components/groups/GroupDetailsClient";
 import { GroupTabs, type GroupTabKey } from "@/components/groups/GroupTabs";
-import { GroupLeaderboardRemote } from "@/components/groups/GroupLeaderboardRemote";
+import { GroupLeaderboardPanel } from "@/components/groups/GroupLeaderboardPanel";
 import { GroupMatchesRemote } from "@/components/groups/GroupMatchesRemote";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
@@ -129,7 +129,7 @@ export default async function GroupDetailsPage({
             </div>
           }
         >
-          <GroupLeaderboardRemote groupId={group.id} />
+          <GroupLeaderboardPanel groupId={group.id} />
         </ClientOnly>
       ) : tab === "matches" ? (
         <ClientOnly
