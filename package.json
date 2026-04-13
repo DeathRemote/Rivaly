@@ -13,6 +13,7 @@
     "score:match": "tsx scripts/score-match.ts"
   },
   "dependencies": {
+    "jose": "^5.10.0",
     "@auth/prisma-adapter": "^2.10.0",
     "@prisma/client": "^6.16.1",
     "@tailwindcss/postcss": "^4.2.2",

@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getBackendBaseUrl, getBackendJwtSecret } from "@/lib/backend";
+import { signBackendUserToken } from "@/lib/backend-auth";
 import { inSeasonOpeningWindow, inStandardKickoffWindow } from "@/lib/prediction-window";
 
 const savePredictionSchema = z.object({
@@ -40,6 +42,47 @@ export async function savePredictionAction(
   if (!parsed.success) return { ok: false, error: "Invalid input." };
 
   const { matchId, homeScore, awayScore, source } = parsed.data;
+
+  // Prefer backend when configured (keeps writes off the Next.js runtime).
+  const backendBase = getBackendBaseUrl();
+  const backendSecret = getBackendJwtSecret();
+
+  if (backendBase && backendSecret) {
+    try {
+      const bearer = await signBackendUserToken({ userId, secret: backendSecret });
+
+      const res = await fetch(`${backendBase}/api/internal/predictions`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${bearer}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          matchId,
+          homeScore,
+          awayScore,
+          source,
+        }),
+        cache: "no-store",
+      });
+
+      if (!res.ok) {
+        console.warn("Backend save prediction failed", res.status, await res.text());
+      } else {
+        const data = (await res.json()) as SavePredictionResult;
+        if (data.ok) {
+          revalidatePath("/swipe");
+          revalidatePath("/dashboard");
+          revalidatePath("/groups");
+        }
+        return data;
+      }
+    } catch (err) {
+      console.warn("Backend save prediction threw", err);
+    }
+
+    // Fall back to local DB path instead of breaking swipe.
+  }
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
