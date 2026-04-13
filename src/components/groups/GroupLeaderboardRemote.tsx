@@ -72,23 +72,8 @@ export function GroupLeaderboardRemote({ groupId }: { groupId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupId]);
 
-  if (loading) {
-    return (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
-        Loading leaderboard…
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
-        Leaderboard unavailable. Please try again.
-      </div>
-    );
-  }
-
   // Infinite scroll: load next page when sentinel becomes visible.
+  // IMPORTANT: hooks must not be conditional. Keep this before any early returns.
   useEffect(() => {
     const el = sentinelRef.current;
     if (!el) return;
@@ -107,7 +92,24 @@ export function GroupLeaderboardRemote({ groupId }: { groupId: string }) {
 
     obs.observe(el);
     return () => obs.disconnect();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cursor, loadingMore]);
+
+  if (loading) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+        Loading leaderboard…
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+        Leaderboard unavailable. Please try again.
+      </div>
+    );
+  }
 
   return (
     <div>
