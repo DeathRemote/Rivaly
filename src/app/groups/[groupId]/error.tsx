@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 export default function GroupDetailsError({
   error,
@@ -9,12 +9,34 @@ export default function GroupDetailsError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  const [lastGlobalError, setLastGlobalError] = useState<string | null>(null);
+
   useEffect(() => {
     // eslint-disable-next-line no-console
     console.error("[groups/[groupId]] route error", error);
+
+    const onError = (ev: ErrorEvent) => {
+      const msg = ev.error?.stack || `${ev.message} @ ${ev.filename}:${ev.lineno}:${ev.colno}`;
+      setLastGlobalError(msg);
+    };
+
+    const onRejection = (ev: PromiseRejectionEvent) => {
+      const reason = ev.reason;
+      const msg = reason?.stack || (typeof reason === "string" ? reason : JSON.stringify(reason));
+      setLastGlobalError(`Unhandled rejection: ${msg}`);
+    };
+
+    window.addEventListener("error", onError);
+    window.addEventListener("unhandledrejection", onRejection);
+
+    return () => {
+      window.removeEventListener("error", onError);
+      window.removeEventListener("unhandledrejection", onRejection);
+    };
   }, [error]);
 
   const msg = error?.message ?? "Unknown error";
+  const stack = (error as any)?.stack as string | undefined;
 
   return (
     <div className="min-h-screen bg-background text-foreground px-6 pt-24 pb-32">
@@ -31,6 +53,24 @@ export default function GroupDetailsError({
               {msg}
             </pre>
           </div>
+
+          {stack ? (
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">Stack</div>
+              <pre className="mt-2 whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/30 p-4 text-[11px] text-white/80">
+                {stack}
+              </pre>
+            </div>
+          ) : null}
+
+          {lastGlobalError ? (
+            <div>
+              <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/40">Last global error</div>
+              <pre className="mt-2 whitespace-pre-wrap break-words rounded-2xl border border-white/10 bg-black/30 p-4 text-[11px] text-white/80">
+                {lastGlobalError}
+              </pre>
+            </div>
+          ) : null}
 
           {error?.digest ? (
             <div>
