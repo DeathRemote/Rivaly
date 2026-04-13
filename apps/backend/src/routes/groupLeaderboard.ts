@@ -43,6 +43,7 @@ export async function registerGroupLeaderboardRoutes(app: FastifyInstance) {
           rank: number;
           name: string | null;
           username: string | null;
+          totalCount: number;
           scoredTotal: number | null;
           correctTotal: number | null;
           last7d: number | null;
@@ -54,6 +55,7 @@ export async function registerGroupLeaderboardRoutes(app: FastifyInstance) {
             gm."userId" AS "userId",
             gm."points" AS "points",
             DENSE_RANK() OVER (ORDER BY gm."points" DESC) AS "rank",
+            COUNT(*) OVER ()::int AS "totalCount",
             u."name" AS "name",
             u."username" AS "username",
             acc."scoredTotal" AS "scoredTotal",
@@ -107,7 +109,9 @@ export async function registerGroupLeaderboardRoutes(app: FastifyInstance) {
           }
         : null;
 
-      return { rows: out, nextCursor };
+      const totalCount = page[0]?.totalCount ?? 0;
+
+      return { rows: out, nextCursor, totalCount };
     } catch (err: any) {
       const status = err?.statusCode ?? 400;
       return reply.code(status).send({ error: err?.message ?? "Bad Request" });

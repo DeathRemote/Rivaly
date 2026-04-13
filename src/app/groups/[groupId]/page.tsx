@@ -29,10 +29,17 @@ export default async function GroupDetailsPage({
   if (!userId) redirect("/login?callbackUrl=/groups");
 
   const { groupId } = await params;
-  const tabParam = (await searchParams).tab;
+  const sp = await searchParams;
+  const tabParam = sp.tab;
   const tab = (
     tabParam === "matches" ? "matches" : tabParam === "table" ? "table" : "leaderboard"
   ) as GroupTabKey;
+
+  const bucketParam = sp.bucket;
+  const initialMatchesView =
+    bucketParam === "upcoming" || bucketParam === "completed" || bucketParam === "kickoff"
+      ? (bucketParam as "kickoff" | "upcoming" | "completed")
+      : "kickoff";
 
   let details;
   try {
@@ -94,7 +101,7 @@ export default async function GroupDetailsPage({
       {tab === "leaderboard" ? (
         <GroupLeaderboardRemote groupId={group.id} />
       ) : tab === "matches" ? (
-        <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={"kickoff"} />
+        <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={initialMatchesView} />
       ) : (
         <GroupTableTab competitionSeasonId={group.competitionSeasonId ?? ""} />
       )}

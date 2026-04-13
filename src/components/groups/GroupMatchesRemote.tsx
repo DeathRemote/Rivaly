@@ -19,6 +19,7 @@ export function GroupMatchesRemote({ groupId, phaseType, initialView }: { groupI
   const [error, setError] = useState<string | null>(null);
 
   const firstLoadRef = useRef<string>("");
+  const sentinelRef = useRef<HTMLDivElement | null>(null);
 
   const bucket = view;
 
@@ -70,6 +71,27 @@ export function GroupMatchesRemote({ groupId, phaseType, initialView }: { groupI
     return [...map.entries()].map(([label, it]) => ({ label, items: it }));
   }, [items]);
 
+  // Infinite scroll: when cursor exists, load next page as the sentinel comes into view.
+  useEffect(() => {
+    const el = sentinelRef.current;
+    if (!el) return;
+    if (!cursor) return;
+
+    const obs = new IntersectionObserver(
+      (entries) => {
+        const hit = entries.some((e) => e.isIntersecting);
+        if (!hit) return;
+        if (loadingMore) return;
+        if (!cursor) return;
+        void load(false);
+      },
+      { rootMargin: "500px" },
+    );
+
+    obs.observe(el);
+    return () => obs.disconnect();
+  }, [cursor, loadingMore]);
+
   return (
     <div>
       <MatchesToolbar phaseType={phaseType} view={view} onViewChange={setView} />
@@ -107,15 +129,11 @@ export function GroupMatchesRemote({ groupId, phaseType, initialView }: { groupI
           ))}
 
           {cursor ? (
-            <div className="flex justify-center pt-2">
-              <button
-                type="button"
-                disabled={loadingMore}
-                onClick={() => void load(false)}
-                className="rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-[11px] font-black uppercase tracking-[0.18em] text-white/70 hover:bg-white/10 disabled:opacity-50"
-              >
-                {loadingMore ? "Loading…" : "Load more"}
-              </button>
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <div ref={sentinelRef} className="h-10 w-full" />
+              <div className="text-[11px] font-black uppercase tracking-[0.18em] text-white/40">
+                {loadingMore ? "Loading…" : "Scroll to load more"}
+              </div>
             </div>
           ) : null}
         </div>
