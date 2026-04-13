@@ -6,6 +6,11 @@ const TheSportsDbEventSchema = z.object({
   strLeague: z.string().optional().nullable(),
   strSeason: z.string().optional().nullable(),
 
+  // Tournament structure hints (not always present)
+  intRound: z.coerce.number().optional().nullable(),
+  strGroup: z.string().optional().nullable(),
+  strEvent: z.string().optional().nullable(),
+
   idHomeTeam: z.string().optional().nullable(),
   idAwayTeam: z.string().optional().nullable(),
   strHomeTeam: z.string().optional().nullable(),

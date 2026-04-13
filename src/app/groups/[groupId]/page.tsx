@@ -103,7 +103,9 @@ export default async function GroupDetailsPage({
 
   const membershipRow = group.members.find((m) => m.userId === userId);
 
-  const accuracyByUser = tab === "leaderboard" ? await getGroupMemberAccuracies(group.id) : null;
+  // Used for the GroupHero (always visible) and for the leaderboard rows.
+  // Cached + backed by aggregates, so this should be safe to fetch for all tabs.
+  const accuracyByUser = await getGroupMemberAccuracies(group.id);
 
   const completedFeed =
     tab === "leaderboard" ? await getGroupCompletedMatchFeed({ groupId: group.id, limitMatches: 6 }) : [];
@@ -148,14 +150,11 @@ export default async function GroupDetailsPage({
         })()
       : [];
 
-  const currentUserAccuracy =
-    tab === "leaderboard"
-      ? (() => {
-          const acc = accuracyByUser?.[userId];
-          if (!acc || acc.scored === 0) return 0;
-          return Math.round((acc.correct / acc.scored) * 100);
-        })()
-      : 0;
+  const currentUserAccuracy = (() => {
+    const acc = accuracyByUser?.[userId];
+    if (!acc || acc.scored === 0) return 0;
+    return Math.round((acc.correct / acc.scored) * 100);
+  })();
 
   // Table tab: ensure standings exist (and are reasonably fresh) for the linked competition season.
   if (tab === "table" && group.competitionSeasonId) {
