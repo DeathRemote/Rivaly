@@ -2,8 +2,7 @@ import { auth } from "@/auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { getGlobalStandingForUser } from "@/lib/global-standing";
-import { getDashboardData } from "@/lib/dashboard-data";
+import { getDashboardPayload } from "@/lib/dashboard-backend";
 
 import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
@@ -35,10 +34,7 @@ export default async function DashboardPage() {
     rankLabel: accountTierLabel(session.user.tier),
   };
 
-  const [standing, dash] = await Promise.all([
-    getGlobalStandingForUser(userId),
-    getDashboardData(userId),
-  ]);
+  const { standing, dash } = await getDashboardPayload(userId);
 
   return (
     <DashboardLayout
