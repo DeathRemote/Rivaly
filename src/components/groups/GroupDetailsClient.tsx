@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 
 import { cn } from "@/lib/cn";
@@ -27,11 +27,15 @@ export function GroupDetailsClient({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmLeaveOpen, setConfirmLeaveOpen] = useState(false);
 
-  const inviteLink = useMemo(() => {
-    const base = process.env.NEXT_PUBLIC_APP_URL;
-    if (base) return `${base.replace(/\/$/, "")}/join/${inviteCode}`;
-    if (typeof window !== "undefined") return `${window.location.origin}/join/${inviteCode}`;
-    return `/join/${inviteCode}`;
+  // Avoid hydration mismatches:
+  // - On the server, window/location is unavailable.
+  // - On the client, window.location.origin exists.
+  // If we compute different values on first render, React will throw a hydration error.
+  // So we start with a stable relative URL, then upgrade to absolute after mount.
+  const [inviteLink, setInviteLink] = useState(`/join/${inviteCode}`);
+
+  useEffect(() => {
+    setInviteLink(`${window.location.origin}/join/${inviteCode}`);
   }, [inviteCode]);
 
   useEffect(() => {
