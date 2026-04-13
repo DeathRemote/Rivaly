@@ -3,6 +3,8 @@ import cors from "@fastify/cors";
 import { z } from "zod";
 
 import { prisma } from "./prisma.js";
+import { registerSwipeRoutes } from "./routes/swipe.js";
+import { registerPredictionRoutes } from "./routes/predictions.js";
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
@@ -12,6 +14,8 @@ const envSchema = z.object({
   CORS_ORIGINS: z.string().optional(),
   // Prisma reads DATABASE_URL automatically, but validating early makes failures obvious.
   DATABASE_URL: z.string().min(1).optional(),
+  // Shared secret used to validate user JWTs issued by the web app.
+  BACKEND_JWT_SECRET: z.string().min(20).optional(),
 });
 
 const env = envSchema.parse(process.env);
@@ -55,6 +59,9 @@ app.get("/api/public/ping", async () => {
   return { ok: true };
 });
 
+await registerSwipeRoutes(app);
+await registerPredictionRoutes(app);
+
 app.get("/api/public/competition-seasons/:id", async (req, reply) => {
   const params = z
     .object({
@@ -81,9 +88,12 @@ app.get("/", async () => {
       "GET /health/db",
       "GET /api/public/ping",
       "GET /api/public/competition-seasons/:id",
+      "GET /api/internal/swipe-matches?userId=...",
+      "POST /api/internal/predictions",
     ],
     hasDatabaseUrl: Boolean(env.DATABASE_URL),
     corsOriginsConfigured: allowedOrigins.length > 0,
+    backendJwtSecretConfigured: Boolean(env.BACKEND_JWT_SECRET),
   };
 });
 
