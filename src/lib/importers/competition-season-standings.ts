@@ -21,8 +21,10 @@ export async function syncCompetitionSeasonStandings(opts: {
   const leagueId = season.competition.providerLeagueId;
   if (!leagueId) throw new Error("Missing competition.providerLeagueId");
 
+  const scope = `season:${season.id}`;
+
   if (opts.reset && !opts.dryRun) {
-    await prisma.standingsRow.deleteMany({ where: { competitionSeasonId: season.id } });
+    await prisma.standingsRow.deleteMany({ where: { scope } });
   }
 
   const client = new TheSportsDbClient();
@@ -34,7 +36,7 @@ export async function syncCompetitionSeasonStandings(opts: {
   // any missing teams keep stale data and the table looks "unsorted"/wrong.
   // Safer approach: replace the whole season snapshot each sync.
   if (!opts.dryRun) {
-    await prisma.standingsRow.deleteMany({ where: { competitionSeasonId: season.id } });
+    await prisma.standingsRow.deleteMany({ where: { scope } });
   }
 
   // Sort + compute positions ourselves to ensure consistent ordering.
@@ -78,13 +80,14 @@ export async function syncCompetitionSeasonStandings(opts: {
 
     await prisma.standingsRow.upsert({
       where: {
-        competitionSeasonId_teamId: {
-          competitionSeasonId: season.id,
+        scope_teamId: {
+          scope,
           teamId: team.id,
         },
       },
       create: {
         competitionSeasonId: season.id,
+        scope,
         teamId: team.id,
         position: idx + 1,
         played: r.intPlayed,
