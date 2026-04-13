@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 
 import { auth } from "@/auth";
-import { prisma } from "@/lib/prisma";
+import { getInvitePreview, joinGroupByInviteCode } from "@/lib/groups-backend";
 import { ProgressBar } from "@/components/ui/ProgressBar";
 
 export const dynamic = "force-dynamic";
@@ -28,16 +28,8 @@ export default async function JoinByInviteCodePage({
 }) {
   const { inviteCode } = await params;
 
-  const group = await prisma.group.findUnique({
-    where: { inviteCode },
-    select: {
-      id: true,
-      name: true,
-      sport: true,
-      competition: true,
-      visibility: true,
-    },
-  });
+  const preview = await getInvitePreview(inviteCode);
+  const group = preview?.group ?? null;
 
   if (!group) {
     return (
@@ -71,13 +63,8 @@ export default async function JoinByInviteCodePage({
 
   // Logged in: auto-join (idempotent) then redirect to the group.
   if (userId) {
-    await prisma.groupMember.upsert({
-      where: { groupId_userId: { groupId: group.id, userId } },
-      create: { groupId: group.id, userId },
-      update: {},
-    });
-
-    redirect(`/groups/${group.id}?tab=matches`);
+    const joined = await joinGroupByInviteCode(userId, inviteCode);
+    redirect(`/groups/${joined.groupId}?tab=matches&bucket=kickoff`);
   }
 
   const callbackUrl = `/join/${encodeURIComponent(inviteCode)}`;
