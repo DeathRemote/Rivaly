@@ -10,6 +10,7 @@ import { GroupDetailsClient } from "@/components/groups/GroupDetailsClient";
 import { GroupTabs, type GroupTabKey } from "@/components/groups/GroupTabs";
 import { GroupLeaderboardRemote } from "@/components/groups/GroupLeaderboardRemote";
 import { GroupMatchesRemote } from "@/components/groups/GroupMatchesRemote";
+import { ClientOnly } from "@/components/ui/ClientOnly";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
 import type { PhaseType } from "@/components/groups/matches/types";
 
@@ -121,9 +122,25 @@ export default async function GroupDetailsPage({
       <GroupTabs groupId={group.id} active={tab} />
 
       {tab === "leaderboard" ? (
-        <GroupLeaderboardRemote groupId={group.id} />
+        <ClientOnly
+          fallback={
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+              Loading leaderboard…
+            </div>
+          }
+        >
+          <GroupLeaderboardRemote groupId={group.id} />
+        </ClientOnly>
       ) : tab === "matches" ? (
-        <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={initialMatchesView} />
+        <ClientOnly
+          fallback={
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+              Loading matches…
+            </div>
+          }
+        >
+          <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={initialMatchesView} />
+        </ClientOnly>
       ) : (
         <GroupTableTab competitionSeasonId={group.competitionSeasonId ?? ""} />
       )}
