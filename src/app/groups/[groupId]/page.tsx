@@ -46,7 +46,10 @@ export default async function GroupDetailsPage({
     details = await getGroupDetails(userId, groupId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[group-details] load failed", { groupId, userId, msg });
+
     if (msg.includes("404") || msg.toLowerCase().includes("not found")) notFound();
+
     if (msg.includes("403") || msg.toLowerCase().includes("forbidden")) {
       return (
         <div className="min-h-screen bg-background text-foreground px-6 pt-24 pb-32">
@@ -54,7 +57,26 @@ export default async function GroupDetailsPage({
         </div>
       );
     }
-    throw err;
+
+    // Don't crash the whole route with the generic Next error UI.
+    // Show a soft error while keeping the dashboard shell.
+    const ownerEmail = process.env.OWNER_EMAIL;
+    const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
+    const isAdmin = isOwner || session.user.role === "ADMIN";
+
+    const user = {
+      name: session.user.username ?? session.user.name ?? "Kinetic Player",
+      image: session.user.image ?? null,
+      rankLabel: accountTierLabel(session.user.tier),
+    };
+
+    return (
+      <DashboardLayout sideNavItems={getSideNavItems({ isAdmin })} activeKey="groups" user={user}>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+          This page couldn’t load right now. Please try again.
+        </div>
+      </DashboardLayout>
+    );
   }
 
   const group = details.group;
