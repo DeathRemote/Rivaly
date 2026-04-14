@@ -3,6 +3,7 @@ import { MatchStatus, PointsEventType, Prisma, Provider } from "@prisma/client";
 import { prisma } from "../prisma.js";
 import { scorePredictionPoints } from "../scoring/predictions.js";
 import { uuid } from "../jobs/support/id.js";
+import { advisoryXactLock } from "./locks.js";
 
 export type ScoreMatchPayload = {
   matchId: string;
@@ -25,6 +26,8 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
   if (!match) throw new Error(`Match not found: ${payload.matchId}`);
 
   const out = await prisma.$transaction(async (tx) => {
+    // Prevent concurrent scoring of the same match across worker instances.
+    await advisoryXactLock(tx, `score-match:${payload.matchId}`);
     await tx.match.update({
       where: { id: payload.matchId },
       data: {
