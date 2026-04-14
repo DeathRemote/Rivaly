@@ -483,6 +483,17 @@ enum PointsEventType {
   PREDICTION_SCORED
 }
 
+enum JobType {
+  SCORE_MATCH
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  DONE
+  FAILED
+}
+
 model PointsEvent {
   id        String @id @default(cuid())
   type      PointsEventType @default(PREDICTION_SCORED)
@@ -506,6 +517,31 @@ model PointsEvent {
   @@index([groupId, createdAt])
   @@index([userId, createdAt])
   @@index([matchId])
+}
+
+model Job {
+  id        String    @id @default(cuid())
+  type      JobType
+  status    JobStatus @default(QUEUED)
+
+  // Used to make enqueuing idempotent (e.g. one SCORE_MATCH per matchId).
+  // If null, the job is not deduped.
+  dedupeKey String?
+
+  payload   Json
+
+  runAt     DateTime  @default(now())
+  lockedAt  DateTime?
+  lockedBy  String?
+  attempts  Int       @default(0)
+  lastError String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([type, dedupeKey])
+  @@index([status, runAt])
+  @@index([lockedAt])
 }
 
 model StandingsRow {

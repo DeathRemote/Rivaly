@@ -36,8 +36,18 @@ async function _getGroupDetails(userId: string, groupId: string): Promise<GroupD
     cache: "no-store",
   });
 
-  if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as GroupDetailsPayload;
+  const text = await res.text();
+
+  if (!res.ok) {
+    // Include status + body for debugging (safe: this is server-side only).
+    throw new Error(`backend groupDetails failed: ${res.status} ${res.statusText} :: ${text.slice(0, 400)}`);
+  }
+
+  try {
+    return JSON.parse(text) as GroupDetailsPayload;
+  } catch {
+    throw new Error(`backend groupDetails returned non-JSON: ${text.slice(0, 200)}`);
+  }
 }
 
 export const getGroupDetails = unstable_cache(

@@ -54,7 +54,7 @@ export async function registerGroupLeaderboardRoutes(app: FastifyInstance) {
           SELECT
             gm."userId" AS "userId",
             gm."points" AS "points",
-            DENSE_RANK() OVER (ORDER BY gm."points" DESC) AS "rank",
+            DENSE_RANK() OVER (ORDER BY gm."points" DESC)::int AS "rank",
             COUNT(*) OVER ()::int AS "totalCount",
             u."name" AS "name",
             u."username" AS "username",

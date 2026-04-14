@@ -8,8 +8,9 @@ import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { AccessDenied } from "@/components/groups/AccessDenied";
 import { GroupDetailsClient } from "@/components/groups/GroupDetailsClient";
 import { GroupTabs, type GroupTabKey } from "@/components/groups/GroupTabs";
-import { GroupLeaderboardRemote } from "@/components/groups/GroupLeaderboardRemote";
+import { GroupLeaderboardPanel } from "@/components/groups/GroupLeaderboardPanel";
 import { GroupMatchesRemote } from "@/components/groups/GroupMatchesRemote";
+import { ClientOnly } from "@/components/ui/ClientOnly";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
 import type { PhaseType } from "@/components/groups/matches/types";
 
@@ -46,7 +47,10 @@ export default async function GroupDetailsPage({
     details = await getGroupDetails(userId, groupId);
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    console.error("[group-details] load failed", { groupId, userId, msg });
+
     if (msg.includes("404") || msg.toLowerCase().includes("not found")) notFound();
+
     if (msg.includes("403") || msg.toLowerCase().includes("forbidden")) {
       return (
         <div className="min-h-screen bg-background text-foreground px-6 pt-24 pb-32">
@@ -54,7 +58,26 @@ export default async function GroupDetailsPage({
         </div>
       );
     }
-    throw err;
+
+    // Don't crash the whole route with the generic Next error UI.
+    // Show a soft error while keeping the dashboard shell.
+    const ownerEmail = process.env.OWNER_EMAIL;
+    const isOwner = Boolean(ownerEmail && session.user.email && session.user.email === ownerEmail);
+    const isAdmin = isOwner || session.user.role === "ADMIN";
+
+    const user = {
+      name: session.user.username ?? session.user.name ?? "Kinetic Player",
+      image: session.user.image ?? null,
+      rankLabel: accountTierLabel(session.user.tier),
+    };
+
+    return (
+      <DashboardLayout sideNavItems={getSideNavItems({ isAdmin })} activeKey="groups" user={user}>
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+          This page couldn’t load right now. Please try again.
+        </div>
+      </DashboardLayout>
+    );
   }
 
   const group = details.group;
@@ -99,9 +122,25 @@ export default async function GroupDetailsPage({
       <GroupTabs groupId={group.id} active={tab} />
 
       {tab === "leaderboard" ? (
-        <GroupLeaderboardRemote groupId={group.id} />
+        <ClientOnly
+          fallback={
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+              Loading leaderboard…
+            </div>
+          }
+        >
+          <GroupLeaderboardPanel groupId={group.id} />
+        </ClientOnly>
       ) : tab === "matches" ? (
-        <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={initialMatchesView} />
+        <ClientOnly
+          fallback={
+            <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
+              Loading matches…
+            </div>
+          }
+        >
+          <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={initialMatchesView} />
+        </ClientOnly>
       ) : (
         <GroupTableTab competitionSeasonId={group.competitionSeasonId ?? ""} />
       )}

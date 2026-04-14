@@ -93,7 +93,7 @@ export async function registerGroupRoutes(app: FastifyInstance) {
                 SELECT
                   "groupId",
                   "userId",
-                  DENSE_RANK() OVER (PARTITION BY "groupId" ORDER BY "points" DESC) AS "rank"
+                  DENSE_RANK() OVER (PARTITION BY "groupId" ORDER BY "points" DESC)::int AS "rank"
                 FROM "GroupMember"
                 WHERE "groupId" IN (${Prisma.join(groupIds)})
               ) t
