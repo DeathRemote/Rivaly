@@ -7,6 +7,10 @@
     "dev": "npx tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+
+    "job:scheduler": "node dist/jobs/cli/scheduler.js",
+    "job:worker": "node dist/jobs/cli/worker.js",
+
     "prisma:prepare": "node scripts/prepare-prisma.mjs",
     "prisma:generate": "npm run prisma:prepare && prisma generate --schema prisma/schema.prisma",
     "postinstall": "npm run prisma:generate"
