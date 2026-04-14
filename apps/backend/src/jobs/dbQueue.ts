@@ -69,7 +69,7 @@ export async function claimNextJob(lockOwner: string) {
     WITH cte AS (
       SELECT id
       FROM "Job"
-      WHERE status = ${JobStatus.QUEUED}
+      WHERE status = ${JobStatus.QUEUED}::"JobStatus"
         AND "runAt" <= NOW()
       ORDER BY "runAt" ASC
       FOR UPDATE SKIP LOCKED
@@ -77,7 +77,7 @@ export async function claimNextJob(lockOwner: string) {
     )
     UPDATE "Job" j
     SET
-      status = ${JobStatus.RUNNING},
+      status = ${JobStatus.RUNNING}::"JobStatus",
       "lockedAt" = NOW(),
       "lockedBy" = ${lockOwner},
       attempts = attempts + 1,
