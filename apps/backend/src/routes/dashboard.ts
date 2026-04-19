@@ -160,7 +160,7 @@ async function getGlobalStanding(userId: string): Promise<DashboardPayload["stan
         s."recentCorrect",
         s."avgPoints",
         (0.5 * s."recentAccSmoothed" + 0.3 * s."lifetimeAcc" + 0.2 * s."avgPointsNorm") AS "score",
-        DENSE_RANK() OVER (ORDER BY (0.5 * s."recentAccSmoothed" + 0.3 * s."lifetimeAcc" + 0.2 * s."avgPointsNorm") DESC) AS "rank",
+        DENSE_RANK() OVER (ORDER BY (0.5 * s."recentAccSmoothed" + 0.3 * s."lifetimeAcc" + 0.2 * s."avgPointsNorm") DESC)::int AS "rank",
         COUNT(*) OVER ()::int AS "cohortSize"
       FROM scored s
     )
