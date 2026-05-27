@@ -35,7 +35,21 @@ export async function POST(req: Request) {
   });
 
   if (existing) {
-    return NextResponse.json({ ok: true, groupId: existing.groupId, created: false });
+    // Repair: sync points for existing official group from canonical SeasonUserPoints.
+    // Useful when the official group was created before the season ledger existed.
+    await prisma.$executeRaw`
+      UPDATE "GroupMember" gm
+      SET "points" = sup."points"
+      FROM "Group" g
+      JOIN "SeasonUserPoints" sup
+        ON sup."competitionSeasonId" = g."competitionSeasonId"
+       AND sup."scoringSystem" = g."scoringSystem"
+       AND sup."userId" = gm."userId"
+      WHERE gm."groupId" = g."id"
+        AND g."id" = ${existing.groupId};
+    `;
+
+    return NextResponse.json({ ok: true, groupId: existing.groupId, created: false, repaired: true });
   }
 
   const name = body.data.name ?? `${season.competition.name} ${season.seasonLabel} — Global`;
