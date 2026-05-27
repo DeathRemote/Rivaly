@@ -116,6 +116,22 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
             >
               Copy invite code
             </button>
+
+            <button
+              type="button"
+              onClick={async () => {
+                if (!result?.ok) return;
+                const link = `${window.location.origin}/join/${encodeURIComponent(result.inviteCode)}`;
+                await navigator.clipboard.writeText(link);
+              }}
+              className={cn(
+                "flex-1 h-14 rounded-xl border border-white/10 bg-black/20",
+                "text-xs font-black uppercase tracking-[0.22em] text-white/80",
+                "hover:bg-white/5 transition",
+              )}
+            >
+              Copy invite link
+            </button>
             <button
               type="button"
               onClick={resetAndClose}
