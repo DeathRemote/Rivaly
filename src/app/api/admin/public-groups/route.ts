@@ -54,6 +54,7 @@ export async function POST(req: Request) {
         competitionSeasonId: season.id,
         visibility: "PUBLIC",
         isJoinable: false,
+        scoringSystem: "CLASSIC",
         inviteCode,
         createdById: admin.session.user.id,
       },
@@ -77,8 +78,20 @@ export async function POST(req: Request) {
     });
 
     if (users.length) {
+      // Pull current season points (classic) so the official group shows the same points as any other classic group.
+      const pointsRows = await tx.seasonUserPoints.findMany({
+        where: { competitionSeasonId: season.id, scoringSystem: "CLASSIC", userId: { in: users.map((u) => u.userId) } },
+        select: { userId: true, points: true },
+      });
+      const pointsByUser = new Map(pointsRows.map((r) => [r.userId, r.points] as const));
+
       await tx.groupMember.createMany({
-        data: users.map((u) => ({ groupId: group.id, userId: u.userId, role: "MEMBER", points: 0 })),
+        data: users.map((u) => ({
+          groupId: group.id,
+          userId: u.userId,
+          role: "MEMBER",
+          points: pointsByUser.get(u.userId) ?? 0,
+        })),
         skipDuplicates: true,
       });
     }

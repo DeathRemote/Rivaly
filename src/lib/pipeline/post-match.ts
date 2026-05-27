@@ -128,10 +128,10 @@ export async function syncAndProcessFinishedMatches(opts?: {
         predictions.map((p) => [p.userId, p] as const),
       );
 
-      // Score per-group: apply the same prediction to every group that uses this competition season,
-      // but only for users who are members of that group.
+      // Score ONCE per season+scoringSystem+user+match (not per group).
+      // Groups with the same season+scoringSystem should display identical points.
       const groups = await tx.group.findMany({
-        where: { competitionSeasonId: m.competitionSeasonId },
+        where: { competitionSeasonId: m.competitionSeasonId, scoringSystem: "CLASSIC" },
         select: { id: true },
       });
 
@@ -148,13 +148,14 @@ export async function syncAndProcessFinishedMatches(opts?: {
               select: { groupId: true, userId: true },
             });
 
-      let pointsEvents = 0;
+      const eligibleUserIds = Array.from(new Set(eligibleMembers.map((m) => m.userId)));
 
-      const affectedGroupIds = new Set<string>();
-      const affectedUserIds = new Set<string>();
+      let seasonEventsInserted = 0;
+      const affectedGroupIds = new Set<string>(eligibleMembers.map((m) => m.groupId));
+      const affectedUserIds = new Set<string>(eligibleUserIds);
 
-      for (const mbr of eligibleMembers) {
-        const p = predictionByUserId.get(mbr.userId);
+      for (const userId of eligibleUserIds) {
+        const p = predictionByUserId.get(userId);
         if (!p) continue;
 
         const scored = scorePredictionPoints({
@@ -162,17 +163,12 @@ export async function syncAndProcessFinishedMatches(opts?: {
           actual: { home: homeScore, away: awayScore },
         });
 
-        // Ledger event: must be truly idempotent.
-        // IMPORTANT: we only increment GroupMember.points if we successfully CREATE a new PointsEvent.
-        // Otherwise, repeated job runs / concurrent runs could double-increment points.
-        affectedGroupIds.add(mbr.groupId);
-        affectedUserIds.add(mbr.userId);
-
         try {
-          const event = await tx.pointsEvent.create({
+          const created = await tx.seasonPointsEvent.create({
             data: {
-              groupId: mbr.groupId,
-              userId: mbr.userId,
+              competitionSeasonId: m.competitionSeasonId,
+              scoringSystem: "CLASSIC",
+              userId,
               matchId: m.id,
               type: "PREDICTION_SCORED",
               points: scored.points,
@@ -182,19 +178,53 @@ export async function syncAndProcessFinishedMatches(opts?: {
             select: { points: true },
           });
 
-          await tx.groupMember.updateMany({
-            where: { groupId: mbr.groupId, userId: mbr.userId },
-            data: { points: { increment: event.points } },
-          });
+          seasonEventsInserted++;
 
-          pointsEvents++;
+          await tx.seasonUserPoints.upsert({
+            where: {
+              competitionSeasonId_scoringSystem_userId: {
+                competitionSeasonId: m.competitionSeasonId,
+                scoringSystem: "CLASSIC",
+                userId,
+              },
+            },
+            create: {
+              competitionSeasonId: m.competitionSeasonId,
+              scoringSystem: "CLASSIC",
+              userId,
+              points: created.points,
+            },
+            update: { points: { increment: created.points } },
+            select: { id: true },
+          });
         } catch (err) {
-          // Unique constraint (groupId,userId,matchId,type) => already scored.
+          // Unique constraint => already scored.
           if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
             // no-op
           } else {
             throw err;
           }
+        }
+      }
+
+      // Sync GroupMember.points for all classic groups in this season to the canonical season points.
+      if (eligibleUserIds.length && groupIds.length) {
+        const seasonPoints = await tx.seasonUserPoints.findMany({
+          where: {
+            competitionSeasonId: m.competitionSeasonId,
+            scoringSystem: "CLASSIC",
+            userId: { in: eligibleUserIds },
+          },
+          select: { userId: true, points: true },
+        });
+        const pointsByUser = new Map(seasonPoints.map((r) => [r.userId, r.points] as const));
+
+        for (const uid of eligibleUserIds) {
+          const pts = pointsByUser.get(uid) ?? 0;
+          await tx.groupMember.updateMany({
+            where: { groupId: { in: groupIds }, userId: uid },
+            data: { points: pts },
+          });
         }
       }
 
@@ -204,7 +234,7 @@ export async function syncAndProcessFinishedMatches(opts?: {
       });
 
       return {
-        pointsEvents,
+        pointsEvents: seasonEventsInserted,
         affectedGroupIds: Array.from(affectedGroupIds),
         affectedUserIds: Array.from(affectedUserIds),
       };

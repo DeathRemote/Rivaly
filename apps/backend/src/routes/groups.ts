@@ -246,10 +246,25 @@ export async function registerGroupRoutes(app: FastifyInstance) {
 
       if (!group) return reply.code(404).send({ error: "Group not found" });
 
+      const points = group.competitionSeasonId
+        ? (
+            await prisma.seasonUserPoints.findUnique({
+              where: {
+                competitionSeasonId_scoringSystem_userId: {
+                  competitionSeasonId: group.competitionSeasonId,
+                  scoringSystem: "CLASSIC",
+                  userId,
+                },
+              },
+              select: { points: true },
+            })
+          )?.points ?? 0
+        : 0;
+
       await prisma.groupMember.upsert({
         where: { groupId_userId: { groupId: group.id, userId } },
-        create: { groupId: group.id, userId, role: "MEMBER", points: 0 },
-        update: {},
+        create: { groupId: group.id, userId, role: "MEMBER", points },
+        update: { points },
         select: { id: true },
       });
 
@@ -262,8 +277,8 @@ export async function registerGroupRoutes(app: FastifyInstance) {
         if (official) {
           await prisma.groupMember.upsert({
             where: { groupId_userId: { groupId: official.groupId, userId } },
-            create: { groupId: official.groupId, userId, role: "MEMBER", points: 0 },
-            update: {},
+            create: { groupId: official.groupId, userId, role: "MEMBER", points },
+            update: { points },
             select: { id: true },
           });
         }

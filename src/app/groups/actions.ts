@@ -45,6 +45,27 @@ export type CreateGroupResult =
   | { ok: true; groupId: string; inviteCode: string }
   | { ok: false; error: string };
 
+async function getSeasonPoints(opts: {
+  userId: string;
+  competitionSeasonId: string;
+  scoringSystem?: "CLASSIC";
+}): Promise<number> {
+  const scoringSystem = opts.scoringSystem ?? "CLASSIC";
+
+  const row = await prisma.seasonUserPoints.findUnique({
+    where: {
+      competitionSeasonId_scoringSystem_userId: {
+        competitionSeasonId: opts.competitionSeasonId,
+        scoringSystem,
+        userId: opts.userId,
+      },
+    },
+    select: { points: true },
+  });
+
+  return row?.points ?? 0;
+}
+
 async function ensureOfficialPublicMembership(opts: { userId: string; competitionSeasonId: string }) {
   const official = await prisma.officialPublicGroup.findUnique({
     where: { competitionSeasonId: opts.competitionSeasonId },
@@ -53,10 +74,13 @@ async function ensureOfficialPublicMembership(opts: { userId: string; competitio
 
   if (!official) return;
 
+  const points = await getSeasonPoints({ userId: opts.userId, competitionSeasonId: opts.competitionSeasonId });
+
   await prisma.groupMember.upsert({
     where: { groupId_userId: { groupId: official.groupId, userId: opts.userId } },
-    create: { groupId: official.groupId, userId: opts.userId, role: "MEMBER", points: 0 },
-    update: {},
+    create: { groupId: official.groupId, userId: opts.userId, role: "MEMBER", points },
+    // Keep it in sync in case the user already existed with 0.
+    update: { points },
   });
 }
 
@@ -108,6 +132,7 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
           // Only user-created public groups are joinable.
           // Official public groups are always created via admin endpoints and are not joinable.
           isJoinable: visibility === "PUBLIC",
+          scoringSystem: "CLASSIC",
 
           members: {
             create: {
@@ -216,12 +241,16 @@ export async function joinGroupAction(input: JoinGroupInput): Promise<JoinGroupR
   }
 
   try {
+    const points = group.competitionSeasonId
+      ? await getSeasonPoints({ userId, competitionSeasonId: group.competitionSeasonId })
+      : 0;
+
     await prisma.groupMember.create({
       data: {
         groupId: group.id,
         userId,
         role: "MEMBER",
-        points: 0,
+        points,
       },
       select: { id: true },
     });

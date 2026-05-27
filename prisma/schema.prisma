@@ -127,6 +127,10 @@ enum GroupMemberRole {
   ADMIN
 }
 
+enum ScoringSystem {
+  CLASSIC
+}
+
 enum Sport {
   SOCCER
   BASKETBALL
@@ -167,6 +171,9 @@ model Group {
   // Official global public groups are NOT joinable; membership is automatic.
   isJoinable  Boolean         @default(false)
 
+  // Points can vary by scoring system. Groups with same season+scoringSystem share points.
+  scoringSystem ScoringSystem @default(CLASSIC)
+
   // New: group is tied to a canonical competition season (enables shared fixtures)
   competitionSeasonId String?
   competitionSeason   CompetitionSeason? @relation(fields: [competitionSeasonId], references: [id], onDelete: SetNull)
@@ -203,6 +210,54 @@ model OfficialPublicGroup {
   group             Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
+}
+
+enum SeasonPointsEventType {
+  PREDICTION_SCORED
+}
+
+// Canonical scoring ledger per season+scoringSystem. This prevents double-scoring
+// for users who are members of multiple groups in the same season.
+model SeasonPointsEvent {
+  id                 String             @id @default(cuid())
+  competitionSeasonId String
+  scoringSystem      ScoringSystem      @default(CLASSIC)
+
+  userId String
+  matchId String
+
+  type   SeasonPointsEventType
+  points Int
+  reason String?
+  meta   Json?
+
+  createdAt DateTime @default(now())
+
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match             Match            @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionSeasonId, scoringSystem, userId, matchId, type])
+  @@index([competitionSeasonId])
+  @@index([userId])
+  @@index([matchId])
+}
+
+model SeasonUserPoints {
+  id                 String        @id @default(cuid())
+  competitionSeasonId String
+  scoringSystem      ScoringSystem @default(CLASSIC)
+  userId             String
+
+  points    Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionSeasonId, scoringSystem, userId])
+  @@index([competitionSeasonId])
+  @@index([userId])
 }
 
 model GroupMember {
