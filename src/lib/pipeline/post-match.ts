@@ -207,6 +207,42 @@ export async function syncAndProcessFinishedMatches(opts?: {
         }
       }
 
+      // Also write per-group PointsEvent entries for aggregates (accuracy/momentum, etc).
+      // This is idempotent by PointsEvent unique constraint (groupId,userId,matchId,type).
+      // IMPORTANT: do NOT increment GroupMember.points from PointsEvent; points are synced from SeasonUserPoints.
+      if (eligibleMembers.length) {
+        for (const mbr of eligibleMembers) {
+          const p = predictionByUserId.get(mbr.userId);
+          if (!p) continue;
+
+          const scored = scorePredictionPoints({
+            predicted: { home: p.homeScore, away: p.awayScore },
+            actual: { home: homeScore, away: awayScore },
+          });
+
+          try {
+            await tx.pointsEvent.create({
+              data: {
+                groupId: mbr.groupId,
+                userId: mbr.userId,
+                matchId: m.id,
+                type: "PREDICTION_SCORED",
+                points: scored.points,
+                reason: scored.reason,
+                meta: scored.meta,
+              },
+              select: { id: true },
+            });
+          } catch (err) {
+            if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+              // already exists
+            } else {
+              throw err;
+            }
+          }
+        }
+      }
+
       // Sync GroupMember.points for all classic groups in this season to the canonical season points.
       if (eligibleUserIds.length && groupIds.length) {
         const seasonPoints = await tx.seasonUserPoints.findMany({
