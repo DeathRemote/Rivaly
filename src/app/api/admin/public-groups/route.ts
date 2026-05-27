@@ -38,14 +38,14 @@ export async function POST(req: Request) {
     // Repair: sync points for existing official group from canonical SeasonUserPoints.
     // Useful when the official group was created before the season ledger existed.
     await prisma.$executeRaw`
-      UPDATE "GroupMember" gm
+      UPDATE "GroupMember"
       SET "points" = sup."points"
       FROM "Group" g
       JOIN "SeasonUserPoints" sup
         ON sup."competitionSeasonId" = g."competitionSeasonId"
        AND sup."scoringSystem" = g."scoringSystem"
-       AND sup."userId" = gm."userId"
-      WHERE gm."groupId" = g."id"
+      WHERE "GroupMember"."groupId" = g."id"
+        AND sup."userId" = "GroupMember"."userId"
         AND g."id" = ${existing.groupId};
     `;
 
