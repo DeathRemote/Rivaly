@@ -1,5 +1,3 @@
-import { unstable_cache } from "next/cache";
-
 import { getBackendBaseUrl, getBackendJwtSecret } from "@/lib/backend";
 import { signBackendUserToken } from "@/lib/backend-auth";
 
@@ -30,11 +28,11 @@ async function _getGroups(userId: string, tab: "my" | "public") {
   return (await res.json()) as any;
 }
 
-export const getGroupsForUser = unstable_cache(
-  async (userId: string, tab: "my" | "public") => _getGroups(userId, tab),
-  ["backend-groups"],
-  { revalidate: 30 },
-);
+export async function getGroupsForUser(userId: string, tab: "my" | "public") {
+  // Note: do not cache across users/tabs; this endpoint also performs side effects
+  // (auto-joining official public groups) and needs to reflect newest state.
+  return _getGroups(userId, tab);
+}
 
 export async function joinPublicGroup(userId: string, groupId: string): Promise<{ ok: true }> {
   const backendBase = getBackendBaseUrl();
