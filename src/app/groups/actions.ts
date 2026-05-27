@@ -15,6 +15,9 @@ const createGroupSchema = z
     // For SOCCER we use canonical seasons; for other sports we keep free-text until ingested.
     competitionSeasonId: z.string().trim().min(1).optional(),
     competition: z.string().trim().min(2).max(60).optional(),
+
+    // When PUBLIC: group is browseable and (for user-created groups) joinable.
+    visibility: z.enum(["PRIVATE", "PUBLIC"]).optional().default("PRIVATE"),
   })
   .superRefine((val, ctx) => {
     if (val.sport === "SOCCER") {
@@ -65,7 +68,7 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
   const parsed = createGroupSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input." };
 
-  const { name, sport, competitionSeasonId, competition } = parsed.data;
+  const { name, sport, competitionSeasonId, competition, visibility } = parsed.data;
 
   // Backend enforcement: sport activation affects group creation.
   const enabled = await isSportEnabled(sport);
@@ -100,6 +103,12 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
           competitionSeasonId: sport === "SOCCER" ? competitionSeasonId : null,
           inviteCode,
           createdById: userId,
+
+          visibility,
+          // Only user-created public groups are joinable.
+          // Official public groups are always created via admin endpoints and are not joinable.
+          isJoinable: visibility === "PUBLIC",
+
           members: {
             create: {
               userId,

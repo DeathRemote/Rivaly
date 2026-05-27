@@ -16,6 +16,7 @@ type FormState = {
   sport: Sport | "";
   // For SOCCER: this is a CompetitionSeason id. For other sports: a free-text label.
   competitionSelection: string;
+  visibility: "PRIVATE" | "PUBLIC";
 };
 
 type Errors = Partial<Record<keyof FormState, string>> & { form?: string };
@@ -23,7 +24,12 @@ type Errors = Partial<Record<keyof FormState, string>> & { form?: string };
 export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
-  const [state, setState] = useState<FormState>({ name: "", sport: "", competitionSelection: "" });
+  const [state, setState] = useState<FormState>({
+    name: "",
+    sport: "",
+    competitionSelection: "",
+    visibility: "PRIVATE",
+  });
   const [errors, setErrors] = useState<Errors>({});
   const [result, setResult] = useState<CreateGroupResult | null>(null);
 
@@ -62,6 +68,7 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
       const res = await createGroupAction({
         name: state.name,
         sport: state.sport as Sport,
+        visibility: state.visibility,
         ...(state.sport === "SOCCER"
           ? { competitionSeasonId: state.competitionSelection }
           : { competition: state.competitionSelection }),
@@ -75,7 +82,7 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
   }
 
   function resetAndClose() {
-    setState({ name: "", sport: "", competitionSelection: "" });
+    setState({ name: "", sport: "", competitionSelection: "", visibility: "PRIVATE" });
     setErrors({});
     setResult(null);
     onClose();
@@ -223,6 +230,47 @@ export function CreateGroupModal({ open, onClose }: { open: boolean; onClose: ()
             }}
             error={errors.competitionSelection}
           />
+
+          <div className="space-y-3">
+            <label className="block text-[10px] font-black uppercase tracking-[0.22em] text-white/60">
+              Visibility
+            </label>
+
+            <button
+              type="button"
+              onClick={() => setState((s) => ({ ...s, visibility: s.visibility === "PUBLIC" ? "PRIVATE" : "PUBLIC" }))}
+              className={cn(
+                "w-full rounded-xl border border-white/10 bg-black/20 p-4 text-left",
+                "hover:bg-white/5 transition",
+              )}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-white">
+                    {state.visibility === "PUBLIC" ? "Public group" : "Private group"}
+                  </div>
+                  <div className="mt-1 text-sm text-white/60">
+                    {state.visibility === "PUBLIC"
+                      ? "Anyone can find it under Public groups and join instantly."
+                      : "Only people with your invite code can join."}
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "mt-1 inline-flex h-6 w-11 items-center rounded-full border border-white/10 p-1 transition",
+                    state.visibility === "PUBLIC" ? "bg-lime-300/30" : "bg-white/5",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "h-4 w-4 rounded-full transition",
+                      state.visibility === "PUBLIC" ? "translate-x-5 bg-lime-200" : "translate-x-0 bg-white/40",
+                    )}
+                  />
+                </div>
+              </div>
+            </button>
+          </div>
 
           {result?.ok === false ? (
             <div className="rounded-xl border border-[#ff7351]/30 bg-[#d53d18]/10 px-4 py-3 text-sm text-[#ffd2c8]">
