@@ -55,7 +55,7 @@ export async function POST(req: Request) {
         visibility: "PUBLIC",
         isJoinable: false,
         inviteCode,
-        createdById: admin.userId,
+        createdById: admin.session.user.id,
       },
       select: { id: true },
     });
