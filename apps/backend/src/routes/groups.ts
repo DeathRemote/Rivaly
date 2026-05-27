@@ -31,19 +31,117 @@ export async function registerGroupRoutes(app: FastifyInstance) {
         .parse(req.query);
 
       if (query.tab === "public") {
-        const publicGroups = await prisma.group.findMany({
-          where: { visibility: "PUBLIC" },
+        // 1) Ensure the user is a member of any official public group for seasons they participate in.
+        const seasons = await prisma.group.findMany({
+          where: { members: { some: { userId } }, competitionSeasonId: { not: null } },
+          distinct: ["competitionSeasonId"],
+          select: { competitionSeasonId: true },
+        });
+
+        const seasonIds = seasons.map((s) => s.competitionSeasonId).filter(Boolean) as string[];
+
+        const official =
+          seasonIds.length === 0
+            ? []
+            : await prisma.officialPublicGroup.findMany({
+                where: { competitionSeasonId: { in: seasonIds } },
+                select: { groupId: true },
+              });
+
+        for (const o of official) {
+          await prisma.groupMember.upsert({
+            where: { groupId_userId: { groupId: o.groupId, userId } },
+            create: { groupId: o.groupId, userId, role: "MEMBER", points: 0 },
+            update: {},
+            select: { id: true },
+          });
+        }
+
+        // 2) Your public groups (ranked)
+        const yourPublicMemberships = await prisma.groupMember.findMany({
+          where: { userId, group: { visibility: "PUBLIC" } },
+          select: {
+            groupId: true,
+            points: true,
+            group: {
+              select: {
+                id: true,
+                name: true,
+                competition: true,
+                visibility: true,
+                isJoinable: true,
+                _count: { select: { members: true } },
+                members: {
+                  orderBy: { points: "desc" },
+                  take: 3,
+                  select: { userId: true, points: true, user: { select: { name: true, username: true } } },
+                },
+              },
+            },
+          },
+          orderBy: { createdAt: "desc" },
+          take: query.take,
+        });
+
+        const yourPublicGroupIds = yourPublicMemberships.map((m) => m.groupId);
+
+        const yourRanks =
+          yourPublicGroupIds.length === 0
+            ? []
+            : await prisma.$queryRaw<Array<{ groupId: string; rank: number }>>`
+              SELECT "groupId", "rank" FROM (
+                SELECT
+                  "groupId",
+                  "userId",
+                  DENSE_RANK() OVER (PARTITION BY "groupId" ORDER BY "points" DESC)::int AS "rank"
+                FROM "GroupMember"
+                WHERE "groupId" IN (${Prisma.join(yourPublicGroupIds)})
+              ) t
+              WHERE "userId" = ${userId}
+            `;
+
+        const rankByGroupId = new Map(yourRanks.map((r) => [r.groupId, r.rank] as const));
+
+        const yourPublicGroups: any[] = yourPublicMemberships.map((m) => {
+          const top3 = m.group.members.map((row, idx) => ({
+            position: idx + 1,
+            name: row.user.username ?? row.user.name ?? "Unknown",
+            points: row.points,
+            isYou: row.userId === userId,
+          }));
+
+          return {
+            id: m.group.id,
+            name: m.group.name,
+            competition: m.group.competition,
+            memberCount: m.group._count.members,
+            yourRank: rankByGroupId.get(m.groupId) ?? null,
+            yourPoints: m.points,
+            top3,
+            isMember: true,
+            isJoinable: m.group.isJoinable,
+          };
+        });
+
+        // 3) Other joinable public groups (not yet joined)
+        const other = await prisma.group.findMany({
+          where: {
+            visibility: "PUBLIC",
+            isJoinable: true,
+            members: { none: { userId } },
+          },
           select: {
             id: true,
             name: true,
             competition: true,
+            isJoinable: true,
             _count: { select: { members: true } },
           },
           orderBy: { createdAt: "desc" },
           take: query.take,
         });
 
-        const groups: GroupCardData[] = publicGroups.map((g) => ({
+        const otherPublicGroups = other.map((g) => ({
           id: g.id,
           name: g.name,
           competition: g.competition,
@@ -51,9 +149,11 @@ export async function registerGroupRoutes(app: FastifyInstance) {
           yourRank: null,
           yourPoints: 0,
           top3: [],
+          isMember: false,
+          isJoinable: g.isJoinable,
         }));
 
-        return { groups };
+        return { yourPublicGroups, otherPublicGroups };
       }
 
       const memberships = await prisma.groupMember.findMany({
@@ -141,17 +241,33 @@ export async function registerGroupRoutes(app: FastifyInstance) {
 
       const group = await prisma.group.findUnique({
         where: { inviteCode: body.inviteCode },
-        select: { id: true },
+        select: { id: true, competitionSeasonId: true },
       });
 
       if (!group) return reply.code(404).send({ error: "Group not found" });
 
       await prisma.groupMember.upsert({
         where: { groupId_userId: { groupId: group.id, userId } },
-        create: { groupId: group.id, userId },
+        create: { groupId: group.id, userId, role: "MEMBER", points: 0 },
         update: {},
         select: { id: true },
       });
+
+      // Auto-join official public group for the same season (if configured).
+      if (group.competitionSeasonId) {
+        const official = await prisma.officialPublicGroup.findUnique({
+          where: { competitionSeasonId: group.competitionSeasonId },
+          select: { groupId: true },
+        });
+        if (official) {
+          await prisma.groupMember.upsert({
+            where: { groupId_userId: { groupId: official.groupId, userId } },
+            create: { groupId: official.groupId, userId, role: "MEMBER", points: 0 },
+            update: {},
+            select: { id: true },
+          });
+        }
+      }
 
       return { ok: true, groupId: group.id };
     } catch (err: any) {

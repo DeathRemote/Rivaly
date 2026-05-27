@@ -13,6 +13,7 @@ import { registerGroupLeaderboardRoutes } from "./routes/groupLeaderboard.js";
 import { registerGroupMatchesRoutes } from "./routes/groupMatches.js";
 import { registerGroupTablesRoutes } from "./routes/groupTables.js";
 import { registerGroupLeaderboardSummaryRoutes } from "./routes/groupLeaderboardSummary.js";
+import { registerPublicGroupRoutes } from "./routes/publicGroups.js";
 
 const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3001),
@@ -77,6 +78,7 @@ await registerGroupLeaderboardRoutes(app);
 await registerGroupMatchesRoutes(app);
 await registerGroupTablesRoutes(app);
 await registerGroupLeaderboardSummaryRoutes(app);
+await registerPublicGroupRoutes(app);
 
 app.get("/api/public/competition-seasons/:id", async (req, reply) => {
   const params = z
@@ -111,6 +113,7 @@ app.get("/", async () => {
       "GET /api/internal/dashboard",
       "GET /api/internal/groups?tab=my|public",
       "POST /api/internal/groups/join",
+      "POST /api/internal/public-groups/join",
       "GET /api/public/invites/:inviteCode",
       "GET /api/internal/groups/:groupId",
       "GET /api/internal/groups/:groupId/leaderboard",

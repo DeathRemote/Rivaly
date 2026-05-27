@@ -42,6 +42,21 @@ export type CreateGroupResult =
   | { ok: true; groupId: string; inviteCode: string }
   | { ok: false; error: string };
 
+async function ensureOfficialPublicMembership(opts: { userId: string; competitionSeasonId: string }) {
+  const official = await prisma.officialPublicGroup.findUnique({
+    where: { competitionSeasonId: opts.competitionSeasonId },
+    select: { groupId: true },
+  });
+
+  if (!official) return;
+
+  await prisma.groupMember.upsert({
+    where: { groupId_userId: { groupId: official.groupId, userId: opts.userId } },
+    create: { groupId: official.groupId, userId: opts.userId, role: "MEMBER", points: 0 },
+    update: {},
+  });
+}
+
 export async function createGroupAction(input: CreateGroupInput): Promise<CreateGroupResult> {
   const session = await auth();
   const userId = session?.user?.id;
@@ -135,6 +150,11 @@ export async function createGroupAction(input: CreateGroupInput): Promise<Create
         }
       }
 
+      // Auto-join the official public group for this competition season (if it exists).
+      if (created.competitionSeasonId) {
+        await ensureOfficialPublicMembership({ userId, competitionSeasonId: created.competitionSeasonId });
+      }
+
       revalidatePath("/groups");
       return { ok: true, groupId: created.id, inviteCode: created.inviteCode };
     } catch (err) {
@@ -172,7 +192,7 @@ export async function joinGroupAction(input: JoinGroupInput): Promise<JoinGroupR
 
   const group = await prisma.group.findUnique({
     where: { inviteCode },
-    select: { id: true, name: true },
+    select: { id: true, name: true, competitionSeasonId: true },
   });
 
   if (!group) return { ok: false, error: "That invite code doesn’t match any group." };
@@ -197,6 +217,10 @@ export async function joinGroupAction(input: JoinGroupInput): Promise<JoinGroupR
       select: { id: true },
     });
 
+    if (group.competitionSeasonId) {
+      await ensureOfficialPublicMembership({ userId, competitionSeasonId: group.competitionSeasonId });
+    }
+
     revalidatePath("/groups");
     return { ok: true, groupId: group.id, groupName: group.name };
   } catch (err) {
@@ -207,6 +231,38 @@ export async function joinGroupAction(input: JoinGroupInput): Promise<JoinGroupR
 
     return { ok: false, error: "Failed to join group. Please try again." };
   }
+}
+
+const joinPublicGroupSchema = z.object({
+  groupId: z.string().min(1),
+});
+
+export async function joinPublicGroupAction(input: { groupId: string }): Promise<{ ok: true } | { ok: false; error: string }> {
+  const session = await auth();
+  const userId = session?.user?.id;
+  if (!userId) return { ok: false, error: "You must be logged in." };
+
+  const parsed = joinPublicGroupSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "Invalid input." };
+
+  const group = await prisma.group.findUnique({
+    where: { id: parsed.data.groupId },
+    select: { id: true, visibility: true, isJoinable: true },
+  });
+
+  if (!group) return { ok: false, error: "Group not found." };
+  if (group.visibility !== "PUBLIC" || !group.isJoinable) {
+    return { ok: false, error: "This public group is not joinable." };
+  }
+
+  await prisma.groupMember.upsert({
+    where: { groupId_userId: { groupId: group.id, userId } },
+    create: { groupId: group.id, userId, role: "MEMBER", points: 0 },
+    update: {},
+  });
+
+  revalidatePath("/groups");
+  return { ok: true };
 }
 
 const leaveGroupSchema = z.object({

@@ -11,6 +11,8 @@ export type GroupCardData = {
   yourRank: number | null;
   yourPoints: number;
   top3: Array<{ position: number; name: string; points: number; isYou?: boolean }>;
+  isMember?: boolean;
+  isJoinable?: boolean;
 };
 
 async function _getGroups(userId: string, tab: "my" | "public") {
@@ -25,7 +27,7 @@ async function _getGroups(userId: string, tab: "my" | "public") {
   });
 
   if (!res.ok) throw new Error(await res.text());
-  return (await res.json()) as { groups: GroupCardData[] };
+  return (await res.json()) as any;
 }
 
 export const getGroupsForUser = unstable_cache(
@@ -33,6 +35,26 @@ export const getGroupsForUser = unstable_cache(
   ["backend-groups"],
   { revalidate: 30 },
 );
+
+export async function joinPublicGroup(userId: string, groupId: string): Promise<{ ok: true }> {
+  const backendBase = getBackendBaseUrl();
+  const backendSecret = getBackendJwtSecret();
+  if (!backendBase || !backendSecret) throw new Error("Backend not configured");
+
+  const bearer = await signBackendUserToken({ userId, secret: backendSecret });
+  const res = await fetch(`${backendBase}/api/internal/public-groups/join`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${bearer}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ groupId }),
+    cache: "no-store",
+  });
+
+  if (!res.ok) throw new Error(await res.text());
+  return (await res.json()) as { ok: true };
+}
 
 export async function joinGroupByInviteCode(
   userId: string,

@@ -163,6 +163,10 @@ model Group {
   // Legacy/free-text competition label (kept for now to avoid breaking existing flows)
   competition String
 
+  // Public groups can be browseable. Joinable controls whether users can opt-in.
+  // Official global public groups are NOT joinable; membership is automatic.
+  isJoinable  Boolean         @default(false)
+
   // New: group is tied to a canonical competition season (enables shared fixtures)
   competitionSeasonId String?
   competitionSeason   CompetitionSeason? @relation(fields: [competitionSeasonId], references: [id], onDelete: SetNull)
@@ -175,6 +179,7 @@ model Group {
 
   members GroupMember[]
   pointsEvents PointsEvent[]
+  officialPublicGroup OfficialPublicGroup?
 
   // Precomputed aggregates
   memberAccuracyAggregates GroupMemberAccuracyAggregate[]
@@ -187,6 +192,17 @@ model Group {
   @@index([createdById])
   @@index([sport])
   @@index([competitionSeasonId])
+}
+
+model OfficialPublicGroup {
+  id                 String @id @default(cuid())
+  competitionSeasonId String @unique
+  groupId             String @unique
+
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  group             Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
 }
 
 model GroupMember {
@@ -333,6 +349,7 @@ model CompetitionSeason {
   matches          Match[]
   standingsRows    StandingsRow[]
   groups           Group[]
+  officialPublicGroup OfficialPublicGroup?
 
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
