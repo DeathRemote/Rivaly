@@ -85,11 +85,18 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
       }
 
       if (query.bucket === "completed") {
-        baseWhere.status = "FINISHED";
+        // Completed = finished OR we have a persisted result.
+        // Some provider status strings map to UNKNOWN even when scores are in.
+        baseWhere.OR = [{ status: "FINISHED" }, { result: { isNot: null } }];
+
         if (cursorKickoffAt && cursorId) {
-          baseWhere.OR = [
-            { kickoffAt: { lt: cursorKickoffAt } },
-            { kickoffAt: cursorKickoffAt, id: { lt: cursorId } },
+          baseWhere.AND = [
+            {
+              OR: [
+                { kickoffAt: { lt: cursorKickoffAt } },
+                { kickoffAt: cursorKickoffAt, id: { lt: cursorId } },
+              ],
+            },
           ];
         }
       }
