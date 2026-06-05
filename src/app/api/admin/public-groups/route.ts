@@ -59,7 +59,7 @@ export async function POST(req: Request) {
   // Users get membership automatically via season participation.
   const inviteCode = Math.random().toString(36).slice(2, 10).toUpperCase();
 
-  const createdById = admin.session.user.id;
+  const createdById = admin.session.user?.id;
   if (!createdById) {
     // Should never happen if auth() is configured correctly, but Prisma requires a non-null string.
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
