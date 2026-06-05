@@ -672,6 +672,38 @@ export function AdminPageClient({
 
                         <button
                           type="button"
+                          disabled={busy || !!s.archivedAt}
+                          onClick={() => {
+                            startTransition(async () => {
+                              setImportMessage("Creating public group…");
+                              const res = await fetch(`/api/admin/public-groups`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ competitionSeasonId: s.id }),
+                              });
+                              const json = await res.json().catch(() => null);
+                              if (!res.ok || !json?.ok) {
+                                setImportMessage(json?.error ? `Failed: ${json.error}` : "Failed");
+                                return;
+                              }
+                              setImportMessage(
+                                json.created
+                                  ? `Public group created. Backfilled ${json.membersBackfilled ?? 0} users.`
+                                  : "Public group already exists.",
+                              );
+                            });
+                          }}
+                          className={cn(
+                            "h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.22em]",
+                            "border border-white/10 bg-lime-300/10 text-lime-100 hover:bg-lime-300/15 transition",
+                            (busy || s.archivedAt) && "opacity-60 cursor-not-allowed",
+                          )}
+                        >
+                          Create public group
+                        </button>
+
+                        <button
+                          type="button"
                           disabled={busy}
                           onClick={() => {
                             const ok = confirm(

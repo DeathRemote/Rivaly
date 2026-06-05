@@ -38,7 +38,11 @@ export default async function GroupsPage({
   const userId = session.user.id;
   if (!userId) redirect("/login?callbackUrl=/groups");
 
-  const { groups } = await getGroupsForUser(userId, tab);
+  const data = await getGroupsForUser(userId, tab);
+
+  const groups = (data as any).groups ?? [];
+  const yourPublicGroups = (data as any).yourPublicGroups ?? [];
+  const otherPublicGroups = (data as any).otherPublicGroups ?? [];
 
   const hasGroups = tab === "my" ? groups.length > 0 : true;
 
@@ -52,6 +56,8 @@ export default async function GroupsPage({
         tab={tab}
         hasGroups={hasGroups}
         groups={groups}
+        yourPublicGroups={tab === "public" ? yourPublicGroups : undefined}
+        otherPublicGroups={tab === "public" ? otherPublicGroups : undefined}
         initialCreateOpen={create}
         initialJoinOpen={join}
       />

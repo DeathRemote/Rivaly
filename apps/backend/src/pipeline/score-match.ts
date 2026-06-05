@@ -160,26 +160,93 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       RETURNING "groupId", "userId", "points";
     `);
 
-    // Apply deltas only for newly inserted events (idempotent).
-    if (inserted.length > 0) {
-      const gIds = inserted.map((r) => r.groupId);
-      const uIds = inserted.map((r) => r.userId);
-      const pts = inserted.map((r) => r.points);
+    // Canonical season scoring: insert ONE season event per user+match.
+    // (A user might be in multiple groups for the season; we must not double-score.)
+    if (match.competitionSeasonId && inserted.length > 0) {
+      // Dedup per user (use inserted since it's already derived from eligible members).
+      const byUser = new Map<string, { userId: string; points: number }>();
+      for (const row of inserted) {
+        if (!byUser.has(row.userId)) byUser.set(row.userId, { userId: row.userId, points: row.points });
+      }
 
-      await tx.$executeRaw(Prisma.sql`
-        WITH delta AS (
-          SELECT "groupId", "userId", SUM("points")::int AS points
-          FROM UNNEST(
-            ${gIds}::text[],
-            ${uIds}::text[],
-            ${pts}::int[]
-          ) AS t("groupId", "userId", "points")
-          GROUP BY "groupId", "userId"
+      const userIdsUniq = Array.from(byUser.values()).map((r) => r.userId);
+      const pointsUniq = Array.from(byUser.values()).map((r) => r.points);
+      const idsUniq = userIdsUniq.map(() => uuid());
+      const createdAt = userIdsUniq.map(() => new Date());
+
+      const seasonIds = userIdsUniq.map(() => match.competitionSeasonId as string);
+      const scoringSystems = userIdsUniq.map(() => "CLASSIC");
+      const matchIds = userIdsUniq.map(() => payload.matchId);
+      const typesUniq = userIdsUniq.map(() => "PREDICTION_SCORED");
+
+      const seasonInserted = await tx.$queryRaw<Array<{ userId: string; points: number }>>(Prisma.sql`
+        INSERT INTO "SeasonPointsEvent" (
+          "id",
+          "competitionSeasonId",
+          "scoringSystem",
+          "userId",
+          "matchId",
+          "type",
+          "points",
+          "createdAt"
         )
+        SELECT * FROM UNNEST(
+          ${idsUniq}::text[],
+          ${seasonIds}::text[],
+          ${scoringSystems}::"ScoringSystem"[],
+          ${userIdsUniq}::text[],
+          ${matchIds}::text[],
+          ${typesUniq}::"SeasonPointsEventType"[],
+          ${pointsUniq}::int[],
+          ${createdAt}::timestamptz[]
+        )
+        ON CONFLICT ("competitionSeasonId", "scoringSystem", "userId", "matchId", "type") DO NOTHING
+        RETURNING "userId", "points";
+      `);
+
+      if (seasonInserted.length > 0) {
+        const uIds = seasonInserted.map((r) => r.userId);
+        const pts = seasonInserted.map((r) => r.points);
+        const rowIds = uIds.map(() => uuid());
+        const seasonArr = uIds.map(() => match.competitionSeasonId as string);
+        const ssArr = uIds.map(() => "CLASSIC");
+        const updatedAtArr = uIds.map(() => new Date());
+
+        await tx.$executeRaw(Prisma.sql`
+          INSERT INTO "SeasonUserPoints" (
+            "id",
+            "competitionSeasonId",
+            "scoringSystem",
+            "userId",
+            "points",
+            "updatedAt"
+          )
+          SELECT * FROM UNNEST(
+            ${rowIds}::text[],
+            ${seasonArr}::text[],
+            ${ssArr}::"ScoringSystem"[],
+            ${uIds}::text[],
+            ${pts}::int[],
+            ${updatedAtArr}::timestamptz[]
+          )
+          ON CONFLICT ("competitionSeasonId", "scoringSystem", "userId")
+          DO UPDATE SET "points" = "SeasonUserPoints"."points" + EXCLUDED."points", "updatedAt" = NOW();
+        `);
+      }
+
+      // Sync all classic groups' GroupMember.points to the canonical SeasonUserPoints.
+      await tx.$executeRaw(Prisma.sql`
         UPDATE "GroupMember" gm
-        SET "points" = gm."points" + delta.points
-        FROM delta
-        WHERE gm."groupId" = delta."groupId" AND gm."userId" = delta."userId";
+        SET "points" = sup."points"
+        FROM "Group" g
+        JOIN "SeasonUserPoints" sup
+          ON sup."competitionSeasonId" = g."competitionSeasonId"
+         AND sup."scoringSystem" = g."scoringSystem"
+         AND sup."userId" = gm."userId"
+        WHERE gm."groupId" = g."id"
+          AND g."competitionSeasonId" = ${match.competitionSeasonId}
+          AND g."scoringSystem" = 'CLASSIC'::"ScoringSystem"
+          AND gm."userId" IN (${Prisma.join(userIdsUniq)});
       `);
     }
 

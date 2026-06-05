@@ -28,13 +28,13 @@ enum AccountTier {
 }
 
 model User {
-  id            String    @id @default(cuid())
+  id            String      @id @default(cuid())
   name          String?
-  username      String?   @unique
+  username      String?     @unique
   country       String?
   role          UserRole    @default(USER)
   accountTier   AccountTier @default(FREE)
-  email         String?   @unique
+  email         String?     @unique
   image         String?
   emailVerified DateTime?
 
@@ -42,8 +42,8 @@ model User {
   sessions Session[]
 
   // Groups
-  createdGroups    Group[]       @relation("UserCreatedGroups")
-  groupMemberships GroupMember[]
+  createdGroups           Group[]                        @relation("UserCreatedGroups")
+  groupMemberships        GroupMember[]
   groupAccuracyAggregates GroupMemberAccuracyAggregate[]
 
   // Aggregates
@@ -57,6 +57,9 @@ model User {
   passwordResetTokens PasswordResetToken[]
   predictions         Prediction[]
   pointsEvents        PointsEvent[]
+
+  seasonPointsEvents SeasonPointsEvent[]
+  seasonUserPoints   SeasonUserPoints[]
 }
 
 model Account {
@@ -127,6 +130,10 @@ enum GroupMemberRole {
   ADMIN
 }
 
+enum ScoringSystem {
+  CLASSIC
+}
+
 enum Sport {
   SOCCER
   BASKETBALL
@@ -136,8 +143,8 @@ enum Sport {
 
 model SportConfig {
   // Controls what sports are selectable in group creation.
-  sport    Sport   @id
-  enabled  Boolean @default(true)
+  sport   Sport   @id
+  enabled Boolean @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -157,36 +164,103 @@ enum MatchStatus {
 }
 
 model Group {
-  id          String          @id @default(cuid())
+  id          String @id @default(cuid())
   name        String
   sport       Sport
   // Legacy/free-text competition label (kept for now to avoid breaking existing flows)
   competition String
 
+  // Public groups can be browseable. Joinable controls whether users can opt-in.
+  // Official global public groups are NOT joinable; membership is automatic.
+  isJoinable Boolean @default(false)
+
+  // Points can vary by scoring system. Groups with same season+scoringSystem share points.
+  scoringSystem ScoringSystem @default(CLASSIC)
+
   // New: group is tied to a canonical competition season (enables shared fixtures)
   competitionSeasonId String?
   competitionSeason   CompetitionSeason? @relation(fields: [competitionSeasonId], references: [id], onDelete: SetNull)
 
-  inviteCode  String          @unique
-  visibility  GroupVisibility @default(PRIVATE)
+  inviteCode String          @unique
+  visibility GroupVisibility @default(PRIVATE)
 
   createdById String
   createdBy   User   @relation("UserCreatedGroups", fields: [createdById], references: [id], onDelete: Cascade)
 
-  members GroupMember[]
-  pointsEvents PointsEvent[]
+  members             GroupMember[]
+  pointsEvents        PointsEvent[]
+  officialPublicGroup OfficialPublicGroup?
 
   // Precomputed aggregates
   memberAccuracyAggregates GroupMemberAccuracyAggregate[]
-  momentumAggregate GroupMomentumAggregate?
+  momentumAggregate        GroupMomentumAggregate?
 
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([visibility])
   @@index([createdById])
   @@index([sport])
   @@index([competitionSeasonId])
+}
+
+model OfficialPublicGroup {
+  id                  String @id @default(cuid())
+  competitionSeasonId String @unique
+  groupId             String @unique
+
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  group             Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+}
+
+enum SeasonPointsEventType {
+  PREDICTION_SCORED
+}
+
+// Canonical scoring ledger per season+scoringSystem. This prevents double-scoring
+// for users who are members of multiple groups in the same season.
+model SeasonPointsEvent {
+  id                  String        @id @default(cuid())
+  competitionSeasonId String
+  scoringSystem       ScoringSystem @default(CLASSIC)
+
+  userId  String
+  matchId String
+
+  type   SeasonPointsEventType
+  points Int
+  reason String?
+  meta   Json?
+
+  createdAt DateTime @default(now())
+
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match             Match             @relation(fields: [matchId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionSeasonId, scoringSystem, userId, matchId, type])
+  @@index([competitionSeasonId])
+  @@index([userId])
+  @@index([matchId])
+}
+
+model SeasonUserPoints {
+  id                  String        @id @default(cuid())
+  competitionSeasonId String
+  scoringSystem       ScoringSystem @default(CLASSIC)
+  userId              String
+
+  points    Int      @default(0)
+  updatedAt DateTime @updatedAt
+
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([competitionSeasonId, scoringSystem, userId])
+  @@index([competitionSeasonId])
+  @@index([userId])
 }
 
 model GroupMember {
@@ -206,16 +280,16 @@ model GroupMember {
 }
 
 model GroupMemberAccuracyAggregate {
-  id                String   @id @default(cuid())
-  groupId            String
-  userId             String
-  scoredTotal        Int      @default(0)
-  correctTotal       Int      @default(0)
-  last7d             Int      @default(0)
-  prev7d             Int      @default(0)
-  accuracyPctCached  Float?
+  id                String @id @default(cuid())
+  groupId           String
+  userId            String
+  scoredTotal       Int    @default(0)
+  correctTotal      Int    @default(0)
+  last7d            Int    @default(0)
+  prev7d            Int    @default(0)
+  accuracyPctCached Float?
 
-  updatedAt          DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -226,18 +300,18 @@ model GroupMemberAccuracyAggregate {
 }
 
 model GroupMomentumAggregate {
-  id                 String   @id @default(cuid())
-  groupId             String  @unique
+  id      String @id @default(cuid())
+  groupId String @unique
 
-  totalScored         Int      @default(0)
-  correctScored       Int      @default(0)
-  memberCountSnapshot Int      @default(0)
-  momentumPctCached   Int      @default(0)
+  totalScored         Int @default(0)
+  correctScored       Int @default(0)
+  memberCountSnapshot Int @default(0)
+  momentumPctCached   Int @default(0)
 
-  windowStart         DateTime
-  windowEnd           DateTime
+  windowStart DateTime
+  windowEnd   DateTime
 
-  updatedAt           DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
 
@@ -245,18 +319,18 @@ model GroupMomentumAggregate {
 }
 
 model UserPredictionStatsAggregate {
-  id              String   @id @default(cuid())
-  userId          String   @unique
+  id     String @id @default(cuid())
+  userId String @unique
 
-  lifetimeTotal   Int      @default(0)
-  lifetimeCorrect Int      @default(0)
-  lifetimePoints  Int      @default(0)
-  avgPoints       Float    @default(0)
+  lifetimeTotal   Int   @default(0)
+  lifetimeCorrect Int   @default(0)
+  lifetimePoints  Int   @default(0)
+  avgPoints       Float @default(0)
 
-  recent30dTotal   Int     @default(0)
-  recent30dCorrect Int     @default(0)
+  recent30dTotal   Int @default(0)
+  recent30dCorrect Int @default(0)
 
-  updatedAt       DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -288,38 +362,38 @@ model Prediction {
 }
 
 model Competition {
-  id               String   @id @default(cuid())
-  sport            Sport
-  name             String
-  country          String?
-  published        Boolean  @default(false)
+  id        String  @id @default(cuid())
+  sport     Sport
+  name      String
+  country   String?
+  published Boolean @default(false)
 
   provider         Provider?
   providerLeagueId String?
 
-  seasons          CompetitionSeason[]
+  seasons CompetitionSeason[]
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([provider, providerLeagueId])
   @@index([sport, published])
 }
 
 model CompetitionSeason {
-  id               String   @id @default(cuid())
-  competitionId    String
-  seasonLabel      String // e.g. "2026"
-  published        Boolean  @default(false)
+  id            String  @id @default(cuid())
+  competitionId String
+  seasonLabel   String // e.g. "2026"
+  published     Boolean @default(false)
 
   // Soft-delete / hide from admin + group creation without breaking existing relations.
-  archivedAt       DateTime?
+  archivedAt DateTime?
 
   provider         Provider?
   providerSeasonId String?
 
-  startsAt         DateTime?
-  endsAt           DateTime?
+  startsAt DateTime?
+  endsAt   DateTime?
 
   // Standings sync metadata
   standingsUpdatedAt DateTime?
@@ -328,14 +402,18 @@ model CompetitionSeason {
   fixturesSyncedAt  DateTime?
   fixturesSyncError String?
 
-  competition      Competition @relation(fields: [competitionId], references: [id], onDelete: Cascade)
-  phases           CompetitionPhase[]
-  matches          Match[]
-  standingsRows    StandingsRow[]
-  groups           Group[]
+  competition         Competition          @relation(fields: [competitionId], references: [id], onDelete: Cascade)
+  phases              CompetitionPhase[]
+  matches             Match[]
+  standingsRows       StandingsRow[]
+  groups              Group[]
+  officialPublicGroup OfficialPublicGroup?
 
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  seasonPointsEvents SeasonPointsEvent[]
+  seasonUserPoints   SeasonUserPoints[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([competitionId, seasonLabel])
   @@unique([provider, providerSeasonId])
@@ -350,56 +428,56 @@ enum CompetitionPhaseType {
 }
 
 model CompetitionPhase {
-  id                 String   @id @default(cuid())
+  id                  String               @id @default(cuid())
   competitionSeasonId String
-  name               String   // e.g. "Regular Season"
-  order              Int      @default(0)
-  type               CompetitionPhaseType @default(LEAGUE)
+  name                String // e.g. "Regular Season"
+  order               Int                  @default(0)
+  type                CompetitionPhaseType @default(LEAGUE)
 
-  competitionSeason  CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
-  matches            Match[]
-  standingsRows      StandingsRow[]
-  groups             CompetitionGroup[]
+  competitionSeason CompetitionSeason  @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  matches           Match[]
+  standingsRows     StandingsRow[]
+  groups            CompetitionGroup[]
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([competitionSeasonId, name])
   @@index([competitionSeasonId, type])
 }
 
 model CompetitionGroup {
-  id                 String   @id @default(cuid())
+  id                 String @id @default(cuid())
   competitionPhaseId String
-  key                String   // e.g. "A"
-  name               String   // e.g. "Group A"
-  order              Int      @default(0)
+  key                String // e.g. "A"
+  name               String // e.g. "Group A"
+  order              Int    @default(0)
 
-  competitionPhase   CompetitionPhase @relation(fields: [competitionPhaseId], references: [id], onDelete: Cascade)
-  matches            Match[]
-  standingsRows      StandingsRow[]
+  competitionPhase CompetitionPhase @relation(fields: [competitionPhaseId], references: [id], onDelete: Cascade)
+  matches          Match[]
+  standingsRows    StandingsRow[]
 
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([competitionPhaseId, key])
   @@index([competitionPhaseId, order])
 }
 
 model Team {
-  id              String   @id @default(cuid())
-  name            String
-  shortName       String?
+  id        String  @id @default(cuid())
+  name      String
+  shortName String?
 
-  provider        Provider?
-  providerTeamId  String?
+  provider       Provider?
+  providerTeamId String?
 
-  homeMatches     Match[]  @relation("HomeTeam")
-  awayMatches     Match[]  @relation("AwayTeam")
-  standingsRows   StandingsRow[]
+  homeMatches   Match[]        @relation("HomeTeam")
+  awayMatches   Match[]        @relation("AwayTeam")
+  standingsRows StandingsRow[]
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([provider, providerTeamId])
 }
@@ -418,44 +496,45 @@ enum KnockoutRound {
 }
 
 model Match {
-  id                   String      @id @default(cuid())
-  competitionSeasonId  String
-  competitionPhaseId   String?
-  competitionGroupId   String?
+  id                  String  @id @default(cuid())
+  competitionSeasonId String
+  competitionPhaseId  String?
+  competitionGroupId  String?
 
-  homeTeamId           String
-  awayTeamId           String
+  homeTeamId String
+  awayTeamId String
 
-  kickoffAt            DateTime
-  status               MatchStatus @default(SCHEDULED)
+  kickoffAt DateTime
+  status    MatchStatus @default(SCHEDULED)
 
-  provider             Provider?
-  providerMatchId      String?
-  providerRound        Int?
-  providerGroupKey     String?
+  provider         Provider?
+  providerMatchId  String?
+  providerRound    Int?
+  providerGroupKey String?
 
   // For knockout matches (optional; can be derived from providerRound in importer)
-  knockoutRound        KnockoutRound?
+  knockoutRound KnockoutRound?
 
-  visibleAt            DateTime?
-  lockAt               DateTime?
+  visibleAt DateTime?
+  lockAt    DateTime?
 
   // Result + processing
-  result               MatchResult?
-  finalizedAt          DateTime?
-  processedAt          DateTime?
-  pointsEvents         PointsEvent[]
-  predictions          Prediction[]
+  result             MatchResult?
+  finalizedAt        DateTime?
+  processedAt        DateTime?
+  pointsEvents       PointsEvent[]
+  seasonPointsEvents SeasonPointsEvent[]
+  predictions        Prediction[]
 
-  competitionSeason    CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
-  competitionPhase     CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
-  competitionGroup     CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  competitionPhase  CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
+  competitionGroup  CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
 
-  homeTeam             Team @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Restrict)
-  awayTeam             Team @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Restrict)
+  homeTeam Team @relation("HomeTeam", fields: [homeTeamId], references: [id], onDelete: Restrict)
+  awayTeam Team @relation("AwayTeam", fields: [awayTeamId], references: [id], onDelete: Restrict)
 
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([provider, providerMatchId])
   @@index([competitionSeasonId, kickoffAt])
@@ -465,18 +544,18 @@ model Match {
 }
 
 model MatchResult {
-  id          String @id @default(cuid())
-  matchId     String @unique
-  homeScore   Int
-  awayScore   Int
+  id        String @id @default(cuid())
+  matchId   String @unique
+  homeScore Int
+  awayScore Int
 
-  provider    Provider?
+  provider        Provider?
   providerEventId String?
 
-  match       Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum PointsEventType {
@@ -495,21 +574,21 @@ enum JobStatus {
 }
 
 model PointsEvent {
-  id        String @id @default(cuid())
-  type      PointsEventType @default(PREDICTION_SCORED)
+  id   String          @id @default(cuid())
+  type PointsEventType @default(PREDICTION_SCORED)
 
-  groupId   String
-  userId    String
-  matchId   String
+  groupId String
+  userId  String
+  matchId String
 
-  points    Int
+  points Int
 
-  reason    String?
-  meta      Json?
+  reason String?
+  meta   Json?
 
-  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  match     Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  match Match @relation(fields: [matchId], references: [id], onDelete: Cascade)
 
   createdAt DateTime @default(now())
 
@@ -520,15 +599,15 @@ model PointsEvent {
 }
 
 model Job {
-  id        String    @id @default(cuid())
-  type      JobType
-  status    JobStatus @default(QUEUED)
+  id     String    @id @default(cuid())
+  type   JobType
+  status JobStatus @default(QUEUED)
 
   // Used to make enqueuing idempotent (e.g. one SCORE_MATCH per matchId).
   // If null, the job is not deduped.
   dedupeKey String?
 
-  payload   Json
+  payload Json
 
   runAt     DateTime  @default(now())
   lockedAt  DateTime?
@@ -536,8 +615,8 @@ model Job {
   attempts  Int       @default(0)
   lastError String?
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([type, dedupeKey])
   @@index([status, runAt])
@@ -545,7 +624,7 @@ model Job {
 }
 
 model StandingsRow {
-  id                  String @id @default(cuid())
+  id                  String  @id @default(cuid())
   competitionSeasonId String
   competitionPhaseId  String?
   competitionGroupId  String?
@@ -554,30 +633,30 @@ model StandingsRow {
   // Examples:
   // - season:<seasonId>:phase:<phaseId>
   // - season:<seasonId>:phase:<phaseId>:group:<groupId>
-  scope               String
+  scope String
 
-  teamId              String
+  teamId String
 
-  position            Int
-  played              Int
-  wins                Int
-  draws               Int
-  losses              Int
-  goalsFor            Int @default(0)
-  goalsAgainst        Int @default(0)
-  goalDifference      Int
-  points              Int
+  position       Int
+  played         Int
+  wins           Int
+  draws          Int
+  losses         Int
+  goalsFor       Int @default(0)
+  goalsAgainst   Int @default(0)
+  goalDifference Int
+  points         Int
 
-  provider            Provider?
-  providerTeamId      String?
+  provider       Provider?
+  providerTeamId String?
 
-  competitionSeason   CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
-  competitionPhase    CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
-  competitionGroup    CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
-  team                Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  competitionSeason CompetitionSeason @relation(fields: [competitionSeasonId], references: [id], onDelete: Cascade)
+  competitionPhase  CompetitionPhase? @relation(fields: [competitionPhaseId], references: [id], onDelete: SetNull)
+  competitionGroup  CompetitionGroup? @relation(fields: [competitionGroupId], references: [id], onDelete: SetNull)
+  team              Team              @relation(fields: [teamId], references: [id], onDelete: Cascade)
 
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@unique([scope, teamId])
   @@index([competitionSeasonId, position])
