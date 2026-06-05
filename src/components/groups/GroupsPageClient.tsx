@@ -7,8 +7,10 @@ import { cn } from "@/lib/cn";
 
 import { EmptyState } from "@/components/groups/EmptyState";
 import { GroupCard, type GroupCardData } from "@/components/groups/GroupCard";
+import { PublicGroupJoinCard } from "@/components/groups/PublicGroupJoinCard";
 import { CreateGroupModal } from "@/components/groups/CreateGroupModal";
 import { JoinGroupModal } from "@/components/groups/JoinGroupModal";
+import { joinPublicGroupAction } from "@/app/groups/actions";
 
 type TabKey = "my" | "public";
 
@@ -16,12 +18,16 @@ export function GroupsPageClient({
   tab,
   hasGroups,
   groups,
+  yourPublicGroups,
+  otherPublicGroups,
   initialCreateOpen,
   initialJoinOpen,
 }: {
   tab: TabKey;
   hasGroups: boolean;
   groups: GroupCardData[];
+  yourPublicGroups?: GroupCardData[];
+  otherPublicGroups?: GroupCardData[];
   initialCreateOpen?: boolean;
   initialJoinOpen?: boolean;
 }) {
@@ -97,10 +103,53 @@ export function GroupsPageClient({
             <EmptyState onJoin={() => setJoinOpen(true)} onCreate={() => setCreateOpen(true)} />
           )
         ) : (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
-            {groups.map((g) => (
-              <GroupCard key={g.id} group={g} />
-            ))}
+          <div className="space-y-8">
+            <section className="space-y-4">
+              <div>
+                <h2 className="font-display text-xl font-black italic text-white">Your public groups</h2>
+                <p className="mt-1 text-sm text-white/50">
+                  Global arenas you’re automatically part of (based on the leagues you play).
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
+                {(yourPublicGroups ?? []).length ? (
+                  (yourPublicGroups ?? []).map((g) => <GroupCard key={g.id} group={g} />)
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-white/60">
+                    No public groups yet.
+                  </div>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-4">
+              <div>
+                <h2 className="font-display text-xl font-black italic text-white">Other public groups</h2>
+                <p className="mt-1 text-sm text-white/50">Opt into additional public arenas.</p>
+              </div>
+
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 2xl:grid-cols-3">
+                {(otherPublicGroups ?? []).length ? (
+                  (otherPublicGroups ?? []).map((g) => (
+                    <PublicGroupJoinCard
+                      key={g.id}
+                      group={g}
+                      onJoin={async () => {
+                        const res = await joinPublicGroupAction({ groupId: g.id });
+                        if (!res.ok) throw new Error(res.error);
+                        // Refresh server data so it appears under "Your public groups".
+                        window.location.reload();
+                      }}
+                    />
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-white/10 bg-white/5 p-6 text-white/60">
+                    No joinable public groups right now.
+                  </div>
+                )}
+              </div>
+            </section>
           </div>
         )}
       </div>
