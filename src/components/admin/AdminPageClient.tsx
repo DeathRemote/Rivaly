@@ -675,6 +675,34 @@ export function AdminPageClient({
                           disabled={busy || !!s.archivedAt}
                           onClick={() => {
                             startTransition(async () => {
+                              setImportMessage("Syncing standings…");
+                              const res = await fetch(`/api/admin/competition-seasons/${s.id}/sync-standings?reset=1`, {
+                                method: "POST",
+                              });
+                              const json = await res.json().catch(() => null);
+                              if (!res.ok || !json?.ok) {
+                                setImportMessage(json?.error ? `Standings sync failed: ${json.error}` : "Standings sync failed");
+                                await refreshSportsAndCatalog();
+                                return;
+                              }
+                              setImportMessage("Standings synced.");
+                              await refreshSportsAndCatalog();
+                            });
+                          }}
+                          className={cn(
+                            "h-10 rounded-xl px-4 text-xs font-black uppercase tracking-[0.22em]",
+                            "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 transition",
+                            (busy || s.archivedAt) && "opacity-60 cursor-not-allowed",
+                          )}
+                        >
+                          Sync standings
+                        </button>
+
+                        <button
+                          type="button"
+                          disabled={busy || !!s.archivedAt}
+                          onClick={() => {
+                            startTransition(async () => {
                               setImportMessage("Creating public group…");
                               const res = await fetch(`/api/admin/public-groups`, {
                                 method: "POST",
