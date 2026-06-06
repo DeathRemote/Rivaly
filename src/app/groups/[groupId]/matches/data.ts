@@ -1,6 +1,7 @@
 import type { PhaseType, MatchListItem } from "@/components/groups/matches/types";
 import { mockMatches } from "@/components/groups/matches/mock";
 import { prisma } from "@/lib/prisma";
+import { CompetitionPhaseType, Prisma } from "@prisma/client";
 
 function mapDbStatus(status: string): MatchListItem["status"] {
   switch (status) {
@@ -41,7 +42,7 @@ export async function getMatchesForGroup({
     include: { competition: true },
   });
 
-  const where =
+  const where: Prisma.MatchWhereInput =
     phaseType === "GROUP_STAGE"
       ? {
           competitionSeasonId: group.competitionSeasonId,
@@ -52,7 +53,7 @@ export async function getMatchesForGroup({
             competitionSeasonId: group.competitionSeasonId,
             OR: [
               { knockoutRound: { not: null } },
-              { competitionPhase: { is: { type: "KNOCKOUT" } } },
+              { competitionPhase: { is: { type: CompetitionPhaseType.KNOCKOUT } } },
             ],
           }
         : {
