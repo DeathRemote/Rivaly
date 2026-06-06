@@ -1,9 +1,11 @@
 import { prisma } from "@/lib/prisma";
 
+import { GroupStageTablesTabClient } from "@/components/groups/GroupStageTablesTabClient";
+
 export async function GroupTableTab({ competitionSeasonId }: { competitionSeasonId: string }) {
   const season = await prisma.competitionSeason.findUnique({
     where: { id: competitionSeasonId },
-    include: { competition: true },
+    include: { competition: true, phases: { select: { type: true } } },
   });
 
   if (!season) {
@@ -12,6 +14,15 @@ export async function GroupTableTab({ competitionSeasonId }: { competitionSeason
         No competition season linked to this group.
       </div>
     );
+  }
+
+  const phaseTypes = new Set(season.phases.map((p) => p.type));
+  const isGroupKnockout = phaseTypes.has("GROUP_STAGE") && phaseTypes.has("KNOCKOUT");
+
+  if (isGroupKnockout) {
+    // For group+knockout competitions (e.g. World Cup), we want the exact same group table UI as /tables.
+    // Tables data is resolved via the internal API which proxies the backend.
+    return <GroupStageTablesTabClient seasonId={competitionSeasonId} />;
   }
 
   const rows = await prisma.standingsRow.findMany({
