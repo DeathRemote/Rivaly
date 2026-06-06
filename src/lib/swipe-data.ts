@@ -146,6 +146,7 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
         id: true,
         kickoffAt: true,
         lockAt: true,
+        competitionGroupId: true,
         competitionSeasonId: true,
         competitionSeason: {
           select: {
