@@ -217,6 +217,7 @@ model OfficialPublicGroup {
 
 enum SeasonPointsEventType {
   PREDICTION_SCORED
+  GROUP_TABLE_BONUS
 }
 
 // Canonical scoring ledger per season+scoringSystem. This prevents double-scoring
@@ -560,6 +561,7 @@ model MatchResult {
 
 enum PointsEventType {
   PREDICTION_SCORED
+  GROUP_TABLE_BONUS
 }
 
 enum JobType {
