@@ -50,7 +50,10 @@ export async function getMatchesForGroup({
       : phaseType === "KNOCKOUT"
         ? {
             competitionSeasonId: group.competitionSeasonId,
-            OR: [{ knockoutRound: { not: null } }, { competitionPhase: { type: "KNOCKOUT" } }],
+            OR: [
+              { knockoutRound: { not: null } },
+              { competitionPhase: { is: { type: "KNOCKOUT" } } },
+            ],
           }
         : {
             competitionSeasonId: group.competitionSeasonId,
