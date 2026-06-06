@@ -135,22 +135,23 @@ export async function GroupPredictedTablesTab({
 
   const groupIds = groups.map((g) => g.id);
 
-  // Preload the official team list per group (from real standings rows). This keeps the UI stable
-  // even if the user hasn't predicted any match yet.
-  const officialRows = await prisma.standingsRow.findMany({
+  // Build the team list per group from fixtures (most reliable; exists before standings sync).
+  const groupMatches = await prisma.match.findMany({
     where: { competitionSeasonId, competitionGroupId: { in: groupIds } },
     select: {
       competitionGroupId: true,
-      team: { select: { id: true, name: true } },
+      homeTeam: { select: { id: true, name: true } },
+      awayTeam: { select: { id: true, name: true } },
     },
   });
 
   const teamsByGroup = new Map<string, { id: string; name: string }[]>();
-  for (const r of officialRows) {
-    const gid = r.competitionGroupId;
+  for (const m of groupMatches) {
+    const gid = m.competitionGroupId;
     if (!gid) continue;
     const arr = teamsByGroup.get(gid) ?? [];
-    if (!arr.some((t) => t.id === r.team.id)) arr.push(r.team);
+    if (!arr.some((t) => t.id === m.homeTeam.id)) arr.push(m.homeTeam);
+    if (!arr.some((t) => t.id === m.awayTeam.id)) arr.push(m.awayTeam);
     teamsByGroup.set(gid, arr);
   }
 
@@ -215,7 +216,7 @@ export async function GroupPredictedTablesTab({
                 {rows.length ? (
                   <StandingsMiniTable rows={rows} />
                 ) : (
-                  <div className="mt-3 text-sm font-medium text-white/55">No predictions yet.</div>
+                  <div className="mt-3 text-sm font-medium text-white/55">No teams yet.</div>
                 )}
               </div>
             );
