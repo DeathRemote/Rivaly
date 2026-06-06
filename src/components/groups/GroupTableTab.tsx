@@ -16,8 +16,16 @@ export async function GroupTableTab({ competitionSeasonId }: { competitionSeason
     );
   }
 
-  // Heuristic: if this season has any group-scoped standings rows, we should render the /tables group-stage UI.
-  // This covers true group+knockout competitions (World Cup) even if the knockout phase isn't imported yet.
+  // Trigger: if the competition season has a group stage structure (CompetitionGroups), render the /tables group UI.
+  // This is more robust than relying on phases (KNOCKOUT might not be imported yet).
+  const hasCompetitionGroups = Boolean(
+    await prisma.competitionGroup.findFirst({
+      where: { competitionPhase: { competitionSeasonId } },
+      select: { id: true },
+    }),
+  );
+
+  // Fallback trigger: group-scoped standings rows.
   const hasGroupTables = Boolean(
     await prisma.standingsRow.findFirst({
       where: { competitionSeasonId, competitionGroupId: { not: null } },
@@ -25,7 +33,7 @@ export async function GroupTableTab({ competitionSeasonId }: { competitionSeason
     }),
   );
 
-  if (hasGroupTables) {
+  if (hasCompetitionGroups || hasGroupTables) {
     // For group-stage style competitions, we want the exact same group table UI as /tables.
     // Tables data is resolved via the internal API which proxies the backend.
     return <GroupStageTablesTabClient seasonId={competitionSeasonId} />;
