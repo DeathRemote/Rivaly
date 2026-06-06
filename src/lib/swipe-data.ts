@@ -74,8 +74,13 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
     return items.filter((m) => !predicted.has(m.id));
   }
 
-  // Swipe needs: matches open now.
+  // Swipe needs: matches you can predict right now.
+  // Special-case World Cup group-stage: allow swiping all group-stage matches from the start,
+  // locking 3 hours before kickoff.
   // If there are no *remaining* matches after excluding already predicted, fall back to a small upcoming bucket.
+
+  const lockCutoff = new Date(now.getTime() + 3 * 60 * 60 * 1000);
+
   const standardOpen = await prisma.match.findMany({
     where: {
       competitionSeasonId: { in: seasonIds },
@@ -87,6 +92,7 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
       id: true,
       kickoffAt: true,
       lockAt: true,
+      competitionGroupId: true,
       competitionSeasonId: true,
       competitionSeason: { select: { seasonLabel: true, competition: { select: { name: true } } } },
       homeTeam: { select: { name: true, shortName: true } },
@@ -96,7 +102,35 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
     take: 80,
   });
 
-  let matches = await excludeAlreadyPredicted(standardOpen);
+  const groupStageOpen = await prisma.match.findMany({
+    where: {
+      competitionSeasonId: { in: seasonIds },
+      competitionGroupId: { not: null },
+      status: { in: ["SCHEDULED", "LIVE", "UNKNOWN"] },
+      // Open from the start, lock 3h before kickoff.
+      kickoffAt: { gt: lockCutoff },
+    },
+    select: {
+      id: true,
+      kickoffAt: true,
+      lockAt: true,
+      competitionGroupId: true,
+      competitionSeasonId: true,
+      competitionSeason: { select: { seasonLabel: true, competition: { select: { name: true } } } },
+      homeTeam: { select: { name: true, shortName: true } },
+      awayTeam: { select: { name: true, shortName: true } },
+    },
+    orderBy: { kickoffAt: "asc" },
+    take: 200,
+  });
+
+  const merged = (() => {
+    const map = new Map<string, (typeof standardOpen)[number]>();
+    for (const m of [...standardOpen, ...groupStageOpen]) map.set(m.id, m);
+    return [...map.values()].sort((a, b) => a.kickoffAt.getTime() - b.kickoffAt.getTime()).slice(0, 200);
+  })();
+
+  let matches = await excludeAlreadyPredicted(merged);
 
   if (matches.length === 0) {
     // Upcoming bucket: show the first bucket (first 72 hours from the earliest kickoff) per season.
@@ -165,7 +199,10 @@ async function _getSwipeMatchesForUser(userId: string): Promise<SwipeMatch[]> {
       matchId: m.id,
       competitionSeasonId: m.competitionSeasonId,
       kickoffAt: m.kickoffAt.toISOString(),
-      lockAt: (m.lockAt ?? m.kickoffAt).toISOString(),
+      lockAt:
+        m.competitionGroupId != null
+          ? new Date(m.kickoffAt.getTime() - 3 * 60 * 60 * 1000).toISOString()
+          : (m.lockAt ?? m.kickoffAt).toISOString(),
       competitionLabel,
       home: { name: m.homeTeam.name, shortName: m.homeTeam.shortName },
       away: { name: m.awayTeam.name, shortName: m.awayTeam.shortName },

@@ -164,7 +164,11 @@ export default async function GroupDetailsPage({
             </div>
           }
         >
-          <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={initialMatchesView} />
+          <GroupMatchesRemote
+            groupId={group.id}
+            phaseType={(showPredictedTable ? "GROUP_STAGE" : "LEAGUE") satisfies PhaseType}
+            initialView={initialMatchesView}
+          />
         </ClientOnly>
       ) : (
         <GroupTableTab competitionSeasonId={competitionSeasonId} />

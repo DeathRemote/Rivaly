@@ -41,8 +41,24 @@ export async function getMatchesForGroup({
     include: { competition: true },
   });
 
+  const where =
+    phaseType === "GROUP_STAGE"
+      ? {
+          competitionSeasonId: group.competitionSeasonId,
+          competitionGroupId: { not: null },
+        }
+      : phaseType === "KNOCKOUT"
+        ? {
+            competitionSeasonId: group.competitionSeasonId,
+            OR: [{ knockoutRound: { not: null } }, { competitionPhase: { type: "KNOCKOUT" } }],
+          }
+        : {
+            competitionSeasonId: group.competitionSeasonId,
+            competitionGroupId: null,
+          };
+
   const matches = await prisma.match.findMany({
-    where: { competitionSeasonId: group.competitionSeasonId },
+    where,
     include: {
       homeTeam: true,
       awayTeam: true,
@@ -81,7 +97,13 @@ export async function getMatchesForGroup({
 
   return matches.map((m) => {
     const kickoffAt = m.kickoffAt.toISOString();
-    const lockAtDate = m.lockAt ?? m.kickoffAt;
+
+    // World Cup (group stage): allow predicting all group-stage matches immediately.
+    // Each match locks 3 hours before kickoff.
+    const lockAtDate =
+      phaseType === "GROUP_STAGE"
+        ? new Date(m.kickoffAt.getTime() - 3 * 60 * 60 * 1000)
+        : m.lockAt ?? m.kickoffAt;
 
     const inOpeningBucket =
       openingBucketEnd &&
@@ -93,7 +115,8 @@ export async function getMatchesForGroup({
     // If the client clock is behind the server clock by a few seconds, the UI can appear
     // temporarily locked right after a revalidation/refresh (visibleAt in the "future").
     // Using epoch makes the match immediately eligible in the opening bucket.
-    const visibleAtDate = inOpeningBucket ? new Date(0) : m.visibleAt ?? m.kickoffAt;
+    const visibleAtDate =
+      phaseType === "GROUP_STAGE" ? new Date(0) : inOpeningBucket ? new Date(0) : m.visibleAt ?? m.kickoffAt;
 
     return {
       id: m.id,
