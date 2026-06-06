@@ -196,10 +196,18 @@ export async function importCompetitionSeasonFixtures(opts: {
       }),
     ]);
 
-    // Default prediction policy placeholders (can be overridden later)
-    // Kickoff window: last 7 days before kickoff.
-    const visibleAt = new Date(mapped.kickoffAt.getTime() - 7 * 24 * 60 * 60 * 1000);
-    // Predictions lock 3 hours before kickoff.
+    const isGroupStageMatch = Boolean(groupPhase && mapped.providerGroupKey);
+    const isKnockoutMatch = Boolean(
+      knockoutPhase && (mapped.knockoutRound || (mapped.providerRound ?? 0) >= 125),
+    );
+
+    // Prediction policy:
+    // - Group stage (World Cup): open immediately, lock 3h before kickoff.
+    // - Everything else: open 7 days before kickoff, lock 3h before kickoff.
+    const visibleAt = isGroupStageMatch
+      ? new Date(0)
+      : new Date(mapped.kickoffAt.getTime() - 7 * 24 * 60 * 60 * 1000);
+
     const lockAt = new Date(mapped.kickoffAt.getTime() - 3 * 60 * 60 * 1000);
 
     const existing = await prisma.match.findUnique({
@@ -214,10 +222,11 @@ export async function importCompetitionSeasonFixtures(opts: {
 
     if (opts.dryRun) continue;
 
-    const isGroupStageMatch = Boolean(groupPhase && mapped.providerGroupKey);
-    const isKnockoutMatch = Boolean(knockoutPhase && (mapped.knockoutRound || (mapped.providerRound ?? 0) >= 125));
-
-    const phaseId = isGroupStageMatch ? groupPhase!.id : isKnockoutMatch ? knockoutPhase?.id ?? null : leaguePhase?.id ?? groupPhase?.id ?? null;
+    const phaseId = isGroupStageMatch
+      ? groupPhase!.id
+      : isKnockoutMatch
+        ? knockoutPhase?.id ?? null
+        : leaguePhase?.id ?? groupPhase?.id ?? null;
 
     const normalizedGroupKey = (mapped.providerGroupKey ?? "").trim().length
       ? (() => {

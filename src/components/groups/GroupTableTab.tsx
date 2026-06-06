@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma";
 
+import { GroupStageTablesTabClient } from "@/components/groups/GroupStageTablesTabClient";
+
 export async function GroupTableTab({ competitionSeasonId }: { competitionSeasonId: string }) {
   const season = await prisma.competitionSeason.findUnique({
     where: { id: competitionSeasonId },
@@ -12,6 +14,29 @@ export async function GroupTableTab({ competitionSeasonId }: { competitionSeason
         No competition season linked to this group.
       </div>
     );
+  }
+
+  // Trigger: if the competition season has a group stage structure (CompetitionGroups), render the /tables group UI.
+  // This is more robust than relying on phases (KNOCKOUT might not be imported yet).
+  const hasCompetitionGroups = Boolean(
+    await prisma.competitionGroup.findFirst({
+      where: { competitionPhase: { competitionSeasonId } },
+      select: { id: true },
+    }),
+  );
+
+  // Fallback trigger: group-scoped standings rows.
+  const hasGroupTables = Boolean(
+    await prisma.standingsRow.findFirst({
+      where: { competitionSeasonId, competitionGroupId: { not: null } },
+      select: { id: true },
+    }),
+  );
+
+  if (hasCompetitionGroups || hasGroupTables) {
+    // For group-stage style competitions, we want the exact same group table UI as /tables.
+    // Tables data is resolved via the internal API which proxies the backend.
+    return <GroupStageTablesTabClient seasonId={competitionSeasonId} />;
   }
 
   const rows = await prisma.standingsRow.findMany({

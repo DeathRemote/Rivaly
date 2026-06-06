@@ -10,9 +10,12 @@ import { GroupDetailsClient } from "@/components/groups/GroupDetailsClient";
 import { GroupTabs, type GroupTabKey } from "@/components/groups/GroupTabs";
 import { GroupLeaderboardPanel } from "@/components/groups/GroupLeaderboardPanel";
 import { GroupMatchesRemote } from "@/components/groups/GroupMatchesRemote";
-import { ClientOnly } from "@/components/ui/ClientOnly";
+import { GroupPredictedTablesTab } from "@/components/groups/GroupPredictedTablesTab";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
+import { ClientOnly } from "@/components/ui/ClientOnly";
 import type { PhaseType } from "@/components/groups/matches/types";
+
+import { prisma } from "@/lib/prisma";
 
 import { getSideNavItems } from "@/features/dashboard/nav";
 import { accountTierLabel } from "@/lib/accountTier";
@@ -33,7 +36,13 @@ export default async function GroupDetailsPage({
   const sp = await searchParams;
   const tabParam = sp.tab;
   const tab = (
-    tabParam === "matches" ? "matches" : tabParam === "table" ? "table" : "leaderboard"
+    tabParam === "matches"
+      ? "matches"
+      : tabParam === "table"
+        ? "table"
+        : tabParam === "predicted-table"
+          ? "predicted-table"
+          : "leaderboard"
   ) as GroupTabKey;
 
   const bucketParam = sp.bucket;
@@ -96,6 +105,20 @@ export default async function GroupDetailsPage({
 
   const currentUserAccuracy = details.viewer.accuracyPct;
 
+  const competitionSeasonId = group.competitionSeasonId ?? "";
+
+  const hasCompetitionGroups = Boolean(
+    competitionSeasonId &&
+      (await prisma.competitionGroup.findFirst({
+        where: { competitionPhase: { competitionSeasonId } },
+        select: { id: true },
+      })),
+  );
+
+  // Show this tab for competitions with a group-stage structure.
+  // (In practice, this is the World Cup-style group+knockout format; knockouts may not be imported yet.)
+  const showPredictedTable = hasCompetitionGroups;
+
   return (
     <DashboardLayout
       sideNavItems={getSideNavItems({ isAdmin })}
@@ -119,7 +142,7 @@ export default async function GroupDetailsPage({
         inviteCode={details.inviteCode}
       />
 
-      <GroupTabs groupId={group.id} active={tab} />
+      <GroupTabs groupId={group.id} active={tab} showPredictedTable={showPredictedTable} />
 
       {tab === "leaderboard" ? (
         <ClientOnly
@@ -131,6 +154,8 @@ export default async function GroupDetailsPage({
         >
           <GroupLeaderboardPanel groupId={group.id} />
         </ClientOnly>
+      ) : tab === "predicted-table" ? (
+        <GroupPredictedTablesTab competitionSeasonId={competitionSeasonId} viewerUserId={userId} />
       ) : tab === "matches" ? (
         <ClientOnly
           fallback={
@@ -139,10 +164,14 @@ export default async function GroupDetailsPage({
             </div>
           }
         >
-          <GroupMatchesRemote groupId={group.id} phaseType={"LEAGUE" satisfies PhaseType} initialView={initialMatchesView} />
+          <GroupMatchesRemote
+            groupId={group.id}
+            phaseType={(showPredictedTable ? "GROUP_STAGE" : "LEAGUE") satisfies PhaseType}
+            initialView={initialMatchesView}
+          />
         </ClientOnly>
       ) : (
-        <GroupTableTab competitionSeasonId={group.competitionSeasonId ?? ""} />
+        <GroupTableTab competitionSeasonId={competitionSeasonId} />
       )}
     </DashboardLayout>
   );

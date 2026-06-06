@@ -4,6 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cn } from "@/lib/cn";
 
+import { StandingsMiniTable } from "@/components/tables/StandingsMiniTable";
+
 import type { TablesPayload, TablesSeasonOption } from "@/lib/tables-data";
 
 type TablesPageState = {
@@ -17,44 +19,6 @@ function Spinner({ label }: { label?: string }) {
     <div className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
       <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-white/70" />
       <div className="text-sm font-semibold">{label ?? "Loading..."}</div>
-    </div>
-  );
-}
-
-type StandingsRow = {
-  teamId: string;
-  teamName: string;
-  position: number;
-  played: number;
-  goalDifference: number;
-  points: number;
-};
-
-function StandingsTable({ rows }: { rows: StandingsRow[] }) {
-  return (
-    <div className="mt-5 overflow-x-auto">
-      <table className="w-full min-w-[520px] text-left">
-        <thead>
-          <tr className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">
-            <th className="py-2 pr-3">#</th>
-            <th className="py-2 pr-3">Team</th>
-            <th className="py-2 pr-3">P</th>
-            <th className="py-2 pr-3">GD</th>
-            <th className="py-2">Pts</th>
-          </tr>
-        </thead>
-        <tbody className="text-sm text-white/70">
-          {rows.map((r) => (
-            <tr key={r.teamId} className="border-t border-white/10">
-              <td className="py-2 pr-3 tabular-nums text-white/45">{r.position}</td>
-              <td className="py-2 pr-3 font-semibold text-white/80">{r.teamName}</td>
-              <td className="py-2 pr-3 tabular-nums text-white/55">{r.played}</td>
-              <td className="py-2 pr-3 tabular-nums text-white/55">{r.goalDifference}</td>
-              <td className="py-2 tabular-nums font-bold text-lime-100">{r.points}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
     </div>
   );
 }
@@ -212,7 +176,7 @@ export function TablesPageClient({
                 <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">League table</div>
               </div>
 
-              <StandingsTable rows={state.data.league.rows} />
+              <StandingsMiniTable rows={state.data.league.rows} />
             </section>
           ) : null}
 
@@ -234,7 +198,7 @@ export function TablesPageClient({
                   <div key={g.competitionGroupId} className="rounded-2xl border border-white/10 bg-black/20 p-4">
                     <div className="text-[10px] font-black uppercase tracking-[0.22em] text-white/35">{g.name}</div>
                     {g.rows.length ? (
-                      <StandingsTable rows={g.rows} />
+                      <StandingsMiniTable rows={g.rows} />
                     ) : (
                       <div className="mt-3 text-sm font-medium text-white/55">No matches yet.</div>
                     )}
