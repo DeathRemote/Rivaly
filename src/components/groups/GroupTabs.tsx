@@ -4,9 +4,17 @@ import Link from "next/link";
 
 import { cn } from "@/lib/cn";
 
-export type GroupTabKey = "leaderboard" | "matches" | "table";
+export type GroupTabKey = "leaderboard" | "predicted-table" | "matches" | "table";
 
-export function GroupTabs({ groupId, active }: { groupId: string; active: GroupTabKey }) {
+export function GroupTabs({
+  groupId,
+  active,
+  showPredictedTable,
+}: {
+  groupId: string;
+  active: GroupTabKey;
+  showPredictedTable?: boolean;
+}) {
   const base = `/groups/${groupId}`;
 
   return (
@@ -14,6 +22,11 @@ export function GroupTabs({ groupId, active }: { groupId: string; active: GroupT
       <Tab href={`${base}?tab=leaderboard`} active={active === "leaderboard"}>
         Leaderboard
       </Tab>
+      {showPredictedTable ? (
+        <Tab href={`${base}?tab=predicted-table`} active={active === "predicted-table"}>
+          Predicted Table
+        </Tab>
+      ) : null}
       <Tab href={`${base}?tab=matches`} active={active === "matches"}>
         Matches
       </Tab>

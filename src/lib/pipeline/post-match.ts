@@ -3,6 +3,7 @@ import { Prisma, Provider } from "@prisma/client";
 
 import { TheSportsDbClient } from "@/lib/providers/thesportsdb/client";
 import { scorePredictionPoints } from "@/lib/scoring/predictions";
+import { computeGroupTableBonus, groupTableBonusMeta } from "@/lib/scoring/group-table-bonus";
 import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 import { mapTheSportsDbStatus } from "@/lib/importers/thesportsdb/map";
 import {
@@ -303,6 +304,213 @@ export async function syncAndProcessFinishedMatches(opts?: {
       standingsSynced = true;
     } catch (err) {
       console.warn("[standings] sync failed after match processing:", err instanceof Error ? err.message : err);
+    }
+
+    // Bonus scoring: once a GROUP completes, award small placement-based points.
+    // This is keyed to the last match in the group to keep the SeasonPointsEvent schema simple.
+    // Idempotent via SeasonPointsEvent unique constraint.
+    if (m.competitionGroupId && standingsSynced) {
+      try {
+        const bonusOut = await prisma.$transaction(async (tx) => {
+          const competitionGroupId = m.competitionGroupId!;
+
+          // Only when all group matches are finished.
+          const unfinished = await tx.match.findFirst({
+            where: { competitionGroupId, status: { not: "FINISHED" } },
+            select: { id: true },
+          });
+          if (unfinished) return { inserted: 0, affectedGroupIds: [] as string[], affectedUserIds: [] as string[] };
+
+          const lastMatch = await tx.match.findFirst({
+            where: { competitionGroupId },
+            orderBy: { kickoffAt: "desc" },
+            select: { id: true },
+          });
+          if (!lastMatch) return { inserted: 0, affectedGroupIds: [] as string[], affectedUserIds: [] as string[] };
+
+          // Real final positions from standings.
+          const actualRows = await tx.standingsRow.findMany({
+            where: { competitionGroupId },
+            select: { teamId: true, position: true, team: { select: { name: true } } },
+            orderBy: { position: "asc" },
+          });
+          if (actualRows.length < 2) return { inserted: 0, affectedGroupIds: [] as string[], affectedUserIds: [] as string[] };
+
+          const teamIds = actualRows.map((r) => r.teamId);
+          const teamNameById = new Map(actualRows.map((r) => [r.teamId, r.team.name] as const));
+          const actualPositionByTeamId = new Map(actualRows.map((r) => [r.teamId, r.position] as const));
+          const actualTop2 = new Set(actualRows.filter((r) => r.position <= 2).map((r) => r.teamId));
+
+          // All classic groups in this season share the same SeasonUserPoints.
+          const groups = await tx.group.findMany({
+            where: { competitionSeasonId: m.competitionSeasonId, scoringSystem: "CLASSIC" },
+            select: { id: true },
+          });
+          const groupIds = groups.map((g) => g.id);
+          if (!groupIds.length) return { inserted: 0, affectedGroupIds: [] as string[], affectedUserIds: [] as string[] };
+
+          const members = await tx.groupMember.findMany({
+            where: { groupId: { in: groupIds } },
+            select: { groupId: true, userId: true },
+          });
+          const userIds = Array.from(new Set(members.map((x) => x.userId)));
+          if (!userIds.length) return { inserted: 0, affectedGroupIds: [] as string[], affectedUserIds: [] as string[] };
+
+          const groupStageMatches = await tx.match.findMany({
+            where: { competitionGroupId },
+            select: { id: true },
+          });
+          const matchIds = groupStageMatches.map((mm) => mm.id);
+          if (!matchIds.length) return { inserted: 0, affectedGroupIds: [] as string[], affectedUserIds: [] as string[] };
+
+          // All predictions for these matches by eligible users.
+          const predictions = await tx.prediction.findMany({
+            where: { userId: { in: userIds }, matchId: { in: matchIds } },
+            select: {
+              userId: true,
+              homeScore: true,
+              awayScore: true,
+              match: { select: { homeTeamId: true, awayTeamId: true } },
+            },
+          });
+
+          const bonus = computeGroupTableBonus({
+            config: { exactPositionPoints: 2, qualifierPoints: 2 },
+            teamIds,
+            teamNameById,
+            actualPositionByTeamId,
+            actualTop2,
+            predictions: predictions.map((p) => ({
+              userId: p.userId,
+              homeTeamId: p.match.homeTeamId,
+              awayTeamId: p.match.awayTeamId,
+              homeScore: p.homeScore,
+              awayScore: p.awayScore,
+            })),
+          });
+
+          let inserted = 0;
+          const affectedGroupIds = new Set<string>();
+          const affectedUserIds = new Set<string>();
+
+          // Write canonical SeasonPointsEvent once per user.
+          for (const b of bonus) {
+            if (b.points <= 0) continue;
+
+            try {
+              const created = await tx.seasonPointsEvent.create({
+                data: {
+                  competitionSeasonId: m.competitionSeasonId,
+                  scoringSystem: "CLASSIC",
+                  userId: b.userId,
+                  matchId: lastMatch.id,
+                  type: "GROUP_TABLE_BONUS",
+                  points: b.points,
+                  reason: "Group table bonus",
+                  meta: groupTableBonusMeta({ competitionGroupId, breakdown: b.breakdown }),
+                },
+                select: { points: true },
+              });
+
+              inserted++;
+              affectedUserIds.add(b.userId);
+
+              await tx.seasonUserPoints.upsert({
+                where: {
+                  competitionSeasonId_scoringSystem_userId: {
+                    competitionSeasonId: m.competitionSeasonId,
+                    scoringSystem: "CLASSIC",
+                    userId: b.userId,
+                  },
+                },
+                create: {
+                  competitionSeasonId: m.competitionSeasonId,
+                  scoringSystem: "CLASSIC",
+                  userId: b.userId,
+                  points: created.points,
+                },
+                update: { points: { increment: created.points } },
+                select: { id: true },
+              });
+            } catch (err) {
+              if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+                // already awarded
+              } else {
+                throw err;
+              }
+            }
+          }
+
+          // Mirror as per-group PointsEvent rows for aggregates.
+          if (inserted) {
+            const pointsByUser = new Map(bonus.map((b) => [b.userId, b] as const));
+
+            for (const mbr of members) {
+              const b = pointsByUser.get(mbr.userId);
+              if (!b || b.points <= 0) continue;
+
+              try {
+                await tx.pointsEvent.create({
+                  data: {
+                    groupId: mbr.groupId,
+                    userId: mbr.userId,
+                    matchId: lastMatch.id,
+                    type: "GROUP_TABLE_BONUS",
+                    points: b.points,
+                    reason: "Group table bonus",
+                    meta: groupTableBonusMeta({ competitionGroupId, breakdown: b.breakdown }),
+                  },
+                  select: { id: true },
+                });
+                affectedGroupIds.add(mbr.groupId);
+              } catch (err) {
+                if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+                  // already exists
+                } else {
+                  throw err;
+                }
+              }
+            }
+
+            // Sync GroupMember.points from canonical season points.
+            const seasonPoints = await tx.seasonUserPoints.findMany({
+              where: {
+                competitionSeasonId: m.competitionSeasonId,
+                scoringSystem: "CLASSIC",
+                userId: { in: Array.from(affectedUserIds) },
+              },
+              select: { userId: true, points: true },
+            });
+            const seasonPointsByUser = new Map(seasonPoints.map((r) => [r.userId, r.points] as const));
+
+            for (const uid of affectedUserIds) {
+              const pts = seasonPointsByUser.get(uid) ?? 0;
+              await tx.groupMember.updateMany({
+                where: { groupId: { in: groupIds }, userId: uid },
+                data: { points: pts },
+              });
+            }
+          }
+
+          return {
+            inserted,
+            affectedGroupIds: Array.from(affectedGroupIds),
+            affectedUserIds: Array.from(affectedUserIds),
+          };
+        });
+
+        if (bonusOut.inserted) {
+          for (const groupId of bonusOut.affectedGroupIds) {
+            await recomputeGroupMemberAccuracyAggregate(groupId);
+            await recomputeGroupMomentumAggregate(groupId);
+          }
+          for (const userId of bonusOut.affectedUserIds) {
+            await recomputeUserPredictionStatsAggregate(userId);
+          }
+        }
+      } catch (err) {
+        console.warn("[group-table-bonus] failed:", err instanceof Error ? err.message : err);
+      }
     }
 
     processed.push({ matchId: m.id, pointsEvents: out.pointsEvents, standingsSynced });
