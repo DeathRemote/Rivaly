@@ -112,8 +112,18 @@ export async function importCompetitionSeasonFixtures(opts: {
 
   const events = [...eventsById.values()];
 
-  const hasGroups = events.some((e) => Boolean(e.strGroup && String(e.strGroup).trim().length > 0));
-  const hasKnockoutHints = events.some((e) => (e.intRound != null && e.intRound >= 125) || (e.strEvent ?? "").toLowerCase().includes("final"));
+  const hasGroupsFromProvider = events.some((e) => Boolean(e.strGroup && String(e.strGroup).trim().length > 0));
+  const hasKnockoutHints = events.some(
+    (e) => (e.intRound != null && e.intRound >= 125) || (e.strEvent ?? "").toLowerCase().includes("final"),
+  );
+
+  // If this season already has CompetitionGroups in DB, do NOT regress to league-mode even if the provider
+  // season endpoint omits strGroup (TheSportsDB can be inconsistent between endpoints/keys).
+  const existingGroupsCount = await prisma.competitionGroup.count({
+    where: { competitionPhase: { competitionSeasonId: season.id } },
+  });
+
+  const hasGroups = hasGroupsFromProvider || existingGroupsCount > 0;
 
   const leaguePhase = !hasGroups ? await ensurePhase("Regular Season", 1, CompetitionPhaseType.LEAGUE) : null;
   const groupPhase = hasGroups ? await ensurePhase("Group Stage", 1, CompetitionPhaseType.GROUP_STAGE) : null;
@@ -196,7 +206,9 @@ export async function importCompetitionSeasonFixtures(opts: {
       }),
     ]);
 
-    const isGroupStageMatch = Boolean(groupPhase && mapped.providerGroupKey);
+    const effectiveProviderGroupKey = mapped.providerGroupKey ?? existing?.providerGroupKey ?? null;
+
+    const isGroupStageMatch = Boolean(groupPhase && effectiveProviderGroupKey);
     const isKnockoutMatch = Boolean(
       knockoutPhase && (mapped.knockoutRound || (mapped.providerRound ?? 0) >= 125),
     );
@@ -217,7 +229,7 @@ export async function importCompetitionSeasonFixtures(opts: {
           providerMatchId: mapped.providerMatchId,
         },
       },
-      select: { id: true },
+      select: { id: true, providerGroupKey: true, competitionGroupId: true },
     });
 
     if (opts.dryRun) continue;
@@ -228,9 +240,9 @@ export async function importCompetitionSeasonFixtures(opts: {
         ? knockoutPhase?.id ?? null
         : leaguePhase?.id ?? groupPhase?.id ?? null;
 
-    const normalizedGroupKey = (mapped.providerGroupKey ?? "").trim().length
+    const normalizedGroupKey = (effectiveProviderGroupKey ?? "").trim().length
       ? (() => {
-          const raw = (mapped.providerGroupKey ?? "").trim();
+          const raw = (effectiveProviderGroupKey ?? "").trim();
           const m = raw.match(/group\s+([a-z])/i);
           return m ? m[1].toUpperCase() : raw.toUpperCase();
         })()
@@ -252,7 +264,7 @@ export async function importCompetitionSeasonFixtures(opts: {
           provider: mapped.provider,
           providerMatchId: mapped.providerMatchId,
           providerRound: mapped.providerRound ?? undefined,
-          providerGroupKey: mapped.providerGroupKey ?? undefined,
+          providerGroupKey: effectiveProviderGroupKey ?? undefined,
           knockoutRound: mapped.knockoutRound ? (mapped.knockoutRound as KnockoutRound) : undefined,
           visibleAt,
           lockAt,
@@ -271,7 +283,7 @@ export async function importCompetitionSeasonFixtures(opts: {
           kickoffAt: mapped.kickoffAt,
           status: mapped.status,
           providerRound: mapped.providerRound ?? undefined,
-          providerGroupKey: mapped.providerGroupKey ?? undefined,
+          providerGroupKey: effectiveProviderGroupKey ?? undefined,
           knockoutRound: mapped.knockoutRound ? (mapped.knockoutRound as KnockoutRound) : undefined,
           visibleAt,
           lockAt,
