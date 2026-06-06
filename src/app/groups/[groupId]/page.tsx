@@ -115,22 +115,9 @@ export default async function GroupDetailsPage({
       })),
   );
 
-  const hasKnockoutHints = Boolean(
-    competitionSeasonId &&
-      (await prisma.match.findFirst({
-        where: {
-          competitionSeasonId,
-          OR: [
-            { knockoutRound: { not: null } },
-            { competitionPhase: { type: "KNOCKOUT" } },
-          ],
-        },
-        select: { id: true },
-      })),
-  );
-
-  // Only show this tab for group+knockout competitions (e.g. World Cup).
-  const showPredictedTable = hasCompetitionGroups && hasKnockoutHints;
+  // Show this tab for competitions with a group-stage structure.
+  // (In practice, this is the World Cup-style group+knockout format; knockouts may not be imported yet.)
+  const showPredictedTable = hasCompetitionGroups;
 
   return (
     <DashboardLayout
