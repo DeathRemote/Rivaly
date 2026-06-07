@@ -206,7 +206,18 @@ export async function importCompetitionSeasonFixtures(opts: {
       }),
     ]);
 
-    const effectiveProviderGroupKey = mapped.providerGroupKey ?? existing?.providerGroupKey ?? null;
+    const existingMatch = await prisma.match.findUnique({
+      where: {
+        provider_providerMatchId: {
+          provider: mapped.provider,
+          providerMatchId: mapped.providerMatchId,
+        },
+      },
+      select: { id: true, providerGroupKey: true, competitionGroupId: true },
+    });
+
+    const effectiveProviderGroupKey =
+      mapped.providerGroupKey ?? existingMatch?.providerGroupKey ?? null;
 
     const isGroupStageMatch = Boolean(groupPhase && effectiveProviderGroupKey);
     const isKnockoutMatch = Boolean(
@@ -221,16 +232,6 @@ export async function importCompetitionSeasonFixtures(opts: {
       : new Date(mapped.kickoffAt.getTime() - 7 * 24 * 60 * 60 * 1000);
 
     const lockAt = new Date(mapped.kickoffAt.getTime() - 3 * 60 * 60 * 1000);
-
-    const existing = await prisma.match.findUnique({
-      where: {
-        provider_providerMatchId: {
-          provider: mapped.provider,
-          providerMatchId: mapped.providerMatchId,
-        },
-      },
-      select: { id: true, providerGroupKey: true, competitionGroupId: true },
-    });
 
     if (opts.dryRun) continue;
 
@@ -251,7 +252,7 @@ export async function importCompetitionSeasonFixtures(opts: {
     const competitionGroupId =
       normalizedGroupKey && groupIdByKey.has(normalizedGroupKey) ? groupIdByKey.get(normalizedGroupKey)! : null;
 
-    if (!existing) {
+    if (!existingMatch) {
       await prisma.match.create({
         data: {
           competitionSeasonId: season.id,
@@ -273,7 +274,7 @@ export async function importCompetitionSeasonFixtures(opts: {
       created++;
     } else {
       await prisma.match.update({
-        where: { id: existing.id },
+        where: { id: existingMatch.id },
         data: {
           competitionSeasonId: season.id,
           competitionPhaseId: phaseId,
