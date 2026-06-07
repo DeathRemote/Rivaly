@@ -175,6 +175,17 @@ export async function importCompetitionSeasonFixtures(opts: {
       });
       groupIdByKey.set(g.key, g.id);
     }
+
+    // TheSportsDB can omit `strGroup` on some endpoints/keys.
+    // If we already have groups in DB but couldn't derive keys from the provider payload,
+    // load the existing groups so we can still assign `competitionGroupId` to matches.
+    if (groupIdByKey.size === 0) {
+      const existingGroups = await prisma.competitionGroup.findMany({
+        where: { competitionPhaseId: groupPhase.id },
+        select: { id: true, key: true },
+      });
+      for (const g of existingGroups) groupIdByKey.set(g.key, g.id);
+    }
   }
 
   let created = 0;
@@ -249,7 +260,10 @@ export async function importCompetitionSeasonFixtures(opts: {
         ? knockoutPhase?.id ?? null
         : leaguePhase?.id ?? groupPhase?.id ?? null;
 
-    const normalizedGroupKey = normalizeGroupKey(effectiveProviderGroupKey);
+    // Some provider payloads omit `strGroup`, but the event name often includes it.
+    const inferredGroupKeyFromEventName = normalizeGroupKey(e.strEvent ?? null);
+
+    const normalizedGroupKey = normalizeGroupKey(effectiveProviderGroupKey) ?? inferredGroupKeyFromEventName;
 
     const competitionGroupId =
       normalizedGroupKey && groupIdByKey.has(normalizedGroupKey) ? groupIdByKey.get(normalizedGroupKey)! : null;
