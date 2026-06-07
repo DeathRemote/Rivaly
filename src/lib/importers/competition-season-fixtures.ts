@@ -174,6 +174,9 @@ export async function importCompetitionSeasonFixtures(opts: {
         select: { id: true, key: true },
       });
       groupIdByKey.set(g.key, g.id);
+      // Also index by normalized key to survive older imports that stored verbose keys.
+      const normalized = normalizeGroupKey(g.key);
+      if (normalized) groupIdByKey.set(normalized, g.id);
     }
 
     // TheSportsDB can omit `strGroup` on some endpoints/keys.
@@ -184,7 +187,11 @@ export async function importCompetitionSeasonFixtures(opts: {
         where: { competitionPhaseId: groupPhase.id },
         select: { id: true, key: true },
       });
-      for (const g of existingGroups) groupIdByKey.set(g.key, g.id);
+      for (const g of existingGroups) {
+        groupIdByKey.set(g.key, g.id);
+        const normalized = normalizeGroupKey(g.key);
+        if (normalized) groupIdByKey.set(normalized, g.id);
+      }
     }
   }
 
