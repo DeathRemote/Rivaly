@@ -129,19 +129,27 @@ export async function importCompetitionSeasonFixtures(opts: {
   const groupPhase = hasGroups ? await ensurePhase("Group Stage", 1, CompetitionPhaseType.GROUP_STAGE) : null;
   const knockoutPhase = hasKnockoutHints ? await ensurePhase("Knockout", 2, CompetitionPhaseType.KNOCKOUT) : null;
 
+  function normalizeGroupKey(input: string | null | undefined): string | null {
+    const raw = (input ?? "").trim();
+    if (!raw) return null;
+
+    // Prefer extracting the canonical letter when provider includes variants like:
+    // - "Group A" / "Group A - Matchday 1" / "Grp A"
+    const m = raw.match(/\b(?:group|grp)\b\s*([A-H])\b/i);
+    if (m?.[1]) return m[1].toUpperCase();
+
+    // Fallback: keep the provider label so group creation + match assignment remain consistent.
+    return raw.toUpperCase();
+  }
+
   // Create groups for group-stage events.
   const groupIdByKey = new Map<string, string>();
   if (groupPhase && hasGroups) {
     const rawKeys = Array.from(
       new Set(
         events
-          .map((e) => (e.strGroup ?? "").trim())
-          .filter((s) => s.length > 0)
-          // normalize common patterns: "Group A" -> "A"
-          .map((s) => {
-            const m = s.match(/group\s+([a-z])/i);
-            return m ? m[1].toUpperCase() : s.toUpperCase();
-          }),
+          .map((e) => normalizeGroupKey(e.strGroup))
+          .filter((s): s is string => Boolean(s && s.trim().length > 0)),
       ),
     ).sort();
 
@@ -241,13 +249,7 @@ export async function importCompetitionSeasonFixtures(opts: {
         ? knockoutPhase?.id ?? null
         : leaguePhase?.id ?? groupPhase?.id ?? null;
 
-    const normalizedGroupKey = (effectiveProviderGroupKey ?? "").trim().length
-      ? (() => {
-          const raw = (effectiveProviderGroupKey ?? "").trim();
-          const m = raw.match(/group\s+([a-z])/i);
-          return m ? m[1].toUpperCase() : raw.toUpperCase();
-        })()
-      : null;
+    const normalizedGroupKey = normalizeGroupKey(effectiveProviderGroupKey);
 
     const competitionGroupId =
       normalizedGroupKey && groupIdByKey.has(normalizedGroupKey) ? groupIdByKey.get(normalizedGroupKey)! : null;
