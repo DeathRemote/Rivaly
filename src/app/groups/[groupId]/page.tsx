@@ -26,7 +26,7 @@ export default async function GroupDetailsPage({
   searchParams,
 }: {
   params: Promise<{ groupId: string }>;
-  searchParams: Promise<{ tab?: string; bucket?: string }>;
+  searchParams: Promise<{ tab?: string; bucket?: string; view?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login?callbackUrl=/groups");
@@ -49,6 +49,8 @@ export default async function GroupDetailsPage({
   ) as GroupTabKey;
 
   const bucketParam = sp.bucket;
+  const knockoutViewParam = sp.view;
+  const knockoutView = knockoutViewParam === "results" ? "results" : "predictions";
   const initialMatchesView =
     bucketParam === "upcoming" || bucketParam === "completed" || bucketParam === "kickoff"
       ? (bucketParam as "kickoff" | "upcoming" | "completed")
@@ -174,7 +176,12 @@ export default async function GroupDetailsPage({
           />
         </ClientOnly>
       ) : tab === "knockout" ? (
-        <GroupKnockoutTab competitionSeasonId={competitionSeasonId} viewerUserId={userId} />
+        <GroupKnockoutTab
+          competitionSeasonId={competitionSeasonId}
+          viewerUserId={userId}
+          groupId={group.id}
+          view={knockoutView}
+        />
       ) : (
         <GroupTableTab competitionSeasonId={competitionSeasonId} />
       )}
