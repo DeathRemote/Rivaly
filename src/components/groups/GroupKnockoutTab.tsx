@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { CompetitionPhaseType, KnockoutRound } from "@prisma/client";
+import { formatSlot, worldCup2026VirtualR32 } from "@/lib/knockout/worldcup2026";
 
 function roundLabel(r: KnockoutRound) {
   switch (r) {
@@ -74,6 +75,10 @@ export async function GroupKnockoutTab({
     orderBy: { kickoffAt: "asc" },
   });
 
+  // Virtual bracket placeholders: shown even before fixtures are imported.
+  // We keep this season-agnostic for now; for WC2026 we show the known R32 structure.
+  const virtualR32 = worldCup2026VirtualR32();
+
   const matchIds = matches.map((m) => m.id);
 
   const predictions = matchIds.length
@@ -105,14 +110,36 @@ export async function GroupKnockoutTab({
       {ORDERED_ROUNDS.map((r) => {
         const roundMatches = matchesByRound.get(r) ?? [];
 
-        // Before fixtures are imported/resolved, we show the round but keep it locked.
+        // Before fixtures are imported/resolved, we show placeholders.
         if (roundMatches.length === 0) {
+          const showVirtual = r === "R32";
+
           return (
             <div key={r} className="rounded-3xl border border-white/10 bg-white/5 p-6 text-white/60">
               <div className="text-white font-display text-lg font-black tracking-tight">{roundLabel(r)}</div>
               <div className="mt-1 text-sm text-white/50">
-                Waiting for official fixtures… (will auto-sync from TheSportsDB)
+                {showVirtual
+                  ? "Bracket placeholders (fixtures will auto-sync from TheSportsDB once available)."
+                  : "Locked — waiting for previous round results / official fixtures."}
               </div>
+
+              {showVirtual ? (
+                <div className="mt-4 space-y-2">
+                  {virtualR32.map((vm) => (
+                    <div
+                      key={vm.id}
+                      className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
+                    >
+                      <div className="text-sm text-white/80 font-bold">
+                        {formatSlot(vm.home)} <span className="text-white/40">vs</span> {formatSlot(vm.away)}
+                      </div>
+                      <div className="mt-1 text-xs text-white/40">
+                        Predicting opens when the real fixture exists.
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
             </div>
           );
         }
@@ -176,7 +203,7 @@ export async function GroupKnockoutTab({
       })}
 
       <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-white/50 text-sm">
-        Early bracket placeholders (e.g. “Winner Group A”) will appear here once we add the virtual bracket view.
+        Note: exact Round of 32 placement for the 8 best 3rd-place teams will resolve automatically after the group stage finishes.
       </div>
     </div>
   );
