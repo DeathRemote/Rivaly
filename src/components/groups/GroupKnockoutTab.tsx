@@ -215,6 +215,12 @@ export async function GroupKnockoutTab({
                       {m.result && m.status === "FINISHED" ? (
                         <div className="mt-2 text-sm text-white/80">
                           Result: {m.result.homeScore}–{m.result.awayScore}
+                          {m.result.homeScore === m.result.awayScore && m.result.advancesTeamId ? (
+                            <span className="text-white/50">
+                              {" "}
+                              · Advances: {m.result.advancesTeamId === m.homeTeamId ? m.homeTeam.name : m.awayTeam.name}
+                            </span>
+                          ) : null}
                         </div>
                       ) : (
                         <div className="mt-2 text-sm text-white/40">Result not available yet</div>
