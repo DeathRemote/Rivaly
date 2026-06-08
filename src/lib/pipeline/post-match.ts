@@ -95,10 +95,31 @@ export async function syncAndProcessFinishedMatches(opts?: {
       continue;
     }
 
-    // Knockout support: store who advanced when the match is not a draw.
-    // For penalty-decided draws, we need provider support or an admin override; leave null for now.
-    const advancesTeamId =
+    // Knockout support: store who advanced.
+    // - If match is not a draw: derive from the final score.
+    // - If match is a draw: attempt to parse TheSportsDB's `strResult` (e.g. "England Win 5-3 on penalties...").
+    //   If we cannot determine it reliably, leave null and score later (or via admin override).
+    let advancesTeamId: string | null =
       homeScore === awayScore ? null : homeScore > awayScore ? m.homeTeamId : m.awayTeamId;
+
+    if (advancesTeamId == null && typeof evt.strResult === "string" && evt.strResult.trim().length > 0) {
+      const r = evt.strResult.trim();
+
+      // Common format: "England Win 5-3 on penalties after extra time."
+      // We'll match a leading team name and the keyword "Win".
+      const mWin = r.match(/^(.+?)\s+Win\b/i);
+      const winnerName = mWin?.[1]?.trim() ?? null;
+
+      // Compare against the actual teams in this match.
+      if (winnerName) {
+        // TheSportsDB uses display names; exact match is usually correct for national teams.
+        if (winnerName.toLowerCase() === (evt.strHomeTeam ?? "").toLowerCase()) {
+          advancesTeamId = m.homeTeamId;
+        } else if (winnerName.toLowerCase() === (evt.strAwayTeam ?? "").toLowerCase()) {
+          advancesTeamId = m.awayTeamId;
+        }
+      }
+    }
 
     // Transaction for idempotency:
     // - upsert MatchResult

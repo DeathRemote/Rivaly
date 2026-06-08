@@ -24,6 +24,9 @@ const TheSportsDbEventSchema = z.object({
   strTimestamp: z.string().optional().nullable(),
 
   strStatus: z.string().optional().nullable(),
+
+  // Soccer knockouts sometimes encode penalty winner here.
+  strResult: z.string().optional().nullable(),
 });
 
 const EventsSeasonResponseSchema = z.object({
