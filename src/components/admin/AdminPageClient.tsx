@@ -7,6 +7,7 @@ import { cn } from "@/lib/cn";
 import type { AdminStats } from "@/lib/admin/stats";
 import type { SportConfigRow } from "@/lib/admin/sports";
 import type { AdminCompetition } from "@/lib/admin/catalog";
+import { PenaltyWinnerOverride } from "@/components/admin/PenaltyWinnerOverride";
 
 function formatCurrencyFromCents(cents: number) {
   const dollars = cents / 100;
@@ -776,6 +777,19 @@ export function AdminPageClient({
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Penalty winner override */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="font-display text-xl font-black italic text-white">Penalty winner override</h2>
+          <p className="mt-1 text-sm text-white/50">
+            For knockout matches that ended level but were decided on penalties, TheSportsDB sometimes omits the winner.
+            Use this to set who advanced so scoring can complete.
+          </p>
+        </div>
+
+        <PenaltyWinnerOverride />
       </section>
 
       {/* Users */}

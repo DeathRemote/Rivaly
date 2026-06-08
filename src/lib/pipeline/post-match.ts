@@ -122,6 +122,47 @@ export async function syncAndProcessFinishedMatches(opts?: {
       }
     }
 
+    const isKnockoutMatch = m.knockoutRound != null;
+    const isDraw = homeScore === awayScore;
+
+    // If this is a knockout match that ended in a draw and we still can't determine who advanced,
+    // do NOT score/mark processed yet. We keep polling until either:
+    // - provider payload includes `strResult`, or
+    // - an admin sets MatchResult.advancesTeamId.
+    if (isKnockoutMatch && isDraw && !advancesTeamId) {
+      await prisma.$transaction(async (tx) => {
+        await tx.match.update({
+          where: { id: m.id },
+          data: { status: "FINISHED", finalizedAt: new Date() },
+        });
+
+        await tx.matchResult.upsert({
+          where: { matchId: m.id },
+          create: {
+            matchId: m.id,
+            homeScore,
+            awayScore,
+            advancesTeamId: null,
+            provider: Provider.THESPORTSDB,
+            providerEventId: providerId,
+          },
+          update: {
+            homeScore,
+            awayScore,
+            advancesTeamId: null,
+          },
+        });
+      });
+
+      console.info("[post-match] knockout draw awaiting advancesTeamId", {
+        matchId: m.id,
+        providerEventId: providerId,
+        score: `${homeScore}-${awayScore}`,
+      });
+
+      continue;
+    }
+
     // Transaction for idempotency:
     // - upsert MatchResult
     // - score predictions once via PointsEvent unique constraint
