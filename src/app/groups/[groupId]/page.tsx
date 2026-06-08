@@ -12,6 +12,7 @@ import { GroupLeaderboardPanel } from "@/components/groups/GroupLeaderboardPanel
 import { GroupMatchesRemote } from "@/components/groups/GroupMatchesRemote";
 import { GroupPredictedTablesTab } from "@/components/groups/GroupPredictedTablesTab";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
+import { GroupKnockoutTab } from "@/components/groups/GroupKnockoutTab";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import type { PhaseType } from "@/components/groups/matches/types";
 
@@ -38,11 +39,13 @@ export default async function GroupDetailsPage({
   const tab = (
     tabParam === "matches"
       ? "matches"
-      : tabParam === "table"
-        ? "table"
-        : tabParam === "predicted-table"
-          ? "predicted-table"
-          : "leaderboard"
+      : tabParam === "knockout"
+        ? "knockout"
+        : tabParam === "table"
+          ? "table"
+          : tabParam === "predicted-table"
+            ? "predicted-table"
+            : "leaderboard"
   ) as GroupTabKey;
 
   const bucketParam = sp.bucket;
@@ -170,6 +173,8 @@ export default async function GroupDetailsPage({
             initialView={initialMatchesView}
           />
         </ClientOnly>
+      ) : tab === "knockout" ? (
+        <GroupKnockoutTab competitionSeasonId={competitionSeasonId} viewerUserId={userId} />
       ) : (
         <GroupTableTab competitionSeasonId={competitionSeasonId} />
       )}

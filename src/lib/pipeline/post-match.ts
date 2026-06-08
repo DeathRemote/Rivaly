@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, Provider } from "@prisma/client";
 
 import { TheSportsDbClient } from "@/lib/providers/thesportsdb/client";
-import { scorePredictionPoints } from "@/lib/scoring/predictions";
+import { scoreKnockoutPredictionPoints, scorePredictionPoints } from "@/lib/scoring/predictions";
 import { computeGroupTableBonus, groupTableBonusMeta } from "@/lib/scoring/group-table-bonus";
 import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 import { mapTheSportsDbStatus } from "@/lib/importers/thesportsdb/map";
@@ -95,6 +95,11 @@ export async function syncAndProcessFinishedMatches(opts?: {
       continue;
     }
 
+    // Knockout support: store who advanced when the match is not a draw.
+    // For penalty-decided draws, we need provider support or an admin override; leave null for now.
+    const advancesTeamId =
+      homeScore === awayScore ? null : homeScore > awayScore ? m.homeTeamId : m.awayTeamId;
+
     // Transaction for idempotency:
     // - upsert MatchResult
     // - score predictions once via PointsEvent unique constraint
@@ -112,19 +117,21 @@ export async function syncAndProcessFinishedMatches(opts?: {
           matchId: m.id,
           homeScore,
           awayScore,
+          advancesTeamId,
           provider: Provider.THESPORTSDB,
           providerEventId: providerId,
         },
         update: {
           homeScore,
           awayScore,
+          advancesTeamId,
         },
       });
 
       // Load predictions for this match (global per user+match).
       const predictions = await tx.prediction.findMany({
         where: { matchId: m.id },
-        select: { userId: true, homeScore: true, awayScore: true },
+        select: { userId: true, homeScore: true, awayScore: true, advancesTeamId: true },
       });
 
       const predictedUserIds = predictions.map((p) => p.userId);
@@ -162,10 +169,20 @@ export async function syncAndProcessFinishedMatches(opts?: {
         const p = predictionByUserId.get(userId);
         if (!p) continue;
 
-        const scored = scorePredictionPoints({
-          predicted: { home: p.homeScore, away: p.awayScore },
-          actual: { home: homeScore, away: awayScore },
-        });
+        const isKnockout = m.knockoutRound != null;
+        const scored = isKnockout
+          ? scoreKnockoutPredictionPoints({
+              predicted: { home: p.homeScore, away: p.awayScore },
+              actual: { home: homeScore, away: awayScore },
+              homeTeamId: m.homeTeamId,
+              awayTeamId: m.awayTeamId,
+              predictedAdvancesTeamId: p.advancesTeamId,
+              actualAdvancesTeamId: advancesTeamId,
+            })
+          : scorePredictionPoints({
+              predicted: { home: p.homeScore, away: p.awayScore },
+              actual: { home: homeScore, away: awayScore },
+            });
 
         try {
           const created = await tx.seasonPointsEvent.create({
@@ -219,10 +236,20 @@ export async function syncAndProcessFinishedMatches(opts?: {
           const p = predictionByUserId.get(mbr.userId);
           if (!p) continue;
 
-          const scored = scorePredictionPoints({
-            predicted: { home: p.homeScore, away: p.awayScore },
-            actual: { home: homeScore, away: awayScore },
-          });
+          const isKnockout = m.knockoutRound != null;
+          const scored = isKnockout
+            ? scoreKnockoutPredictionPoints({
+                predicted: { home: p.homeScore, away: p.awayScore },
+                actual: { home: homeScore, away: awayScore },
+                homeTeamId: m.homeTeamId,
+                awayTeamId: m.awayTeamId,
+                predictedAdvancesTeamId: p.advancesTeamId,
+                actualAdvancesTeamId: advancesTeamId,
+              })
+            : scorePredictionPoints({
+                predicted: { home: p.homeScore, away: p.awayScore },
+                actual: { home: homeScore, away: awayScore },
+              });
 
           try {
             await tx.pointsEvent.create({
