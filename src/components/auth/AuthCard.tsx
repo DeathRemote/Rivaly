@@ -40,6 +40,12 @@ export function AuthCard({
 
     try {
       if (mode === "signup") {
+        // Quick client-side hint so the user understands immediately.
+        // Server will also validate.
+        if (!username || /\s/.test(username)) {
+          throw new Error("Username can’t contain spaces.");
+        }
+
         const res = await fetch("/api/auth/signup", {
           method: "POST",
           headers: { "content-type": "application/json" },
@@ -47,7 +53,9 @@ export function AuthCard({
         });
 
         if (!res.ok) {
-          const body = (await res.json().catch(() => null)) as { error?: string } | null;
+          const body = (await res.json().catch(() => null)) as
+            | { error?: string; field?: string }
+            | null;
           throw new Error(body?.error || "Failed to create account");
         }
       }
