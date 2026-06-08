@@ -19,7 +19,14 @@ export async function POST(req: Request) {
   const body = await req.json().catch(() => null);
   const parsed = schema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid input" }, { status: 400 });
+    const issue = parsed.error.issues[0];
+    return NextResponse.json(
+      {
+        error: issue?.message || "Invalid input",
+        field: (issue?.path?.[0] as string | undefined) ?? undefined,
+      },
+      { status: 400 },
+    );
   }
 
   const { username, country, email, password } = parsed.data;
