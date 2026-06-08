@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { CompetitionPhaseType, KnockoutRound } from "@prisma/client";
 import { formatSlot, worldCup2026VirtualR32 } from "@/lib/knockout/worldcup2026";
+import type { MatchListItem } from "@/components/groups/matches/types";
+import { MatchSection } from "@/components/groups/matches/MatchSection";
 
 function roundLabel(r: KnockoutRound) {
   switch (r) {
@@ -84,7 +86,7 @@ export async function GroupKnockoutTab({
   const predictions = matchIds.length
     ? await prisma.prediction.findMany({
         where: { userId: viewerUserId, matchId: { in: matchIds } },
-        select: { matchId: true, homeScore: true, awayScore: true, advancesTeamId: true },
+        select: { matchId: true, homeScore: true, awayScore: true, advancesTeamId: true, source: true, updatedAt: true },
       })
     : [];
 
@@ -144,62 +146,39 @@ export async function GroupKnockoutTab({
           );
         }
 
-        return (
-          <div key={r} className="rounded-3xl border border-white/10 bg-white/5 p-6">
-            <div className="text-white font-display text-lg font-black tracking-tight">{roundLabel(r)}</div>
+        const items: MatchListItem[] = roundMatches.map((m) => {
+          const p = predictionByMatchId.get(m.id);
 
-            <div className="mt-4 space-y-3">
-              {roundMatches.map((m) => {
-                const p = predictionByMatchId.get(m.id);
+          return {
+            id: m.id,
+            phaseType: "KNOCKOUT",
+            phaseLabel: roundLabel(r),
+            kickoffAt: m.kickoffAt.toISOString(),
+            visibleAt: (m.visibleAt ?? m.kickoffAt).toISOString(),
+            lockAt: (m.lockAt ?? m.kickoffAt).toISOString(),
+            status: m.status === "FINISHED" ? "FINAL" : m.status === "LIVE" ? "LIVE" : "SCHEDULED",
+            homeTeamId: m.homeTeamId,
+            awayTeamId: m.awayTeamId,
+            home: { name: m.homeTeam.name, shortName: m.homeTeam.shortName ?? undefined },
+            away: { name: m.awayTeam.name, shortName: m.awayTeam.shortName ?? undefined },
+            userPrediction: p
+              ? {
+                  status: "PREDICTED",
+                  homeScore: p.homeScore,
+                  awayScore: p.awayScore,
+                  advancesTeamId: p.advancesTeamId,
+                  source: p.source,
+                  updatedAt: p.updatedAt.toISOString(),
+                }
+              : undefined,
+            result:
+              m.result && m.status === "FINISHED"
+                ? { homeScore: m.result.homeScore, awayScore: m.result.awayScore }
+                : undefined,
+          };
+        });
 
-                const advancesName = p?.advancesTeamId
-                  ? p.advancesTeamId === m.homeTeamId
-                    ? m.homeTeam.name
-                    : p.advancesTeamId === m.awayTeamId
-                      ? m.awayTeam.name
-                      : "(unknown)"
-                  : null;
-
-                const hasResult = m.status === "FINISHED" && m.result;
-
-                return (
-                  <div
-                    key={m.id}
-                    className="rounded-2xl border border-white/10 bg-black/20 px-4 py-3"
-                  >
-                    <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-white font-bold">
-                        {m.homeTeam.name} <span className="text-white/40">vs</span> {m.awayTeam.name}
-                      </div>
-                      <div className="text-xs text-white/50">
-                        {new Date(m.kickoffAt).toLocaleString()}
-                      </div>
-                    </div>
-
-                    {hasResult ? (
-                      <div className="mt-2 text-sm text-white/70">
-                        Result: {m.result!.homeScore}–{m.result!.awayScore}
-                      </div>
-                    ) : null}
-
-                    <div className="mt-2 text-sm">
-                      {p ? (
-                        <div className="text-white/80">
-                          Your pick: {p.homeScore}–{p.awayScore}
-                          {p.homeScore === p.awayScore && advancesName ? (
-                            <span className="text-white/50"> · Advances: {advancesName}</span>
-                          ) : null}
-                        </div>
-                      ) : (
-                        <div className="text-white/40">Not predicted yet</div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
+        return <MatchSection key={r} title={roundLabel(r)} matches={items} />;
       })}
 
       <div className="rounded-3xl border border-white/10 bg-white/5 p-6 text-white/50 text-sm">

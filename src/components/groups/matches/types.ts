@@ -16,14 +16,20 @@ export type MatchListItem = {
   lockAt: string; // ISO
   visibleAt: string; // ISO
   status: MatchStatus;
+  homeTeamId?: string;
+  awayTeamId?: string;
   home: { name: string; shortName?: string; badge?: string };
   away: { name: string; shortName?: string; badge?: string };
   competitionLabel?: string;
   userPrediction?: {
     status: MatchPredictionStatus;
-    summary?: string; // e.g. "2-1"
+    summary?: string; // e.g. "2-1" or "1-1 (adv: Team)"
     homeScore?: number;
     awayScore?: number;
+
+    // Knockout-only: present when the user predicted a draw and chose who advances.
+    advancesTeamId?: string | null;
+
     source?: "QUICK_PICK" | "SCORE";
     updatedAt?: string;
   };
