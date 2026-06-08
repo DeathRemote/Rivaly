@@ -105,19 +105,20 @@ export async function syncAndProcessFinishedMatches(opts?: {
     if (advancesTeamId == null && typeof evt.strResult === "string" && evt.strResult.trim().length > 0) {
       const r = evt.strResult.trim();
 
-      // Common format: "England Win 5-3 on penalties after extra time."
-      // We'll match a leading team name and the keyword "Win".
-      const mWin = r.match(/^(.+?)\s+Win\b/i);
-      const winnerName = mWin?.[1]?.trim() ?? null;
+      // Observed formats:
+      // - "England Win 5-3 on penalties after extra time."
+      // - "Portugal win 3-0 on pens"
+      // - sometimes empty (unfortunately)
+      const mWinner = r.match(/^(.+?)\s+win\b/i);
+      const winnerName = mWinner?.[1]?.trim() ?? null;
 
-      // Compare against the actual teams in this match.
       if (winnerName) {
-        // TheSportsDB uses display names; exact match is usually correct for national teams.
-        if (winnerName.toLowerCase() === (evt.strHomeTeam ?? "").toLowerCase()) {
-          advancesTeamId = m.homeTeamId;
-        } else if (winnerName.toLowerCase() === (evt.strAwayTeam ?? "").toLowerCase()) {
-          advancesTeamId = m.awayTeamId;
-        }
+        const w = winnerName.toLowerCase();
+        const home = (evt.strHomeTeam ?? "").toLowerCase();
+        const away = (evt.strAwayTeam ?? "").toLowerCase();
+
+        if (w === home) advancesTeamId = m.homeTeamId;
+        else if (w === away) advancesTeamId = m.awayTeamId;
       }
     }
 
