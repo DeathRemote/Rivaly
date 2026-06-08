@@ -56,11 +56,18 @@ export async function GroupKnockoutTab({
 
   const hasKnockout = Boolean(season?.phases.some((p) => p.type === CompetitionPhaseType.KNOCKOUT));
 
-  // If the season doesn't have a knockout phase, still keep the tab visible but show a friendly empty state.
-  if (!hasKnockout) {
+  // World Cup-style seasons may not have knockout fixtures imported yet (provider delays / incomplete payload),
+  // but we still want to show the bracket placeholders as soon as the group stage exists.
+  const hasGroupStage = Boolean(season?.phases.some((p) => p.type === CompetitionPhaseType.GROUP_STAGE));
+  const groupsCount = await prisma.competitionGroup.count({
+    where: { competitionPhase: { competitionSeasonId } },
+  });
+  const hasGroups = groupsCount > 0;
+
+  if (!hasKnockout && !hasGroupStage && !hasGroups) {
     return (
       <div className="rounded-3xl border border-white/10 bg-white/5 p-8 text-white/60">
-        No knockout stage for this season.
+        Knockout stage isn’t available for this season.
       </div>
     );
   }
