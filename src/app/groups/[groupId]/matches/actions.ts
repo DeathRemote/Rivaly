@@ -14,6 +14,10 @@ const savePredictionSchema = z.object({
   phaseType: z.enum(["LEAGUE", "GROUP_STAGE", "KNOCKOUT"]),
   homeScore: z.number().int().min(0).max(99),
   awayScore: z.number().int().min(0).max(99),
+
+  // Knockout-only: required when predicting a draw.
+  advancesTeamId: z.string().min(1).optional(),
+
   source: z.enum(["QUICK_PICK", "SCORE"]),
 });
 
@@ -25,6 +29,7 @@ export type SavePredictionResult =
         matchId: string;
         homeScore: number;
         awayScore: number;
+        advancesTeamId?: string | null;
         source: "QUICK_PICK" | "SCORE";
         updatedAt: string;
       };
@@ -41,7 +46,7 @@ export async function saveGroupPredictionAction(
   const parsed = savePredictionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input." };
 
-  const { groupId, matchId, phaseType, homeScore, awayScore, source } = parsed.data;
+  const { groupId, matchId, phaseType, homeScore, awayScore, advancesTeamId, source } = parsed.data;
 
   // Membership check
   const membership = await prisma.groupMember.findUnique({
@@ -101,6 +106,11 @@ export async function saveGroupPredictionAction(
     return { ok: false, error: "Predictions are locked for this match." };
   }
 
+  // Knockout validation: if predicting a draw, must pick who advances.
+  if (phaseType === "KNOCKOUT" && homeScore === awayScore && !advancesTeamId) {
+    return { ok: false, error: "Pick who advances when predicting a draw." };
+  }
+
   const p = await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },
     create: {
@@ -108,14 +118,23 @@ export async function saveGroupPredictionAction(
       matchId,
       homeScore,
       awayScore,
+      advancesTeamId: phaseType === "KNOCKOUT" && homeScore === awayScore ? advancesTeamId : null,
       source,
     },
     update: {
       homeScore,
       awayScore,
+      advancesTeamId: phaseType === "KNOCKOUT" && homeScore === awayScore ? advancesTeamId : null,
       source,
     },
-    select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+    select: {
+      matchId: true,
+      homeScore: true,
+      awayScore: true,
+      advancesTeamId: true,
+      source: true,
+      updatedAt: true,
+    },
   });
 
   revalidatePath(`/groups/${groupId}`);
@@ -126,6 +145,7 @@ export async function saveGroupPredictionAction(
       matchId: p.matchId,
       homeScore: p.homeScore,
       awayScore: p.awayScore,
+      advancesTeamId: p.advancesTeamId,
       source: p.source,
       updatedAt: p.updatedAt.toISOString(),
     },

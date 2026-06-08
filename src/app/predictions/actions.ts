@@ -13,6 +13,10 @@ const savePredictionSchema = z.object({
   matchId: z.string().min(1),
   homeScore: z.number().int().min(0).max(99),
   awayScore: z.number().int().min(0).max(99),
+
+  // Knockout-only: required when predicting a draw.
+  advancesTeamId: z.string().min(1).optional(),
+
   source: z.enum(["QUICK_PICK", "SCORE"]),
 });
 
@@ -25,6 +29,7 @@ export type SavePredictionResult =
         matchId: string;
         homeScore: number;
         awayScore: number;
+        advancesTeamId?: string | null;
         source: "QUICK_PICK" | "SCORE";
         updatedAt: string;
       };
@@ -41,7 +46,7 @@ export async function savePredictionAction(
   const parsed = savePredictionSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Invalid input." };
 
-  const { matchId, homeScore, awayScore, source } = parsed.data;
+  const { matchId, homeScore, awayScore, advancesTeamId, source } = parsed.data;
 
   // Prefer backend when configured (keeps writes off the Next.js runtime).
   const backendBase = getBackendBaseUrl();
@@ -61,6 +66,7 @@ export async function savePredictionAction(
           matchId,
           homeScore,
           awayScore,
+          advancesTeamId,
           source,
         }),
         cache: "no-store",
@@ -93,6 +99,8 @@ export async function savePredictionAction(
       visibleAt: true,
       lockAt: true,
       competitionSeasonId: true,
+      knockoutRound: true,
+      competitionPhase: { select: { type: true } },
     },
   });
 
@@ -140,6 +148,13 @@ export async function savePredictionAction(
     };
   }
 
+  const isKnockout =
+    match.knockoutRound != null || match.competitionPhase?.type === "KNOCKOUT";
+
+  if (isKnockout && homeScore === awayScore && !advancesTeamId) {
+    return { ok: false, error: "Pick who advances when predicting a draw." };
+  }
+
   const p = await prisma.prediction.upsert({
     where: { userId_matchId: { userId, matchId } },
     create: {
@@ -147,14 +162,23 @@ export async function savePredictionAction(
       matchId,
       homeScore,
       awayScore,
+      advancesTeamId: isKnockout && homeScore === awayScore ? advancesTeamId : null,
       source,
     },
     update: {
       homeScore,
       awayScore,
+      advancesTeamId: isKnockout && homeScore === awayScore ? advancesTeamId : null,
       source,
     },
-    select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+    select: {
+      matchId: true,
+      homeScore: true,
+      awayScore: true,
+      advancesTeamId: true,
+      source: true,
+      updatedAt: true,
+    },
   });
 
   // Revalidate high-level surfaces.
@@ -168,6 +192,7 @@ export async function savePredictionAction(
       matchId: p.matchId,
       homeScore: p.homeScore,
       awayScore: p.awayScore,
+      advancesTeamId: p.advancesTeamId,
       source: p.source,
       updatedAt: p.updatedAt.toISOString(),
     },

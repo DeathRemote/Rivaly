@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, Provider } from "@prisma/client";
 
 import { TheSportsDbClient } from "@/lib/providers/thesportsdb/client";
-import { scorePredictionPoints } from "@/lib/scoring/predictions";
+import { scoreKnockoutPredictionPoints, scorePredictionPoints } from "@/lib/scoring/predictions";
 import { computeGroupTableBonus, groupTableBonusMeta } from "@/lib/scoring/group-table-bonus";
 import { syncCompetitionSeasonStandings } from "@/lib/importers/competition-season-standings";
 import { mapTheSportsDbStatus } from "@/lib/importers/thesportsdb/map";
@@ -95,6 +95,74 @@ export async function syncAndProcessFinishedMatches(opts?: {
       continue;
     }
 
+    // Knockout support: store who advanced.
+    // - If match is not a draw: derive from the final score.
+    // - If match is a draw: attempt to parse TheSportsDB's `strResult` (e.g. "England Win 5-3 on penalties...").
+    //   If we cannot determine it reliably, leave null and score later (or via admin override).
+    let advancesTeamId: string | null =
+      homeScore === awayScore ? null : homeScore > awayScore ? m.homeTeamId : m.awayTeamId;
+
+    if (advancesTeamId == null && typeof evt.strResult === "string" && evt.strResult.trim().length > 0) {
+      const r = evt.strResult.trim();
+
+      // Observed formats:
+      // - "England Win 5-3 on penalties after extra time."
+      // - "Portugal win 3-0 on pens"
+      // - sometimes empty (unfortunately)
+      const mWinner = r.match(/^(.+?)\s+win\b/i);
+      const winnerName = mWinner?.[1]?.trim() ?? null;
+
+      if (winnerName) {
+        const w = winnerName.toLowerCase();
+        const home = (evt.strHomeTeam ?? "").toLowerCase();
+        const away = (evt.strAwayTeam ?? "").toLowerCase();
+
+        if (w === home) advancesTeamId = m.homeTeamId;
+        else if (w === away) advancesTeamId = m.awayTeamId;
+      }
+    }
+
+    const isKnockoutMatch = m.knockoutRound != null;
+    const isDraw = homeScore === awayScore;
+
+    // If this is a knockout match that ended in a draw and we still can't determine who advanced,
+    // do NOT score/mark processed yet. We keep polling until either:
+    // - provider payload includes `strResult`, or
+    // - an admin sets MatchResult.advancesTeamId.
+    if (isKnockoutMatch && isDraw && !advancesTeamId) {
+      await prisma.$transaction(async (tx) => {
+        await tx.match.update({
+          where: { id: m.id },
+          data: { status: "FINISHED", finalizedAt: new Date() },
+        });
+
+        await tx.matchResult.upsert({
+          where: { matchId: m.id },
+          create: {
+            matchId: m.id,
+            homeScore,
+            awayScore,
+            advancesTeamId: null,
+            provider: Provider.THESPORTSDB,
+            providerEventId: providerId,
+          },
+          update: {
+            homeScore,
+            awayScore,
+            advancesTeamId: null,
+          },
+        });
+      });
+
+      console.info("[post-match] knockout draw awaiting advancesTeamId", {
+        matchId: m.id,
+        providerEventId: providerId,
+        score: `${homeScore}-${awayScore}`,
+      });
+
+      continue;
+    }
+
     // Transaction for idempotency:
     // - upsert MatchResult
     // - score predictions once via PointsEvent unique constraint
@@ -112,19 +180,21 @@ export async function syncAndProcessFinishedMatches(opts?: {
           matchId: m.id,
           homeScore,
           awayScore,
+          advancesTeamId,
           provider: Provider.THESPORTSDB,
           providerEventId: providerId,
         },
         update: {
           homeScore,
           awayScore,
+          advancesTeamId,
         },
       });
 
       // Load predictions for this match (global per user+match).
       const predictions = await tx.prediction.findMany({
         where: { matchId: m.id },
-        select: { userId: true, homeScore: true, awayScore: true },
+        select: { userId: true, homeScore: true, awayScore: true, advancesTeamId: true },
       });
 
       const predictedUserIds = predictions.map((p) => p.userId);
@@ -162,10 +232,20 @@ export async function syncAndProcessFinishedMatches(opts?: {
         const p = predictionByUserId.get(userId);
         if (!p) continue;
 
-        const scored = scorePredictionPoints({
-          predicted: { home: p.homeScore, away: p.awayScore },
-          actual: { home: homeScore, away: awayScore },
-        });
+        const isKnockout = m.knockoutRound != null;
+        const scored = isKnockout
+          ? scoreKnockoutPredictionPoints({
+              predicted: { home: p.homeScore, away: p.awayScore },
+              actual: { home: homeScore, away: awayScore },
+              homeTeamId: m.homeTeamId,
+              awayTeamId: m.awayTeamId,
+              predictedAdvancesTeamId: p.advancesTeamId,
+              actualAdvancesTeamId: advancesTeamId,
+            })
+          : scorePredictionPoints({
+              predicted: { home: p.homeScore, away: p.awayScore },
+              actual: { home: homeScore, away: awayScore },
+            });
 
         try {
           const created = await tx.seasonPointsEvent.create({
@@ -219,10 +299,20 @@ export async function syncAndProcessFinishedMatches(opts?: {
           const p = predictionByUserId.get(mbr.userId);
           if (!p) continue;
 
-          const scored = scorePredictionPoints({
-            predicted: { home: p.homeScore, away: p.awayScore },
-            actual: { home: homeScore, away: awayScore },
-          });
+          const isKnockout = m.knockoutRound != null;
+          const scored = isKnockout
+            ? scoreKnockoutPredictionPoints({
+                predicted: { home: p.homeScore, away: p.awayScore },
+                actual: { home: homeScore, away: awayScore },
+                homeTeamId: m.homeTeamId,
+                awayTeamId: m.awayTeamId,
+                predictedAdvancesTeamId: p.advancesTeamId,
+                actualAdvancesTeamId: advancesTeamId,
+              })
+            : scorePredictionPoints({
+                predicted: { home: p.homeScore, away: p.awayScore },
+                actual: { home: homeScore, away: awayScore },
+              });
 
           try {
             await tx.pointsEvent.create({

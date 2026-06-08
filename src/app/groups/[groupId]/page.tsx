@@ -12,6 +12,7 @@ import { GroupLeaderboardPanel } from "@/components/groups/GroupLeaderboardPanel
 import { GroupMatchesRemote } from "@/components/groups/GroupMatchesRemote";
 import { GroupPredictedTablesTab } from "@/components/groups/GroupPredictedTablesTab";
 import { GroupTableTab } from "@/components/groups/GroupTableTab";
+import { GroupKnockoutTab } from "@/components/groups/GroupKnockoutTab";
 import { ClientOnly } from "@/components/ui/ClientOnly";
 import type { PhaseType } from "@/components/groups/matches/types";
 
@@ -25,7 +26,7 @@ export default async function GroupDetailsPage({
   searchParams,
 }: {
   params: Promise<{ groupId: string }>;
-  searchParams: Promise<{ tab?: string; bucket?: string }>;
+  searchParams: Promise<{ tab?: string; bucket?: string; view?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login?callbackUrl=/groups");
@@ -38,14 +39,18 @@ export default async function GroupDetailsPage({
   const tab = (
     tabParam === "matches"
       ? "matches"
-      : tabParam === "table"
-        ? "table"
-        : tabParam === "predicted-table"
-          ? "predicted-table"
-          : "leaderboard"
+      : tabParam === "knockout"
+        ? "knockout"
+        : tabParam === "table"
+          ? "table"
+          : tabParam === "predicted-table"
+            ? "predicted-table"
+            : "leaderboard"
   ) as GroupTabKey;
 
   const bucketParam = sp.bucket;
+  const knockoutViewParam = sp.view;
+  const knockoutView = knockoutViewParam === "results" ? "results" : "predictions";
   const initialMatchesView =
     bucketParam === "upcoming" || bucketParam === "completed" || bucketParam === "kickoff"
       ? (bucketParam as "kickoff" | "upcoming" | "completed")
@@ -170,6 +175,13 @@ export default async function GroupDetailsPage({
             initialView={initialMatchesView}
           />
         </ClientOnly>
+      ) : tab === "knockout" ? (
+        <GroupKnockoutTab
+          competitionSeasonId={competitionSeasonId}
+          viewerUserId={userId}
+          groupId={group.id}
+          view={knockoutView}
+        />
       ) : (
         <GroupTableTab competitionSeasonId={competitionSeasonId} />
       )}

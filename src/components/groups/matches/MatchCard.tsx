@@ -51,22 +51,45 @@ export function MatchCard({
 
   const currentHome = prediction?.homeScore ?? 0;
   const currentAway = prediction?.awayScore ?? 0;
+  const currentAdvances = prediction?.advancesTeamId
+    ? prediction.advancesTeamId === match.homeTeamId
+      ? "HOME"
+      : prediction.advancesTeamId === match.awayTeamId
+        ? "AWAY"
+        : null
+    : null;
 
   async function saveScore({
     homeScore,
     awayScore,
+    advances,
     source,
   }: {
     homeScore: number;
     awayScore: number;
+    advances?: "HOME" | "AWAY" | null;
     source: "QUICK_PICK" | "SCORE";
   }) {
     setInlineError(null);
+
+    if (match.phaseType === "KNOCKOUT" && homeScore === awayScore) {
+      if (!match.homeTeamId || !match.awayTeamId) {
+        throw new Error("This knockout match is missing team ids; can’t save an advances pick.");
+      }
+    }
 
     const res = await savePredictionAction({
       matchId: match.id,
       homeScore,
       awayScore,
+      advancesTeamId:
+        match.phaseType === "KNOCKOUT" && homeScore === awayScore
+          ? advances === "HOME"
+            ? match.homeTeamId
+            : advances === "AWAY"
+              ? match.awayTeamId
+              : undefined
+          : undefined,
       source,
     });
 
@@ -75,11 +98,18 @@ export function MatchCard({
       throw new Error(res.error);
     }
 
+    const baseSummary = `${res.prediction.homeScore}-${res.prediction.awayScore}`;
     setPrediction({
       status: "PREDICTED",
-      summary: `${res.prediction.homeScore}-${res.prediction.awayScore}`,
+      summary:
+        match.phaseType === "KNOCKOUT" &&
+        res.prediction.homeScore === res.prediction.awayScore &&
+        res.prediction.advancesTeamId
+          ? `${baseSummary} (adv)`
+          : baseSummary,
       homeScore: res.prediction.homeScore,
       awayScore: res.prediction.awayScore,
+      advancesTeamId: res.prediction.advancesTeamId,
       source: res.prediction.source,
       updatedAt: res.prediction.updatedAt,
     });
@@ -232,6 +262,12 @@ export function MatchCard({
             type="button"
             disabled={locked || pending}
             onClick={() => {
+              // In knockout matches, a draw requires choosing who advances.
+              if (match.phaseType === "KNOCKOUT") {
+                setOpenScore(true);
+                return;
+              }
+
               startTransition(async () => {
                 try {
                   await saveScore({ homeScore: 1, awayScore: 1, source: "QUICK_PICK" });
@@ -285,8 +321,12 @@ export function MatchCard({
         initialHome={currentHome}
         initialAway={currentAway}
         disabled={locked}
-        onSave={async (homeScore, awayScore) => {
-          await saveScore({ homeScore, awayScore, source: "SCORE" });
+        isKnockout={match.phaseType === "KNOCKOUT"}
+        homeTeamLabel={match.home.name}
+        awayTeamLabel={match.away.name}
+        initialAdvances={currentAdvances}
+        onSave={async (homeScore, awayScore, advances) => {
+          await saveScore({ homeScore, awayScore, advances, source: "SCORE" });
         }}
       />
     </article>

@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { cn } from "@/lib/cn";
 
-export type GroupTabKey = "leaderboard" | "predicted-table" | "matches" | "table";
+export type GroupTabKey = "leaderboard" | "predicted-table" | "matches" | "knockout" | "table";
 
 export function GroupTabs({
   groupId,
@@ -29,6 +29,9 @@ export function GroupTabs({
       ) : null}
       <Tab href={`${base}?tab=matches`} active={active === "matches"}>
         Matches
+      </Tab>
+      <Tab href={`${base}?tab=knockout`} active={active === "knockout"}>
+        Knockout stage
       </Tab>
       <Tab href={`${base}?tab=table`} active={active === "table"}>
         Table
