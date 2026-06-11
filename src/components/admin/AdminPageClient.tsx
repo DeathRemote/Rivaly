@@ -43,6 +43,18 @@ export function AdminPageClient({
 
   const [busy, startTransition] = useTransition();
 
+  // Admin scoring tools
+  const [retryMinutes, setRetryMinutes] = useState("180");
+  const [retryMatchId, setRetryMatchId] = useState("");
+  const [retryResult, setRetryResult] = useState<string | null>(null);
+
+  const [latePredictionUserId, setLatePredictionUserId] = useState("");
+  const [latePredictionMatchId, setLatePredictionMatchId] = useState("");
+  const [latePredictionHome, setLatePredictionHome] = useState("0");
+  const [latePredictionAway, setLatePredictionAway] = useState("0");
+  const [latePredictionAdvancesTeamId, setLatePredictionAdvancesTeamId] = useState("");
+  const [latePredictionResult, setLatePredictionResult] = useState<string | null>(null);
+
   const [activeSport, setActiveSport] = useState<Sport>("SOCCER");
 
   const filteredCompetitions = useMemo(
@@ -776,6 +788,187 @@ export function AdminPageClient({
               </div>
             </div>
           ))}
+        </div>
+      </section>
+
+      {/* Admin scoring tools */}
+      <section className="space-y-4">
+        <div>
+          <h2 className="font-display text-xl font-black italic text-white">Scoring tools</h2>
+          <p className="mt-1 text-sm text-white/50">
+            Retry failed scoring jobs and add late predictions (optionally score immediately if the match is already finalized).
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          {/* Retry failed score jobs */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">Retry failed score jobs</div>
+            <div className="mt-1 text-sm text-white/50">Moves FAILED SCORE_MATCH jobs back to QUEUED.</div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <input
+                value={retryMinutes}
+                onChange={(e) => setRetryMinutes(e.target.value)}
+                placeholder="minutes (e.g. 180)"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+              />
+              <input
+                value={retryMatchId}
+                onChange={(e) => setRetryMatchId(e.target.value)}
+                placeholder="matchId (optional)"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25 md:col-span-2"
+              />
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => {
+                  startTransition(async () => {
+                    setRetryResult(null);
+                    const minutesNum = Number(retryMinutes);
+                    const payload: any = {};
+                    if (Number.isFinite(minutesNum) && minutesNum > 0) payload.minutes = minutesNum;
+                    if (retryMatchId.trim()) payload.matchId = retryMatchId.trim();
+
+                    const res = await fetch("/api/admin/jobs/retry-failed-score", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify(payload),
+                    });
+                    const json = await res.json().catch(() => null);
+                    if (!res.ok || !json?.ok) {
+                      setRetryResult(json?.error ? `Failed: ${json.error}` : "Failed");
+                      return;
+                    }
+                    setRetryResult(`Retried ${json.retried} job(s).`);
+                  });
+                }}
+                className={cn(
+                  "h-11 rounded-xl px-5",
+                  "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10",
+                  "text-xs font-black uppercase tracking-[0.22em] transition",
+                  busy && "opacity-60 cursor-not-allowed",
+                )}
+              >
+                Retry
+              </button>
+
+              {retryResult ? <div className="text-xs text-white/60">{retryResult}</div> : null}
+            </div>
+          </div>
+
+          {/* Add late prediction */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">Add late prediction</div>
+            <div className="mt-1 text-sm text-white/50">
+              Saves a prediction even after lock. If the match has a result, it will score and update points.
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2">
+              <input
+                value={latePredictionUserId}
+                onChange={(e) => setLatePredictionUserId(e.target.value)}
+                placeholder="userId"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+              />
+              <input
+                value={latePredictionMatchId}
+                onChange={(e) => setLatePredictionMatchId(e.target.value)}
+                placeholder="matchId"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+              />
+
+              <input
+                value={latePredictionHome}
+                onChange={(e) => setLatePredictionHome(e.target.value)}
+                placeholder="home score"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+              />
+              <input
+                value={latePredictionAway}
+                onChange={(e) => setLatePredictionAway(e.target.value)}
+                placeholder="away score"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+              />
+
+              <input
+                value={latePredictionAdvancesTeamId}
+                onChange={(e) => setLatePredictionAdvancesTeamId(e.target.value)}
+                placeholder="advancesTeamId (knockout draw, optional)"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25 md:col-span-2"
+              />
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                disabled={busy || !latePredictionUserId.trim() || !latePredictionMatchId.trim()}
+                onClick={() => {
+                  startTransition(async () => {
+                    setLatePredictionResult(null);
+                    const res = await fetch("/api/admin/predictions/admin-add", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        userId: latePredictionUserId.trim(),
+                        matchId: latePredictionMatchId.trim(),
+                        homeScore: Number(latePredictionHome),
+                        awayScore: Number(latePredictionAway),
+                        scoreIfPossible: true,
+                        predictedAdvancesTeamId: latePredictionAdvancesTeamId.trim() || null,
+                      }),
+                    });
+                    const json = await res.json().catch(() => null);
+                    if (!res.ok || !json?.ok) {
+                      setLatePredictionResult(json?.error ? `Failed: ${json.error}` : "Failed");
+                      return;
+                    }
+
+                    if (json.scored) {
+                      setLatePredictionResult(`Saved + scored (${json.points} pts). ${json.reason}`);
+                    } else {
+                      setLatePredictionResult(`Saved. Not scored yet: ${json.reason}`);
+                    }
+
+                    await refreshStats();
+                  });
+                }}
+                className={cn(
+                  "h-11 rounded-xl px-5",
+                  "bg-gradient-to-br from-[#f3ffca] to-[#beee00] text-[#3a4a00]",
+                  "text-xs font-black uppercase tracking-[0.22em] hover:brightness-105 transition",
+                  "disabled:opacity-40 disabled:cursor-not-allowed",
+                )}
+              >
+                Save &amp; score
+              </button>
+
+              {userResult?.id ? (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setLatePredictionUserId(userResult.id)}
+                  className={cn(
+                    "h-11 rounded-xl px-4",
+                    "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10",
+                    "text-xs font-black uppercase tracking-[0.22em] transition",
+                    busy && "opacity-60 cursor-not-allowed",
+                  )}
+                >
+                  Use looked-up user
+                </button>
+              ) : null}
+
+              {latePredictionResult ? <div className="text-xs text-white/60">{latePredictionResult}</div> : null}
+            </div>
+
+            <div className="mt-2 text-[11px] text-white/35">
+              Tip: use the existing “Match lookup” endpoint with providerMatchId (TheSportsDB idEvent) to find matchId.
+            </div>
+          </div>
         </div>
       </section>
 
