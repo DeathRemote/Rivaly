@@ -248,17 +248,15 @@ export async function registerGroupRoutes(app: FastifyInstance) {
 
       const points = group.competitionSeasonId
         ? (
-            await prisma.seasonUserPoints.findUnique({
-              where: {
-                competitionSeasonId_scoringSystem_userId: {
-                  competitionSeasonId: group.competitionSeasonId,
-                  scoringSystem: "CLASSIC",
-                  userId,
-                },
-              },
-              select: { points: true },
-            })
-          )?.points ?? 0
+            await prisma.$queryRaw<Array<{ points: number }>>(Prisma.sql`
+              SELECT "points"
+              FROM "SeasonUserPoints"
+              WHERE "competitionSeasonId" = ${group.competitionSeasonId}
+                AND "scoringSystem" = 'CLASSIC'::"ScoringSystem"
+                AND "userId" = ${userId}
+              LIMIT 1;
+            `)
+          )[0]?.points ?? 0
         : 0;
 
       await prisma.groupMember.upsert({

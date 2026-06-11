@@ -10,6 +10,7 @@
 
     "job:scheduler": "node dist/jobs/cli/scheduler.js",
     "job:worker": "node dist/jobs/cli/worker.js",
+    "job:admin": "node dist/jobs/cli/admin.js",
 
     "prisma:prepare": "node scripts/prepare-prisma.mjs",
     "prisma:generate": "npm run prisma:prepare && prisma generate --schema prisma/schema.prisma",
