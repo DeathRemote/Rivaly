@@ -242,8 +242,8 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
         JOIN "SeasonUserPoints" sup
           ON sup."competitionSeasonId" = g."competitionSeasonId"
          AND sup."scoringSystem" = g."scoringSystem"
-         AND sup."userId" = gm."userId"
         WHERE gm."groupId" = g."id"
+          AND sup."userId" = gm."userId"
           AND g."competitionSeasonId" = ${match.competitionSeasonId}
           AND g."scoringSystem" = 'CLASSIC'::"ScoringSystem"
           AND gm."userId" IN (${Prisma.join(userIdsUniq)});
