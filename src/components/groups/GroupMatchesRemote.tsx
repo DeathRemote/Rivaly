@@ -30,7 +30,8 @@ export function GroupMatchesRemote({ groupId, phaseType, initialView }: { groupI
 
       const url = new URL(`/api/internal/groups/${encodeURIComponent(groupId)}/matches`, window.location.origin);
       url.searchParams.set("bucket", bucket);
-      url.searchParams.set("limit", "10");
+      // Kickoff view should show the full slate for big tournaments (e.g. World Cup group stage).
+      url.searchParams.set("limit", bucket === "kickoff" ? "100" : "10");
       if (!first && cursor) {
         url.searchParams.set("cursorKickoffAt", cursor.cursorKickoffAt);
         url.searchParams.set("cursorId", cursor.cursorId);

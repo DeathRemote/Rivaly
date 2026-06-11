@@ -35,7 +35,7 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
       const query = z
         .object({
           bucket: z.enum(["kickoff", "upcoming", "completed"]),
-          limit: z.coerce.number().int().positive().max(50).optional().default(10),
+          limit: z.coerce.number().int().positive().max(200).optional().default(10),
           cursorKickoffAt: z.string().datetime().optional(),
           cursorId: z.string().optional(),
         })
@@ -122,7 +122,8 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
           query.bucket === "completed"
             ? [{ kickoffAt: "desc" }, { id: "desc" }]
             : [{ kickoffAt: "asc" }, { id: "asc" }],
-        take: query.bucket === "kickoff" ? 50 : query.limit + 1,
+        // Kickoff is the main view; allow larger pages (e.g. World Cup group stage).
+        take: query.bucket === "kickoff" ? query.limit : query.limit + 1,
       });
 
       // Load predictions for these matches.

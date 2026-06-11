@@ -9,7 +9,7 @@ async function runJob(req: Request) {
 
   const result = await syncAndProcessFinishedMatches({
     maxMatches: 50,
-    lookbackHours: 10,
+    lookbackHours: 7 * 24,
     lookaheadMinutes: 60,
   });
 

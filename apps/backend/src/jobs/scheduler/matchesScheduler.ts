@@ -11,7 +11,9 @@ export async function runMatchesScheduler(opts?: {
   lookaheadMinutes?: number;
 }) {
   const maxMatches = opts?.maxMatches ?? 50;
-  const lookbackHours = opts?.lookbackHours ?? 10;
+  // Provider status/scores can be delayed by many hours (sometimes >24h).
+  // Default to a 7-day window so we don't miss matches that finish but update late.
+  const lookbackHours = opts?.lookbackHours ?? 7 * 24;
   const lookaheadMinutes = opts?.lookaheadMinutes ?? 60;
 
   const now = new Date();
