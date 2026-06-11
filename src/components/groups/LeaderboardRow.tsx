@@ -35,12 +35,6 @@ export function LeaderboardRow({ row }: { row: LeaderboardRowData }) {
       </div>
 
       <div className="col-span-5 flex items-center gap-3">
-        <div
-          className={cn(
-            "h-10 w-10 rounded-full border border-white/10 bg-black/20",
-            row.isYou && "border-[#3a4a00]/30 bg-[#3a4a00]/10",
-          )}
-        />
         <div>
           <div className={cn("text-sm font-black", row.isYou ? "text-[#3a4a00]" : "text-white")}>
             {row.isYou ? `You (${row.name})` : row.name}
