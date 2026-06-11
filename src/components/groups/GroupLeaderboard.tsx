@@ -7,12 +7,18 @@ export function GroupLeaderboard({
 }) {
   return (
     <section className="rounded-3xl border border-white/10 bg-white/5 p-1 overflow-hidden">
-      <div className="grid grid-cols-12 px-6 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-white/40 border-b border-white/10">
+      {/* Header (desktop/tablet) */}
+      <div className="hidden sm:grid grid-cols-12 px-6 py-4 text-[10px] font-black uppercase tracking-[0.22em] text-white/40 border-b border-white/10">
         <div className="col-span-1">Rk</div>
         <div className="col-span-5">Competitor</div>
         <div className="col-span-2 text-right">Points</div>
         <div className="col-span-2 text-right">Acc %</div>
         <div className="col-span-2 text-center">Trend</div>
+      </div>
+
+      {/* Header (mobile) */}
+      <div className="sm:hidden px-4 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-white/40 border-b border-white/10">
+        Leaderboard
       </div>
 
       <div className="mt-2 max-h-[620px] overflow-y-auto">
