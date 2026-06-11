@@ -22,8 +22,7 @@ export function GroupLeaderboard({
         <div>Competitor</div>
         <div className="text-right">
           <span className="mr-3">Pts</span>
-          <span className="mr-3">Acc</span>
-          <span>Tr</span>
+          <span>Acc</span>
         </div>
       </div>
 

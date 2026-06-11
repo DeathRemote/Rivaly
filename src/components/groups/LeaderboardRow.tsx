@@ -62,20 +62,11 @@ export function LeaderboardRow({ row }: { row: LeaderboardRowData }) {
       </div>
 
       {/* Stats (mobile stacked, desktop split columns) */}
-      <div className="flex items-center gap-4 sm:hidden">
-        <div className="flex items-baseline gap-3 text-right font-display text-base font-black tabular-nums">
+      <div className="flex items-center sm:hidden">
+        <div className="flex items-baseline gap-4 text-right font-display text-base font-black tabular-nums">
           <span>{row.points.toLocaleString()}</span>
           <span className={cn(row.isYou ? "text-[#3a4a00]" : "text-lime-200")}>{row.accuracyPct}%</span>
         </div>
-        <span
-          className={cn(
-            "text-sm font-black",
-            row.trend === "up" ? "text-lime-200" : row.trend === "down" ? "text-orange-300" : "text-white/40",
-            row.isYou && "text-[#3a4a00]",
-          )}
-        >
-          {row.trend === "up" ? "↗" : row.trend === "down" ? "↘" : "—"}
-        </span>
       </div>
 
       {/* Desktop columns */}
