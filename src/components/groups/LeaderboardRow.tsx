@@ -62,10 +62,10 @@ export function LeaderboardRow({ row }: { row: LeaderboardRowData }) {
       </div>
 
       {/* Stats (mobile stacked, desktop split columns) */}
-      <div className="flex items-center gap-3 sm:hidden">
-        <div className="text-right font-display text-base font-black tabular-nums">
-          {row.points.toLocaleString()}
-          <span className={cn("ml-2", row.isYou ? "text-[#3a4a00]" : "text-lime-200")}>{row.accuracyPct}%</span>
+      <div className="flex items-center gap-4 sm:hidden">
+        <div className="flex items-baseline gap-3 text-right font-display text-base font-black tabular-nums">
+          <span>{row.points.toLocaleString()}</span>
+          <span className={cn(row.isYou ? "text-[#3a4a00]" : "text-lime-200")}>{row.accuracyPct}%</span>
         </div>
         <span
           className={cn(

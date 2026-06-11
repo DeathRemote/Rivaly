@@ -17,8 +17,14 @@ export function GroupLeaderboard({
       </div>
 
       {/* Header (mobile) */}
-      <div className="sm:hidden px-4 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-white/40 border-b border-white/10">
-        Leaderboard
+      <div className="sm:hidden grid grid-cols-[48px_1fr_auto] items-center px-4 py-3 text-[10px] font-black uppercase tracking-[0.22em] text-white/40 border-b border-white/10">
+        <div>Rk</div>
+        <div>Competitor</div>
+        <div className="text-right">
+          <span className="mr-3">Pts</span>
+          <span className="mr-3">Acc</span>
+          <span>Tr</span>
+        </div>
       </div>
 
       <div className="mt-2 max-h-[620px] overflow-y-auto">
