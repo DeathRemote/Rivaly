@@ -20,7 +20,7 @@ export async function GET(req: Request, ctx: { params: Promise<{ groupId: string
   const parsed = z
     .object({
       bucket: z.enum(["kickoff", "upcoming", "completed"]),
-      limit: z.coerce.number().int().positive().max(50).optional(),
+      limit: z.coerce.number().int().positive().max(200).optional(),
       cursorKickoffAt: z.string().optional(),
       cursorId: z.string().optional(),
     })
