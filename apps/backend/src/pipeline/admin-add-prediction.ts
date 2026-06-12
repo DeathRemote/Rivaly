@@ -18,8 +18,11 @@ export async function adminUpsertPredictionAndScore(opts: {
   homeScore: number;
   awayScore: number;
   scoreIfPossible?: boolean;
+  // If true and already scored, override (delete + rescore) the user's points for this match.
+  forceRescore?: boolean;
 }) {
   const scoreIfPossible = opts.scoreIfPossible ?? true;
+  const forceRescore = opts.forceRescore ?? false;
 
   const match = await prisma.match.findUnique({
     where: { id: opts.matchId },
@@ -87,8 +90,36 @@ export async function adminUpsertPredictionAndScore(opts: {
 
   const groupIds = groupIdsRows.map((r) => r.groupId);
 
-  // 2) Score + write points (idempotent)
+  // 2) Score + write points (idempotent by default; forceRescore enables override)
   const txOut = await prisma.$transaction(async (tx) => {
+    // If requested, remove the prior scored event so we can re-score.
+    // (We keep Prediction history via updatedAt; points history is effectively replaced.)
+    let seasonDeleted = 0;
+    let groupDeleted = 0;
+
+    if (forceRescore) {
+      const delSeason = await tx.$executeRaw(Prisma.sql`
+        DELETE FROM "SeasonPointsEvent"
+        WHERE "competitionSeasonId" = ${match.competitionSeasonId}::text
+          AND "scoringSystem" = 'CLASSIC'::"ScoringSystem"
+          AND "userId" = ${opts.userId}::text
+          AND "matchId" = ${match.id}::text
+          AND "type" = 'PREDICTION_SCORED'::"SeasonPointsEventType";
+      `);
+      seasonDeleted = Number(delSeason) || 0;
+
+      if (groupIds.length) {
+        const delGroup = await tx.$executeRaw(Prisma.sql`
+          DELETE FROM "PointsEvent"
+          WHERE "groupId" IN (${Prisma.join(groupIds.map((g) => Prisma.sql`${g}::text`))})
+            AND "userId" = ${opts.userId}::text
+            AND "matchId" = ${match.id}::text
+            AND "type" = 'PREDICTION_SCORED'::"PointsEventType";
+        `);
+        groupDeleted = Number(delGroup) || 0;
+      }
+    }
+
     // Insert canonical SeasonPointsEvent ONCE per user+match.
     const seasonEventRows = await tx.$queryRaw<Array<{ points: number }>>(Prisma.sql`
       INSERT INTO "SeasonPointsEvent" (
@@ -121,29 +152,37 @@ export async function adminUpsertPredictionAndScore(opts: {
 
     const seasonInserted = seasonEventRows.length > 0;
 
-    if (seasonInserted) {
-      // Increment SeasonUserPoints.
-      await tx.$executeRaw(Prisma.sql`
-        INSERT INTO "SeasonUserPoints" (
-          "id",
-          "competitionSeasonId",
-          "scoringSystem",
-          "userId",
-          "points",
-          "updatedAt"
-        )
-        VALUES (
-          ${uuid()}::text,
-          ${match.competitionSeasonId}::text,
-          'CLASSIC'::"ScoringSystem",
-          ${opts.userId}::text,
-          ${scored.points}::int,
-          NOW()
-        )
-        ON CONFLICT ("competitionSeasonId", "scoringSystem", "userId")
-        DO UPDATE SET "points" = "SeasonUserPoints"."points" + EXCLUDED."points", "updatedAt" = NOW();
-      `);
-    }
+    // Recompute SeasonUserPoints from the ledger (avoids drift when force-rescoring).
+    const totalRows = await tx.$queryRaw<Array<{ total: number | null }>>(Prisma.sql`
+      SELECT COALESCE(SUM("points"), 0) as "total"
+      FROM "SeasonPointsEvent"
+      WHERE "competitionSeasonId" = ${match.competitionSeasonId}::text
+        AND "scoringSystem" = 'CLASSIC'::"ScoringSystem"
+        AND "userId" = ${opts.userId}::text;
+    `);
+
+    const newSeasonTotal = totalRows[0]?.total ?? 0;
+
+    await tx.$executeRaw(Prisma.sql`
+      INSERT INTO "SeasonUserPoints" (
+        "id",
+        "competitionSeasonId",
+        "scoringSystem",
+        "userId",
+        "points",
+        "updatedAt"
+      )
+      VALUES (
+        ${uuid()}::text,
+        ${match.competitionSeasonId}::text,
+        'CLASSIC'::"ScoringSystem",
+        ${opts.userId}::text,
+        ${newSeasonTotal}::int,
+        NOW()
+      )
+      ON CONFLICT ("competitionSeasonId", "scoringSystem", "userId")
+      DO UPDATE SET "points" = EXCLUDED."points", "updatedAt" = NOW();
+    `);
 
     // Insert group PointsEvents (one per group membership).
     let groupEventsInserted = 0;
@@ -193,7 +232,7 @@ export async function adminUpsertPredictionAndScore(opts: {
         AND gm."userId" = ${opts.userId};
     `);
 
-    return { seasonInserted, groupEventsInserted };
+    return { seasonInserted, groupEventsInserted, seasonDeleted, groupDeleted, newSeasonTotal };
   });
 
   return {
@@ -205,6 +244,9 @@ export async function adminUpsertPredictionAndScore(opts: {
     meta: scored.meta,
     seasonEventInserted: txOut.seasonInserted,
     groupEventsInserted: txOut.groupEventsInserted,
+    seasonEventDeleted: (txOut as any).seasonDeleted ?? 0,
+    groupEventsDeleted: (txOut as any).groupDeleted ?? 0,
+    newSeasonTotal: (txOut as any).newSeasonTotal ?? null,
     affectedGroupIds: groupIds,
     affectedUserIds: [opts.userId],
   };

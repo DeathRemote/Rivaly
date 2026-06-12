@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
 
 import { requireAdminApi } from "@/lib/admin/api-auth";
 import { prisma } from "@/lib/prisma";
@@ -24,6 +23,9 @@ export async function POST(req: Request) {
       homeScore: z.number().int().min(0),
       awayScore: z.number().int().min(0),
       scoreIfPossible: z.boolean().optional().default(true),
+      // If true and already scored, override (delete + rescore) the user's points for this match.
+      // Use with care; intended for admin correction of mistaken predictions.
+      forceRescore: z.boolean().optional().default(false),
       // For knockout draws decided on penalties.
       predictedAdvancesTeamId: z.string().min(1).optional().nullable(),
     })
@@ -33,7 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: false, error: "Bad Request" }, { status: 400 });
   }
 
-  const { userId, matchId, homeScore, awayScore, scoreIfPossible, predictedAdvancesTeamId } = parsed.data;
+  const { userId, matchId, homeScore, awayScore, scoreIfPossible, forceRescore, predictedAdvancesTeamId } = parsed.data;
 
   const match = await prisma.match.findUnique({
     where: { id: matchId },
@@ -95,10 +97,44 @@ export async function POST(req: Request) {
   const groupIds = Array.from(new Set(eligibleMembers.map((m) => m.groupId)));
 
   // Transaction: write canonical season scoring once; mirror points into group events; sync GroupMember points.
+  // If forceRescore=true, we will delete the existing scored event (if any) and re-score with the new prediction.
   const txOut = await prisma.$transaction(async (tx) => {
-    let seasonEventInserted = false;
+    const existingSeasonEvent = await tx.seasonPointsEvent.findUnique({
+      where: {
+        competitionSeasonId_scoringSystem_userId_matchId_type: {
+          competitionSeasonId: match.competitionSeasonId!,
+          scoringSystem: "CLASSIC",
+          userId,
+          matchId: match.id,
+          type: "PREDICTION_SCORED",
+        },
+      },
+      select: { id: true, points: true },
+    });
 
-    try {
+    let seasonEventDeleted = false;
+    let groupEventsDeleted = 0;
+
+    if (existingSeasonEvent && forceRescore) {
+      await tx.seasonPointsEvent.delete({ where: { id: existingSeasonEvent.id } });
+      seasonEventDeleted = true;
+
+      if (groupIds.length) {
+        const del = await tx.pointsEvent.deleteMany({
+          where: {
+            groupId: { in: groupIds },
+            userId,
+            matchId: match.id,
+            type: "PREDICTION_SCORED",
+          },
+        });
+        groupEventsDeleted = del.count;
+      }
+    }
+
+    // Insert the canonical season event if missing (or if we just deleted it).
+    let seasonEventInserted = false;
+    if (!existingSeasonEvent || forceRescore) {
       await tx.seasonPointsEvent.create({
         data: {
           competitionSeasonId: match.competitionSeasonId!,
@@ -113,34 +149,53 @@ export async function POST(req: Request) {
         select: { id: true },
       });
       seasonEventInserted = true;
+    }
 
-      await tx.seasonUserPoints.upsert({
-        where: {
-          competitionSeasonId_scoringSystem_userId: {
-            competitionSeasonId: match.competitionSeasonId!,
-            scoringSystem: "CLASSIC",
-            userId,
-          },
-        },
-        create: {
+    // Ensure SeasonUserPoints is correct by recomputing from the ledger (avoids drift).
+    const sum = await tx.seasonPointsEvent.aggregate({
+      where: {
+        competitionSeasonId: match.competitionSeasonId!,
+        scoringSystem: "CLASSIC",
+        userId,
+      },
+      _sum: { points: true },
+    });
+
+    const newSeasonTotal = sum._sum.points ?? 0;
+
+    await tx.seasonUserPoints.upsert({
+      where: {
+        competitionSeasonId_scoringSystem_userId: {
           competitionSeasonId: match.competitionSeasonId!,
           scoringSystem: "CLASSIC",
           userId,
-          points: scored.points,
         },
-        update: { points: { increment: scored.points } },
-      });
-    } catch (err) {
-      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-        // already scored for this user+match
-      } else {
-        throw err;
-      }
-    }
+      },
+      create: {
+        competitionSeasonId: match.competitionSeasonId!,
+        scoringSystem: "CLASSIC",
+        userId,
+        points: newSeasonTotal,
+      },
+      update: { points: newSeasonTotal },
+    });
 
+    // Mirror points into group events. If not forceRescore and events already exist, we keep them.
     let groupEventsInserted = 0;
-    for (const gid of groupIds) {
-      try {
+    if (!existingSeasonEvent || forceRescore) {
+      // Ensure we never fail on a stray pre-existing row (shouldn't happen, but safer).
+      if (groupIds.length) {
+        await tx.pointsEvent.deleteMany({
+          where: {
+            groupId: { in: groupIds },
+            userId,
+            matchId: match.id,
+            type: "PREDICTION_SCORED",
+          },
+        });
+      }
+
+      for (const gid of groupIds) {
         await tx.pointsEvent.create({
           data: {
             groupId: gid,
@@ -154,35 +209,25 @@ export async function POST(req: Request) {
           select: { id: true },
         });
         groupEventsInserted++;
-      } catch (err) {
-        if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
-          // already exists
-        } else {
-          throw err;
-        }
       }
     }
 
     // Sync GroupMember points from canonical season points.
     if (groupIds.length) {
-      const sup = await tx.seasonUserPoints.findUnique({
-        where: {
-          competitionSeasonId_scoringSystem_userId: {
-            competitionSeasonId: match.competitionSeasonId!,
-            scoringSystem: "CLASSIC",
-            userId,
-          },
-        },
-        select: { points: true },
-      });
-
       await tx.groupMember.updateMany({
         where: { userId, groupId: { in: groupIds } },
-        data: { points: sup?.points ?? 0 },
+        data: { points: newSeasonTotal },
       });
     }
 
-    return { seasonEventInserted, groupEventsInserted };
+    return {
+      existingSeasonPoints: existingSeasonEvent?.points ?? null,
+      seasonEventDeleted,
+      seasonEventInserted,
+      groupEventsDeleted,
+      groupEventsInserted,
+      newSeasonTotal,
+    };
   });
 
   // Best-effort: recompute aggregates + standings.

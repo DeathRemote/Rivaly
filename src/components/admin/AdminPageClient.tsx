@@ -53,6 +53,7 @@ export function AdminPageClient({
   const [latePredictionHome, setLatePredictionHome] = useState("0");
   const [latePredictionAway, setLatePredictionAway] = useState("0");
   const [latePredictionAdvancesTeamId, setLatePredictionAdvancesTeamId] = useState("");
+  const [latePredictionForceRescore, setLatePredictionForceRescore] = useState(false);
   const [latePredictionResult, setLatePredictionResult] = useState<string | null>(null);
 
   const [activeSport, setActiveSport] = useState<Sport>("SOCCER");
@@ -902,6 +903,16 @@ export function AdminPageClient({
               />
             </div>
 
+            <label className="mt-3 flex items-center gap-2 text-xs text-white/60 select-none">
+              <input
+                type="checkbox"
+                checked={latePredictionForceRescore}
+                onChange={(e) => setLatePredictionForceRescore(e.target.checked)}
+                className="h-4 w-4"
+              />
+              Force rescore (override existing points if this match was already scored for this user)
+            </label>
+
             <div className="mt-3 flex items-center gap-2 flex-wrap">
               <button
                 type="button"
@@ -918,6 +929,7 @@ export function AdminPageClient({
                         homeScore: Number(latePredictionHome),
                         awayScore: Number(latePredictionAway),
                         scoreIfPossible: true,
+                        forceRescore: latePredictionForceRescore,
                         predictedAdvancesTeamId: latePredictionAdvancesTeamId.trim() || null,
                       }),
                     });
