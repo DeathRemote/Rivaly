@@ -18,24 +18,26 @@ export function GroupTabs({
   const base = `/groups/${groupId}`;
 
   return (
-    <div className="mb-8 flex gap-10 border-b border-white/10 px-2">
-      <Tab href={`${base}?tab=leaderboard`} active={active === "leaderboard"}>
-        Leaderboard
-      </Tab>
-      {showPredictedTable ? (
-        <Tab href={`${base}?tab=predicted-table`} active={active === "predicted-table"}>
-          Predicted Table
+    <div className="mb-8 border-b border-white/10">
+      <div className="flex gap-8 overflow-x-auto px-2 scrollbar-none sm:gap-10">
+        <Tab href={`${base}?tab=leaderboard`} active={active === "leaderboard"}>
+          Leaderboard
         </Tab>
-      ) : null}
-      <Tab href={`${base}?tab=matches`} active={active === "matches"}>
-        Matches
-      </Tab>
-      <Tab href={`${base}?tab=knockout`} active={active === "knockout"}>
-        Knockout stage
-      </Tab>
-      <Tab href={`${base}?tab=table`} active={active === "table"}>
-        Table
-      </Tab>
+        {showPredictedTable ? (
+          <Tab href={`${base}?tab=predicted-table`} active={active === "predicted-table"}>
+            Predicted Table
+          </Tab>
+        ) : null}
+        <Tab href={`${base}?tab=matches`} active={active === "matches"}>
+          Matches
+        </Tab>
+        <Tab href={`${base}?tab=knockout`} active={active === "knockout"}>
+          Knockout stage
+        </Tab>
+        <Tab href={`${base}?tab=table`} active={active === "table"}>
+          Table
+        </Tab>
+      </div>
     </div>
   );
 }
@@ -53,7 +55,7 @@ function Tab({
     <Link
       href={href}
       className={cn(
-        "pb-4 font-display text-lg font-black tracking-tight transition",
+        "shrink-0 pb-4 font-display text-lg font-black tracking-tight transition",
         active ? "text-lime-100 border-b-2 border-lime-200" : "text-white/50 hover:text-white",
       )}
     >
