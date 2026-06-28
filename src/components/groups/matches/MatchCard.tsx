@@ -72,7 +72,9 @@ export function MatchCard({
   }) {
     setInlineError(null);
 
-    if (match.phaseType === "KNOCKOUT" && homeScore === awayScore) {
+    const isKnockout = match.isKnockout ?? match.phaseType === "KNOCKOUT";
+
+    if (isKnockout && homeScore === awayScore) {
       if (!match.homeTeamId || !match.awayTeamId) {
         throw new Error("This knockout match is missing team ids; can’t save an advances pick.");
       }
@@ -83,7 +85,7 @@ export function MatchCard({
       homeScore,
       awayScore,
       advancesTeamId:
-        match.phaseType === "KNOCKOUT" && homeScore === awayScore
+        (match.isKnockout ?? match.phaseType === "KNOCKOUT") && homeScore === awayScore
           ? advances === "HOME"
             ? match.homeTeamId
             : advances === "AWAY"
@@ -102,7 +104,7 @@ export function MatchCard({
     setPrediction({
       status: "PREDICTED",
       summary:
-        match.phaseType === "KNOCKOUT" &&
+        (match.isKnockout ?? match.phaseType === "KNOCKOUT") &&
         res.prediction.homeScore === res.prediction.awayScore &&
         res.prediction.advancesTeamId
           ? `${baseSummary} (adv)`
@@ -321,7 +323,7 @@ export function MatchCard({
         initialHome={currentHome}
         initialAway={currentAway}
         disabled={locked}
-        isKnockout={match.phaseType === "KNOCKOUT"}
+        isKnockout={match.isKnockout ?? match.phaseType === "KNOCKOUT"}
         homeTeamLabel={match.home.name}
         awayTeamLabel={match.away.name}
         initialAdvances={currentAdvances}

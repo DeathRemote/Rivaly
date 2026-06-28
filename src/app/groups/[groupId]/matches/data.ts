@@ -122,6 +122,8 @@ export async function getMatchesForGroup({
     const visibleAtDate =
       phaseType === "GROUP_STAGE" ? new Date(0) : inOpeningBucket ? new Date(0) : m.visibleAt ?? m.kickoffAt;
 
+    const isKnockout = m.knockoutRound != null || m.competitionPhase?.type === CompetitionPhaseType.KNOCKOUT;
+
     return {
       id: m.id,
       phaseType,
@@ -130,6 +132,11 @@ export async function getMatchesForGroup({
       lockAt: lockAtDate.toISOString(),
       visibleAt: visibleAtDate.toISOString(),
       status: mapDbStatus(m.status),
+
+      isKnockout,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+
       home: { name: m.homeTeam.name, shortName: m.homeTeam.shortName ?? undefined },
       away: { name: m.awayTeam.name, shortName: m.awayTeam.shortName ?? undefined },
       competitionLabel: season ? `${season.competition.name} ${season.seasonLabel}` : undefined,
