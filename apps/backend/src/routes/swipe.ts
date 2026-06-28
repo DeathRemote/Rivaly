@@ -11,6 +11,11 @@ export type SwipeMatch = {
   kickoffAt: string;
   lockAt: string;
   competitionLabel: string;
+
+  isKnockout: boolean;
+  homeTeamId: string;
+  awayTeamId: string;
+
   home: { name: string; shortName?: string | null };
   away: { name: string; shortName?: string | null };
   groupId: string;
@@ -79,6 +84,10 @@ async function getSwipeMatchesForUser(userId: string, limit: number): Promise<Sw
       kickoffAt: true,
       lockAt: true,
       competitionSeasonId: true,
+      knockoutRound: true,
+      competitionPhase: { select: { type: true } },
+      homeTeamId: true,
+      awayTeamId: true,
       competitionSeason: { select: { seasonLabel: true, competition: { select: { name: true } } } },
       homeTeam: { select: { name: true, shortName: true } },
       awayTeam: { select: { name: true, shortName: true } },
@@ -101,6 +110,10 @@ async function getSwipeMatchesForUser(userId: string, limit: number): Promise<Sw
         kickoffAt: true,
         lockAt: true,
         competitionSeasonId: true,
+        knockoutRound: true,
+        competitionPhase: { select: { type: true } },
+        homeTeamId: true,
+        awayTeamId: true,
         competitionSeason: {
           select: {
             seasonLabel: true,
@@ -148,12 +161,19 @@ async function getSwipeMatchesForUser(userId: string, limit: number): Promise<Sw
 
     const competitionLabel = `${m.competitionSeason.competition.name} ${m.competitionSeason.seasonLabel}`;
 
+    const isKnockout = m.knockoutRound != null || m.competitionPhase?.type === "KNOCKOUT";
+
     out.push({
       matchId: m.id,
       competitionSeasonId: m.competitionSeasonId,
       kickoffAt: m.kickoffAt.toISOString(),
       lockAt: (m.lockAt ?? m.kickoffAt).toISOString(),
       competitionLabel,
+
+      isKnockout,
+      homeTeamId: m.homeTeamId,
+      awayTeamId: m.awayTeamId,
+
       home: { name: m.homeTeam.name, shortName: m.homeTeam.shortName },
       away: { name: m.awayTeam.name, shortName: m.awayTeam.shortName },
       groupId,

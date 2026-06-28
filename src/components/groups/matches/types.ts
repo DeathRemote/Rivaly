@@ -16,8 +16,13 @@ export type MatchListItem = {
   lockAt: string; // ISO
   visibleAt: string; // ISO
   status: MatchStatus;
+
+  // Prefer `isKnockout` when available (more reliable than phaseType in mixed views).
+  isKnockout?: boolean;
+
   homeTeamId?: string;
   awayTeamId?: string;
+
   home: { name: string; shortName?: string; badge?: string };
   away: { name: string; shortName?: string; badge?: string };
   competitionLabel?: string;

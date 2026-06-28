@@ -10,6 +10,10 @@ const savePredictionSchema = z.object({
   matchId: z.string().min(1),
   homeScore: z.number().int().min(0).max(99),
   awayScore: z.number().int().min(0).max(99),
+
+  // Knockout-only: required when predicting a draw.
+  advancesTeamId: z.string().min(1).optional(),
+
   source: z.enum(["QUICK_PICK", "SCORE"]),
 });
 
@@ -20,6 +24,7 @@ export type SavePredictionResult =
         matchId: string;
         homeScore: number;
         awayScore: number;
+        advancesTeamId?: string | null;
         source: "QUICK_PICK" | "SCORE";
         updatedAt: string;
       };
@@ -32,7 +37,7 @@ export async function registerPredictionRoutes(app: FastifyInstance) {
       const { userId } = await requireUserAuth(req.headers.authorization);
 
       const body = savePredictionSchema.parse(req.body);
-      const { matchId, homeScore, awayScore, source } = body;
+      const { matchId, homeScore, awayScore, advancesTeamId, source } = body;
 
       const match = await prisma.match.findUnique({
         where: { id: matchId },
@@ -43,6 +48,8 @@ export async function registerPredictionRoutes(app: FastifyInstance) {
           visibleAt: true,
           lockAt: true,
           competitionSeasonId: true,
+          knockoutRound: true,
+          competitionPhase: { select: { type: true } },
         },
       });
 
@@ -90,6 +97,12 @@ export async function registerPredictionRoutes(app: FastifyInstance) {
         } as const;
       }
 
+      const isKnockout = match.knockoutRound != null || match.competitionPhase?.type === "KNOCKOUT";
+
+      if (isKnockout && homeScore === awayScore && !advancesTeamId) {
+        return { ok: false, error: "Pick who advances when predicting a draw." } as const;
+      }
+
       const p = await prisma.prediction.upsert({
         where: { userId_matchId: { userId, matchId } },
         create: {
@@ -97,14 +110,16 @@ export async function registerPredictionRoutes(app: FastifyInstance) {
           matchId,
           homeScore,
           awayScore,
+          advancesTeamId: isKnockout && homeScore === awayScore ? advancesTeamId : null,
           source,
         },
         update: {
           homeScore,
           awayScore,
+          advancesTeamId: isKnockout && homeScore === awayScore ? advancesTeamId : null,
           source,
         },
-        select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+        select: { matchId: true, homeScore: true, awayScore: true, advancesTeamId: true, source: true, updatedAt: true },
       });
 
       const result: SavePredictionResult = {
@@ -113,6 +128,7 @@ export async function registerPredictionRoutes(app: FastifyInstance) {
           matchId: p.matchId,
           homeScore: p.homeScore,
           awayScore: p.awayScore,
+          advancesTeamId: p.advancesTeamId,
           source: p.source,
           updatedAt: p.updatedAt.toISOString(),
         },

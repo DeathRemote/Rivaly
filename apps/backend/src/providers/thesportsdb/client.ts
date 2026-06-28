@@ -16,6 +16,9 @@ const TheSportsDbEventSchema = z.object({
   strHomeTeam: z.string().optional().nullable(),
   strAwayTeam: z.string().optional().nullable(),
 
+  // Free-text result string; often includes penalty winner info.
+  strResult: z.string().optional().nullable(),
+
   intHomeScore: z.coerce.number().optional().nullable(),
   intAwayScore: z.coerce.number().optional().nullable(),
 

@@ -29,9 +29,19 @@ export function mapTheSportsDbKickoffAt(e: TheSportsDbEvent): Date {
   throw new Error(`Cannot parse kickoffAt for event idEvent=${e.idEvent}`);
 }
 
-function inferKnockoutRound(opts: { providerRound?: number | null; eventName?: string | null }) {
+function inferKnockoutRound(opts: {
+  providerRound?: number | null;
+  eventName?: string | null;
+  providerGroupKey?: string | null;
+}) {
   const r = opts.providerRound ?? null;
   const name = (opts.eventName ?? "").toLowerCase();
+  const groupKey = (opts.providerGroupKey ?? "").trim();
+
+  // Safety: group-stage fixtures can have numeric rounds too (e.g. matchday/round 2).
+  // For World Cup-style group matches, TheSportsDB populates `strGroup`.
+  // So if a providerGroupKey exists, do NOT infer knockout from numeric rounds.
+  if (groupKey) return null;
 
   // TheSportsDB docs mention special round numbers (not exhaustive):
   // 125=Quarter-Final, 150=Semi-Final, 200=Final, 400=Qualifier, 500=Pre-Season.
@@ -43,6 +53,17 @@ function inferKnockoutRound(opts: { providerRound?: number | null; eventName?: s
   if (r === 160) return "PLAYOFF" as const;
   if (r === 400) return "QUALIFIER" as const;
 
+  // Numeric bracket rounds used by some competitions/providers.
+  // Only apply when groupKey is missing (see guard above).
+  if (r === 64) return "R64" as const;
+  if (r === 32) return "R32" as const;
+  if (r === 16) return "R16" as const;
+  if (r === 8) return "QF" as const;
+  if (r === 4) return "SF" as const;
+  if (r === 2) return "FINAL" as const;
+
+  // Name-based inference fallback.
+  if (name.includes("third place") || name.includes("3rd place") || name.includes("third-place")) return "THIRD_PLACE" as const;
   if (name.includes("quarter")) return "QF" as const;
   if (name.includes("semi")) return "SF" as const;
   if (name.includes("final") && !name.includes("semi") && !name.includes("quarter")) return "FINAL" as const;
@@ -65,7 +86,11 @@ export function mapTheSportsDbEventToDomain(e: TheSportsDbEvent) {
   if (!e.idHomeTeam) throw new Error(`Missing idHomeTeam for event idEvent=${e.idEvent}`);
   if (!e.idAwayTeam) throw new Error(`Missing idAwayTeam for event idEvent=${e.idEvent}`);
 
-  const knockoutRound = inferKnockoutRound({ providerRound: e.intRound, eventName: e.strEvent });
+  const knockoutRound = inferKnockoutRound({
+    providerRound: e.intRound,
+    eventName: e.strEvent,
+    providerGroupKey: e.strGroup,
+  });
 
   return {
     provider: Provider.THESPORTSDB,

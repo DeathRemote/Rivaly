@@ -13,6 +13,12 @@ export type GroupMatchListItem = {
   lockAt: string;
   visibleAt: string;
   status: "SCHEDULED" | "LIVE" | "FINAL" | "POSTPONED" | "CANCELED" | "UNKNOWN";
+
+  // Required for knockout-draw predictions (pick who advances).
+  isKnockout?: boolean;
+  homeTeamId?: string;
+  awayTeamId?: string;
+
   home: { name: string; shortName?: string | null };
   away: { name: string; shortName?: string | null };
   userPrediction?: {
@@ -20,6 +26,7 @@ export type GroupMatchListItem = {
     summary?: string;
     homeScore?: number;
     awayScore?: number;
+    advancesTeamId?: string | null;
     source?: "QUICK_PICK" | "SCORE";
     updatedAt?: string;
   };
@@ -114,6 +121,8 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
           knockoutRound: true,
           competitionPhase: { select: { type: true } },
           competitionGroup: { select: { key: true } },
+          homeTeamId: true,
+          awayTeamId: true,
           homeTeam: { select: { name: true, shortName: true } },
           awayTeam: { select: { name: true, shortName: true } },
           result: { select: { homeScore: true, awayScore: true } },
@@ -133,7 +142,7 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
           ? []
           : await prisma.prediction.findMany({
               where: { userId, matchId: { in: matchIds } },
-              select: { matchId: true, homeScore: true, awayScore: true, source: true, updatedAt: true },
+              select: { matchId: true, homeScore: true, awayScore: true, advancesTeamId: true, source: true, updatedAt: true },
             });
       const predByMatchId = new Map(preds.map((p) => [p.matchId, p] as const));
 
@@ -141,11 +150,19 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
       const hasMore = query.bucket === "kickoff" ? false : matches.length > query.limit;
 
       const out: GroupMatchListItem[] = page.map((m) => {
-        const phaseType = m.competitionPhase?.type === "GROUP_STAGE" ? "GROUP_STAGE" : m.competitionPhase?.type === "KNOCKOUT" ? "KNOCKOUT" : "LEAGUE";
+        const phaseType =
+          m.competitionPhase?.type === "GROUP_STAGE"
+            ? "GROUP_STAGE"
+            : m.competitionPhase?.type === "KNOCKOUT"
+              ? "KNOCKOUT"
+              : "LEAGUE";
+
+        const isKnockout = m.knockoutRound != null || m.competitionPhase?.type === "KNOCKOUT";
+
         const phaseLabel =
           phaseType === "GROUP_STAGE"
             ? `Group ${(m.competitionGroup?.key ?? m.providerGroupKey ?? "?").toString().trim()}`
-            : phaseType === "KNOCKOUT"
+            : isKnockout
               ? formatKnockoutRound(m.knockoutRound)
               : m.providerRound
                 ? `Gameweek ${m.providerRound}`
@@ -167,6 +184,7 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
               summary: `${p.homeScore}-${p.awayScore}`,
               homeScore: p.homeScore,
               awayScore: p.awayScore,
+              advancesTeamId: p.advancesTeamId,
               source: p.source === "QUICK_PICK" ? "QUICK_PICK" : "SCORE",
               updatedAt: p.updatedAt.toISOString(),
             }
@@ -180,6 +198,11 @@ export async function registerGroupMatchesRoutes(app: FastifyInstance) {
           lockAt,
           visibleAt,
           status,
+
+          isKnockout,
+          homeTeamId: m.homeTeamId,
+          awayTeamId: m.awayTeamId,
+
           home: { name: m.homeTeam.name, shortName: m.homeTeam.shortName },
           away: { name: m.awayTeam.name, shortName: m.awayTeam.shortName },
           userPrediction,

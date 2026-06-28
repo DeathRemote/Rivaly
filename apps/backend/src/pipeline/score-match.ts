@@ -1,7 +1,8 @@
 import { MatchStatus, PointsEventType, Prisma, Provider } from "@prisma/client";
 
 import { prisma } from "../prisma.js";
-import { scorePredictionPoints } from "../scoring/predictions.js";
+import { TheSportsDbClient } from "../providers/thesportsdb/client.js";
+import { scoreKnockoutPredictionPoints, scorePredictionPoints } from "../scoring/predictions.js";
 import { uuid } from "../jobs/support/id.js";
 import { advisoryXactLock } from "./locks.js";
 
@@ -20,14 +21,59 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       competitionSeasonId: true,
       competitionSeason: { select: { provider: true } },
       provider: true,
+      providerMatchId: true,
+      knockoutRound: true,
+      competitionPhase: { select: { type: true } },
+      homeTeamId: true,
+      awayTeamId: true,
+      result: { select: { advancesTeamId: true } },
     },
   });
 
   if (!match) throw new Error(`Match not found: ${payload.matchId}`);
 
+  // Knockout draw handling: if the match ended in a draw, we need to know who advanced (penalties/ET).
+  // We try to resolve advancesTeamId from (in order):
+  // 1) existing MatchResult.advancesTeamId (admin override),
+  // 2) provider payload (TheSportsDB strResult),
+  // 3) otherwise we delay scoring and retry later.
+  const isKnockout = match.knockoutRound != null || match.competitionPhase?.type === "KNOCKOUT";
+
+  let resolvedAdvancesTeamId: string | null = match.result?.advancesTeamId ?? null;
+
+  if (isKnockout && payload.homeScore === payload.awayScore && !resolvedAdvancesTeamId) {
+    const providerEventId = payload.providerEventId ?? match.providerMatchId ?? null;
+
+    if (providerEventId && match.provider === Provider.THESPORTSDB) {
+      try {
+        const client = new TheSportsDbClient();
+        const evt = await client.lookupEvent(String(providerEventId));
+        const r = (evt?.strResult ?? "").trim();
+
+        // Observed formats:
+        // - "England Win 5-3 on penalties after extra time."
+        // - "Portugal win 3-0 on pens"
+        const mWinner = r.match(/^(.+?)\s+win\b/i);
+        const winnerName = mWinner?.[1]?.trim() ?? null;
+
+        if (winnerName) {
+          const w = winnerName.toLowerCase();
+          const home = (evt?.strHomeTeam ?? "").toLowerCase();
+          const away = (evt?.strAwayTeam ?? "").toLowerCase();
+
+          if (w === home) resolvedAdvancesTeamId = match.homeTeamId;
+          else if (w === away) resolvedAdvancesTeamId = match.awayTeamId;
+        }
+      } catch (err) {
+        console.warn("[score-match] provider lookup failed for advancesTeamId", err);
+      }
+    }
+  }
+
   const out = await prisma.$transaction(async (tx) => {
     // Prevent concurrent scoring of the same match across worker instances.
     await advisoryXactLock(tx, `score-match:${payload.matchId}`);
+
     await tx.match.update({
       where: { id: payload.matchId },
       data: {
@@ -42,19 +88,32 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
         matchId: payload.matchId,
         homeScore: payload.homeScore,
         awayScore: payload.awayScore,
+        advancesTeamId: isKnockout && payload.homeScore === payload.awayScore ? resolvedAdvancesTeamId : null,
         provider: Provider.THESPORTSDB,
         providerEventId: payload.providerEventId ?? null,
       },
       update: {
         homeScore: payload.homeScore,
         awayScore: payload.awayScore,
+        advancesTeamId: isKnockout && payload.homeScore === payload.awayScore ? resolvedAdvancesTeamId : null,
         providerEventId: payload.providerEventId ?? null,
       },
     });
 
+    // If this is a knockout draw and we still don't know who advanced, do NOT score/mark processed.
+    // We keep the result row updated and retry later (worker backoff).
+    if (isKnockout && payload.homeScore === payload.awayScore && !resolvedAdvancesTeamId) {
+      return {
+        awaitingAdvances: true as const,
+        insertedEvents: 0,
+        affectedGroupIds: [] as string[],
+        affectedUserIds: [] as string[],
+      };
+    }
+
     const predictions = await tx.prediction.findMany({
       where: { matchId: payload.matchId },
-      select: { userId: true, homeScore: true, awayScore: true },
+      select: { userId: true, homeScore: true, awayScore: true, advancesTeamId: true },
     });
 
     const predictedUserIds = predictions.map((p) => p.userId);
@@ -110,10 +169,19 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       const p = predictionByUserId.get(mbr.userId);
       if (!p) continue;
 
-      const scored = scorePredictionPoints({
-        predicted: { home: p.homeScore, away: p.awayScore },
-        actual: { home: payload.homeScore, away: payload.awayScore },
-      });
+      const scored = isKnockout
+        ? scoreKnockoutPredictionPoints({
+            predicted: { home: p.homeScore, away: p.awayScore },
+            actual: { home: payload.homeScore, away: payload.awayScore },
+            homeTeamId: match.homeTeamId,
+            awayTeamId: match.awayTeamId,
+            predictedAdvancesTeamId: p.advancesTeamId,
+            actualAdvancesTeamId: resolvedAdvancesTeamId,
+          })
+        : scorePredictionPoints({
+            predicted: { home: p.homeScore, away: p.awayScore },
+            actual: { home: payload.homeScore, away: payload.awayScore },
+          });
 
       affectedGroupIds.add(mbr.groupId);
       affectedUserIds.add(mbr.userId);
@@ -262,5 +330,10 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
     };
   });
 
-  return out;
+  if ((out as any).awaitingAdvances) {
+    // Signal worker to retry later.
+    throw new Error("Awaiting penalty winner (advancesTeamId) for knockout draw");
+  }
+
+  return out as Exclude<typeof out, { awaitingAdvances: true }>;
 }
