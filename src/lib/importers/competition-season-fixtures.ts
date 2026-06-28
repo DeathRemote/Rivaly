@@ -113,9 +113,26 @@ export async function importCompetitionSeasonFixtures(opts: {
   const events = [...eventsById.values()];
 
   const hasGroupsFromProvider = events.some((e) => Boolean(e.strGroup && String(e.strGroup).trim().length > 0));
-  const hasKnockoutHints = events.some(
-    (e) => (e.intRound != null && e.intRound >= 125) || (e.strEvent ?? "").toLowerCase().includes("final"),
-  );
+  const hasKnockoutHints = events.some((e) => {
+    const r = e.intRound ?? null;
+    const name = (e.strEvent ?? "").toLowerCase();
+    const groupKey = (e.strGroup ?? "").trim();
+
+    // If TheSportsDB gives a group key, treat it as group-stage (avoid false positives).
+    if (groupKey) return false;
+
+    // Classic TheSportsDB special rounds.
+    if (r != null && r >= 125) return true;
+
+    // Numeric bracket rounds seen in some competitions/providers.
+    if (r === 64 || r === 32 || r === 16 || r === 8 || r === 4 || r === 2) return true;
+
+    // Name-based hint.
+    if (name.includes("final")) return true;
+    if (name.includes("round of 32") || name.includes("round of 16") || name.includes("quarter") || name.includes("semi")) return true;
+
+    return false;
+  });
 
   // If this season already has CompetitionGroups in DB, do NOT regress to league-mode even if the provider
   // season endpoint omits strGroup (TheSportsDB can be inconsistent between endpoints/keys).

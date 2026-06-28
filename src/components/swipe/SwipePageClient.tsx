@@ -4,6 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 
 import { SwipeCard } from "@/components/swipe/SwipeCard";
 import { PredictScoreModal } from "@/components/swipe/PredictScoreModal";
+import { Modal } from "@/components/ui/Modal";
+import { cn } from "@/lib/cn";
 import { SwipeControls } from "@/components/swipe/SwipeControls";
 import type { SwipeMatch } from "@/lib/swipe-data";
 import { savePredictionAction } from "@/app/predictions/actions";
@@ -55,8 +57,23 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
     }, 220);
   }
 
+  const [advancesOpen, setAdvancesOpen] = useState(false);
+  const [advancesFor, setAdvancesFor] = useState<{
+    match: SwipeMatch;
+    homeScore: number;
+    awayScore: number;
+    source: "QUICK_PICK" | "SCORE";
+  } | null>(null);
+
   async function submitQuickPick(match: SwipeMatch, pick: "home" | "draw" | "away") {
     const score = QUICK[pick];
+
+    // Knockout draw: require choosing who advances.
+    if (pick === "draw" && match.isKnockout) {
+      setAdvancesFor({ match, homeScore: score.homeScore, awayScore: score.awayScore, source: "QUICK_PICK" });
+      setAdvancesOpen(true);
+      return;
+    }
 
     const res = await savePredictionAction({
       matchId: match.matchId,
@@ -71,6 +88,13 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
   }
 
   async function submitExactScore(match: SwipeMatch, homeScore: number, awayScore: number) {
+    // Knockout draw: require choosing who advances.
+    if (match.isKnockout && homeScore === awayScore) {
+      setAdvancesFor({ match, homeScore, awayScore, source: "SCORE" });
+      setAdvancesOpen(true);
+      return;
+    }
+
     const res = await savePredictionAction({
       matchId: match.matchId,
       homeScore,
@@ -243,6 +267,99 @@ export function SwipePageClient({ initialMatches }: { initialMatches: SwipeMatch
           }
         }}
       />
+
+      <Modal
+        open={advancesOpen}
+        onClose={() => {
+          setAdvancesOpen(false);
+          setAdvancesFor(null);
+        }}
+        title="Draw predicted"
+        description={
+          advancesFor
+            ? `Who advances? (${advancesFor.match.home.shortName ?? advancesFor.match.home.name} vs ${advancesFor.match.away.shortName ?? advancesFor.match.away.name})`
+            : undefined
+        }
+      >
+        {advancesFor ? (
+          <div>
+            <div className="text-[11px] text-white/50">
+              You don’t need to predict the penalty score — just pick the team that goes through.
+            </div>
+
+            <div className="mt-4 grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                disabled={!canInteract}
+                onClick={() => {
+                  startTransition(async () => {
+                    try {
+                      const advancesTeamId = advancesFor.match.homeTeamId;
+                      if (!advancesTeamId) throw new Error("Missing homeTeamId for this match.");
+
+                      const res = await savePredictionAction({
+                        matchId: advancesFor.match.matchId,
+                        homeScore: advancesFor.homeScore,
+                        awayScore: advancesFor.awayScore,
+                        advancesTeamId,
+                        source: advancesFor.source,
+                      });
+                      if (!res.ok) throw new Error(res.error);
+
+                      setAdvancesOpen(false);
+                      setAdvancesFor(null);
+                      removeTopAfter("down");
+                    } catch (e) {
+                      alert(e instanceof Error ? e.message : "Failed to save prediction");
+                    }
+                  });
+                }}
+                className={cn(
+                  "h-12 rounded-2xl border border-white/10 bg-black/30",
+                  "text-[10px] font-black uppercase tracking-[0.22em] text-white/80 hover:bg-white/5",
+                  !canInteract && "opacity-50 cursor-not-allowed",
+                )}
+              >
+                {advancesFor.match.home.shortName ?? advancesFor.match.home.name}
+              </button>
+              <button
+                type="button"
+                disabled={!canInteract}
+                onClick={() => {
+                  startTransition(async () => {
+                    try {
+                      const advancesTeamId = advancesFor.match.awayTeamId;
+                      if (!advancesTeamId) throw new Error("Missing awayTeamId for this match.");
+
+                      const res = await savePredictionAction({
+                        matchId: advancesFor.match.matchId,
+                        homeScore: advancesFor.homeScore,
+                        awayScore: advancesFor.awayScore,
+                        advancesTeamId,
+                        source: advancesFor.source,
+                      });
+                      if (!res.ok) throw new Error(res.error);
+
+                      setAdvancesOpen(false);
+                      setAdvancesFor(null);
+                      removeTopAfter("down");
+                    } catch (e) {
+                      alert(e instanceof Error ? e.message : "Failed to save prediction");
+                    }
+                  });
+                }}
+                className={cn(
+                  "h-12 rounded-2xl border border-white/10 bg-black/30",
+                  "text-[10px] font-black uppercase tracking-[0.22em] text-white/80 hover:bg-white/5",
+                  !canInteract && "opacity-50 cursor-not-allowed",
+                )}
+              >
+                {advancesFor.match.away.shortName ?? advancesFor.match.away.name}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
     </div>
   );
 }
