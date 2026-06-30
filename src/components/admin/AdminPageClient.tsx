@@ -48,6 +48,10 @@ export function AdminPageClient({
   const [retryMatchId, setRetryMatchId] = useState("");
   const [retryResult, setRetryResult] = useState<string | null>(null);
 
+  const [rescoreMatchId, setRescoreMatchId] = useState("");
+  const [rescoreForce, setRescoreForce] = useState(false);
+  const [rescoreResult, setRescoreResult] = useState<string | null>(null);
+
   const [latePredictionUserId, setLatePredictionUserId] = useState("");
   const [latePredictionMatchId, setLatePredictionMatchId] = useState("");
   const [latePredictionHome, setLatePredictionHome] = useState("0");
@@ -858,6 +862,74 @@ export function AdminPageClient({
               </button>
 
               {retryResult ? <div className="text-xs text-white/60">{retryResult}</div> : null}
+            </div>
+          </div>
+
+          {/* Rescore match */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">Rescore finished match</div>
+            <div className="mt-1 text-sm text-white/50">
+              Recalculates and writes points for all eligible users for a specific match (use when a finished match wasn’t scored).
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+              <input
+                value={rescoreMatchId}
+                onChange={(e) => setRescoreMatchId(e.target.value)}
+                placeholder="matchId"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25 md:col-span-2"
+              />
+              <label className="h-11 flex items-center gap-2 rounded-xl border border-white/10 bg-black/20 px-4 text-xs text-white/60 select-none">
+                <input
+                  type="checkbox"
+                  checked={rescoreForce}
+                  onChange={(e) => setRescoreForce(e.target.checked)}
+                  className="h-4 w-4"
+                />
+                Force
+              </label>
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                disabled={busy || !rescoreMatchId.trim()}
+                onClick={() => {
+                  startTransition(async () => {
+                    setRescoreResult(null);
+                    const res = await fetch("/api/admin/matches/rescore", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ matchId: rescoreMatchId.trim(), forceRescore: rescoreForce }),
+                    });
+                    const json = await res.json().catch(() => null);
+                    if (!res.ok || !json?.ok) {
+                      setRescoreResult(json?.error ? `Failed: ${json.error}` : "Failed");
+                      return;
+                    }
+
+                    setRescoreResult(
+                      `Scored ${json.eligibleUsers} users. Inserted ${json.seasonEventsInserted} season event(s) and ${json.groupEventsInserted} group event(s).`,
+                    );
+
+                    await refreshStats();
+                  });
+                }}
+                className={cn(
+                  "h-11 rounded-xl px-5",
+                  "bg-gradient-to-br from-[#f3ffca] to-[#beee00] text-[#3a4a00]",
+                  "text-xs font-black uppercase tracking-[0.22em] hover:brightness-105 transition",
+                  "disabled:opacity-40 disabled:cursor-not-allowed",
+                )}
+              >
+                Rescore
+              </button>
+
+              {rescoreResult ? <div className="text-xs text-white/60">{rescoreResult}</div> : null}
+            </div>
+
+            <div className="mt-2 text-[11px] text-white/35">
+              Tip: use “Match lookup” to find matchId from providerMatchId.
             </div>
           </div>
 
