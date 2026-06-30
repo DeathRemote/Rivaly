@@ -100,16 +100,8 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       },
     });
 
-    // If this is a knockout draw and we still don't know who advanced, do NOT score/mark processed.
-    // We keep the result row updated and retry later (worker backoff).
-    if (isKnockout && payload.homeScore === payload.awayScore && !resolvedAdvancesTeamId) {
-      return {
-        awaitingAdvances: true as const,
-        insertedEvents: 0,
-        affectedGroupIds: [] as string[],
-        affectedUserIds: [] as string[],
-      };
-    }
+    // Knockout draws: we still score the 90/120 result even if we don't know who advanced.
+    // The advancesTeamId is used for bracket/progression, not for points.
 
     const predictions = await tx.prediction.findMany({
       where: { matchId: payload.matchId },
@@ -330,10 +322,5 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
     };
   });
 
-  if ((out as any).awaitingAdvances) {
-    // Signal worker to retry later.
-    throw new Error("Awaiting penalty winner (advancesTeamId) for knockout draw");
-  }
-
-  return out as Exclude<typeof out, { awaitingAdvances: true }>;
+  return out;
 }
