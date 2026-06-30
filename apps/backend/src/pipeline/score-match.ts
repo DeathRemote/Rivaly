@@ -100,16 +100,8 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       },
     });
 
-    // If this is a knockout draw and we still don't know who advanced, do NOT score/mark processed.
-    // We keep the result row updated and retry later (worker backoff).
-    if (isKnockout && payload.homeScore === payload.awayScore && !resolvedAdvancesTeamId) {
-      return {
-        awaitingAdvances: true as const,
-        insertedEvents: 0,
-        affectedGroupIds: [] as string[],
-        affectedUserIds: [] as string[],
-      };
-    }
+    const awaitingAdvancesBonus =
+      isKnockout && payload.homeScore === payload.awayScore && !resolvedAdvancesTeamId;
 
     const predictions = await tx.prediction.findMany({
       where: { matchId: payload.matchId },
@@ -169,38 +161,67 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       const p = predictionByUserId.get(mbr.userId);
       if (!p) continue;
 
-      const scored = isKnockout
-        ? scoreKnockoutPredictionPoints({
-            predicted: { home: p.homeScore, away: p.awayScore },
-            actual: { home: payload.homeScore, away: payload.awayScore },
-            homeTeamId: match.homeTeamId,
-            awayTeamId: match.awayTeamId,
-            predictedAdvancesTeamId: p.advancesTeamId,
-            actualAdvancesTeamId: resolvedAdvancesTeamId,
-          })
-        : scorePredictionPoints({
-            predicted: { home: p.homeScore, away: p.awayScore },
-            actual: { home: payload.homeScore, away: payload.awayScore },
-          });
+      if (isKnockout) {
+        const scored = scoreKnockoutPredictionPoints({
+          predicted: { home: p.homeScore, away: p.awayScore },
+          actual: { home: payload.homeScore, away: payload.awayScore },
+          homeTeamId: match.homeTeamId,
+          awayTeamId: match.awayTeamId,
+          predictedAdvancesTeamId: p.advancesTeamId,
+          actualAdvancesTeamId: resolvedAdvancesTeamId,
+        });
 
-      affectedGroupIds.add(mbr.groupId);
-      affectedUserIds.add(mbr.userId);
+        affectedGroupIds.add(mbr.groupId);
+        affectedUserIds.add(mbr.userId);
 
-      ids.push(uuid());
-      types.push(PointsEventType.PREDICTION_SCORED);
-      groupIdArr.push(mbr.groupId);
-      userIdArr.push(mbr.userId);
-      matchIdArr.push(payload.matchId);
-      pointsArr.push(scored.points);
-      reasonArr.push(scored.reason ?? null);
-      metaArr.push(scored.meta ?? null);
-      createdAtArr.push(new Date());
+        // Base event (always)
+        ids.push(uuid());
+        types.push(PointsEventType.PREDICTION_SCORED);
+        groupIdArr.push(mbr.groupId);
+        userIdArr.push(mbr.userId);
+        matchIdArr.push(payload.matchId);
+        pointsArr.push(scored.basePoints);
+        reasonArr.push(scored.baseReason ?? null);
+        metaArr.push(scored.meta ?? null);
+        createdAtArr.push(new Date());
+
+        // Bonus event (only when known + eligible)
+        if (scored.bonusPoints > 0) {
+          ids.push(uuid());
+          types.push(PointsEventType.PREDICTION_ADVANCES_BONUS);
+          groupIdArr.push(mbr.groupId);
+          userIdArr.push(mbr.userId);
+          matchIdArr.push(payload.matchId);
+          pointsArr.push(scored.bonusPoints);
+          reasonArr.push(scored.bonusReason ?? null);
+          metaArr.push(scored.meta ?? null);
+          createdAtArr.push(new Date());
+        }
+      } else {
+        const scored = scorePredictionPoints({
+          predicted: { home: p.homeScore, away: p.awayScore },
+          actual: { home: payload.homeScore, away: payload.awayScore },
+        });
+
+        affectedGroupIds.add(mbr.groupId);
+        affectedUserIds.add(mbr.userId);
+
+        ids.push(uuid());
+        types.push(PointsEventType.PREDICTION_SCORED);
+        groupIdArr.push(mbr.groupId);
+        userIdArr.push(mbr.userId);
+        matchIdArr.push(payload.matchId);
+        pointsArr.push(scored.points);
+        reasonArr.push(scored.reason ?? null);
+        metaArr.push(scored.meta ?? null);
+        createdAtArr.push(new Date());
+      }
     }
 
     // Insert points events idempotently WITHOUT throwing.
     // We use ON CONFLICT DO NOTHING so a duplicate never aborts the transaction.
     const inserted = await tx.$queryRaw<
-      Array<{ groupId: string; userId: string; points: number }>
+      Array<{ groupId: string; userId: string; points: number; type: PointsEventType }>
     >(Prisma.sql`
       INSERT INTO "PointsEvent" (
         "id",
@@ -225,27 +246,37 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
         ${createdAtArr}::timestamptz[]
       )
       ON CONFLICT ("groupId", "userId", "matchId", "type") DO NOTHING
-      RETURNING "groupId", "userId", "points";
+      RETURNING "groupId", "userId", "points", "type";
     `);
 
     // Canonical season scoring: insert ONE season event per user+match.
     // (A user might be in multiple groups for the season; we must not double-score.)
     if (match.competitionSeasonId && inserted.length > 0) {
-      // Dedup per user (use inserted since it's already derived from eligible members).
-      const byUser = new Map<string, { userId: string; points: number }>();
+      // Canonical season scoring: insert ONE season event per user+match+type.
+      // (A user might be in multiple groups for the season; we must not double-score.)
+      const byUserType = new Map<string, { userId: string; type: "PREDICTION_SCORED" | "PREDICTION_ADVANCES_BONUS"; points: number }>();
+
       for (const row of inserted) {
-        if (!byUser.has(row.userId)) byUser.set(row.userId, { userId: row.userId, points: row.points });
+        const type =
+          row.type === PointsEventType.PREDICTION_ADVANCES_BONUS
+            ? ("PREDICTION_ADVANCES_BONUS" as const)
+            : ("PREDICTION_SCORED" as const);
+
+        const key = `${row.userId}:${type}`;
+        // inserted can contain duplicates across groups; keep the first (points are identical)
+        if (!byUserType.has(key)) byUserType.set(key, { userId: row.userId, type, points: row.points });
       }
 
-      const userIdsUniq = Array.from(byUser.values()).map((r) => r.userId);
-      const pointsUniq = Array.from(byUser.values()).map((r) => r.points);
-      const idsUniq = userIdsUniq.map(() => uuid());
-      const createdAt = userIdsUniq.map(() => new Date());
+      const seasonRows = Array.from(byUserType.values());
+      const userIdsUniq = seasonRows.map((r) => r.userId);
+      const pointsUniq = seasonRows.map((r) => r.points);
+      const typesUniq = seasonRows.map((r) => r.type);
 
-      const seasonIds = userIdsUniq.map(() => match.competitionSeasonId as string);
-      const scoringSystems = userIdsUniq.map(() => "CLASSIC");
-      const matchIds = userIdsUniq.map(() => payload.matchId);
-      const typesUniq = userIdsUniq.map(() => "PREDICTION_SCORED");
+      const idsUniq = seasonRows.map(() => uuid());
+      const createdAt = seasonRows.map(() => new Date());
+      const seasonIds = seasonRows.map(() => match.competitionSeasonId as string);
+      const scoringSystems = seasonRows.map(() => "CLASSIC");
+      const matchIds = seasonRows.map(() => payload.matchId);
 
       const seasonInserted = await tx.$queryRaw<Array<{ userId: string; points: number }>>(Prisma.sql`
         INSERT INTO "SeasonPointsEvent" (
@@ -273,8 +304,12 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       `);
 
       if (seasonInserted.length > 0) {
-        const uIds = seasonInserted.map((r) => r.userId);
-        const pts = seasonInserted.map((r) => r.points);
+        const byUser = new Map<string, number>();
+        for (const r of seasonInserted) byUser.set(r.userId, (byUser.get(r.userId) ?? 0) + r.points);
+
+        const uIds = Array.from(byUser.keys());
+        const pts = uIds.map((id) => byUser.get(id) ?? 0);
+
         const rowIds = uIds.map(() => uuid());
         const seasonArr = uIds.map(() => match.competitionSeasonId as string);
         const ssArr = uIds.map(() => "CLASSIC");
@@ -318,22 +353,22 @@ export async function scoreMatch(payload: ScoreMatchPayload) {
       `);
     }
 
-    await tx.match.update({
-      where: { id: payload.matchId },
-      data: { processedAt: new Date() },
-    });
+    // If we are awaiting the penalty winner, we STILL score the base draw points now,
+    // but we do NOT mark processedAt yet so the scheduler keeps revisiting this match.
+    if (!awaitingAdvancesBonus) {
+      await tx.match.update({
+        where: { id: payload.matchId },
+        data: { processedAt: new Date() },
+      });
+    }
 
     return {
       insertedEvents: inserted.length,
       affectedGroupIds: Array.from(affectedGroupIds),
       affectedUserIds: Array.from(affectedUserIds),
+      awaitingAdvancesBonus,
     };
   });
 
-  if ((out as any).awaitingAdvances) {
-    // Signal worker to retry later.
-    throw new Error("Awaiting penalty winner (advancesTeamId) for knockout draw");
-  }
-
-  return out as Exclude<typeof out, { awaitingAdvances: true }>;
+  return out;
 }
