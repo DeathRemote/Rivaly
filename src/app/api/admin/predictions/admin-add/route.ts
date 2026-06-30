@@ -75,8 +75,7 @@ export async function POST(req: Request) {
   const predicted = { home: homeScore, away: awayScore };
 
   const isKnockout = match.knockoutRound != null;
-
-  const scoredKnockout = isKnockout
+  const scored = isKnockout
     ? scoreKnockoutPredictionPoints({
         predicted,
         actual,
@@ -85,17 +84,7 @@ export async function POST(req: Request) {
         predictedAdvancesTeamId: predictedAdvancesTeamId ?? null,
         actualAdvancesTeamId: match.result.advancesTeamId,
       })
-    : null;
-
-  const scored = !isKnockout
-    ? scorePredictionPoints({ predicted, actual })
-    : {
-        points: (scoredKnockout?.basePoints ?? 0) + (scoredKnockout?.bonusPoints ?? 0),
-        reason: scoredKnockout?.bonusReason ? `${scoredKnockout.baseReason}; ${scoredKnockout.bonusReason}` : (scoredKnockout?.baseReason ?? ""),
-        meta: scoredKnockout?.meta ?? null,
-        basePoints: scoredKnockout?.basePoints ?? 0,
-        bonusPoints: scoredKnockout?.bonusPoints ?? 0,
-      };
+    : scorePredictionPoints({ predicted, actual });
 
   // Compute eligible groups (classic scoring system) where this user is a member.
   const eligibleMembers = await prisma.groupMember.findMany({
@@ -110,24 +99,24 @@ export async function POST(req: Request) {
   // Transaction: write canonical season scoring once; mirror points into group events; sync GroupMember points.
   // If forceRescore=true, we will delete the existing scored event (if any) and re-score with the new prediction.
   const txOut = await prisma.$transaction(async (tx) => {
-    const existingSeasonEvents = await tx.seasonPointsEvent.findMany({
+    const existingSeasonEvent = await tx.seasonPointsEvent.findUnique({
       where: {
-        competitionSeasonId: match.competitionSeasonId!,
-        scoringSystem: "CLASSIC",
-        userId,
-        matchId: match.id,
-        type: { in: ["PREDICTION_SCORED", "PREDICTION_ADVANCES_BONUS"] },
+        competitionSeasonId_scoringSystem_userId_matchId_type: {
+          competitionSeasonId: match.competitionSeasonId!,
+          scoringSystem: "CLASSIC",
+          userId,
+          matchId: match.id,
+          type: "PREDICTION_SCORED",
+        },
       },
-      select: { id: true, points: true, type: true },
+      select: { id: true, points: true },
     });
-
-    const existingBaseSeasonEvent = existingSeasonEvents.find((e) => e.type === "PREDICTION_SCORED") ?? null;
 
     let seasonEventDeleted = false;
     let groupEventsDeleted = 0;
 
-    if (existingSeasonEvents.length && forceRescore) {
-      await tx.seasonPointsEvent.deleteMany({ where: { id: { in: existingSeasonEvents.map((e) => e.id) } } });
+    if (existingSeasonEvent && forceRescore) {
+      await tx.seasonPointsEvent.delete({ where: { id: existingSeasonEvent.id } });
       seasonEventDeleted = true;
 
       if (groupIds.length) {
@@ -136,7 +125,7 @@ export async function POST(req: Request) {
             groupId: { in: groupIds },
             userId,
             matchId: match.id,
-            type: { in: ["PREDICTION_SCORED", "PREDICTION_ADVANCES_BONUS"] },
+            type: "PREDICTION_SCORED",
           },
         });
         groupEventsDeleted = del.count;
@@ -145,7 +134,7 @@ export async function POST(req: Request) {
 
     // Insert the canonical season event if missing (or if we just deleted it).
     let seasonEventInserted = false;
-    if (!existingBaseSeasonEvent || forceRescore) {
+    if (!existingSeasonEvent || forceRescore) {
       await tx.seasonPointsEvent.create({
         data: {
           competitionSeasonId: match.competitionSeasonId!,
@@ -153,33 +142,13 @@ export async function POST(req: Request) {
           userId,
           matchId: match.id,
           type: "PREDICTION_SCORED",
-          points: scored.basePoints ?? scored.points,
+          points: scored.points,
           reason: scored.reason,
           meta: scored.meta,
         },
         select: { id: true },
       });
       seasonEventInserted = true;
-    }
-
-    if (isKnockout && (scored as any).bonusPoints > 0) {
-      const existsBonus = existingSeasonEvents.some((e) => e.type === "PREDICTION_ADVANCES_BONUS");
-      if (!existsBonus || forceRescore) {
-        await tx.seasonPointsEvent.create({
-          data: {
-            competitionSeasonId: match.competitionSeasonId!,
-            scoringSystem: "CLASSIC",
-            userId,
-            matchId: match.id,
-            type: "PREDICTION_ADVANCES_BONUS",
-            points: (scored as any).bonusPoints,
-            reason: (scoredKnockout?.bonusReason ?? "Advances bonus"),
-            meta: scored.meta,
-          },
-          select: { id: true },
-        });
-        seasonEventInserted = true;
-      }
     }
 
     // Ensure SeasonUserPoints is correct by recomputing from the ledger (avoids drift).
@@ -213,7 +182,7 @@ export async function POST(req: Request) {
 
     // Mirror points into group events. If not forceRescore and events already exist, we keep them.
     let groupEventsInserted = 0;
-    if (!existingBaseSeasonEvent || forceRescore) {
+    if (!existingSeasonEvent || forceRescore) {
       // Ensure we never fail on a stray pre-existing row (shouldn't happen, but safer).
       if (groupIds.length) {
         await tx.pointsEvent.deleteMany({
@@ -221,7 +190,7 @@ export async function POST(req: Request) {
             groupId: { in: groupIds },
             userId,
             matchId: match.id,
-            type: { in: ["PREDICTION_SCORED", "PREDICTION_ADVANCES_BONUS"] },
+            type: "PREDICTION_SCORED",
           },
         });
       }
@@ -233,29 +202,13 @@ export async function POST(req: Request) {
             userId,
             matchId: match.id,
             type: "PREDICTION_SCORED",
-            points: scored.basePoints ?? scored.points,
+            points: scored.points,
             reason: scored.reason,
             meta: scored.meta,
           },
           select: { id: true },
         });
         groupEventsInserted++;
-
-        if (isKnockout && (scored as any).bonusPoints > 0) {
-          await tx.pointsEvent.create({
-            data: {
-              groupId: gid,
-              userId,
-              matchId: match.id,
-              type: "PREDICTION_ADVANCES_BONUS",
-              points: (scored as any).bonusPoints,
-              reason: scoredKnockout?.bonusReason ?? null,
-              meta: scored.meta,
-            },
-            select: { id: true },
-          });
-          groupEventsInserted++;
-        }
       }
     }
 
@@ -268,7 +221,7 @@ export async function POST(req: Request) {
     }
 
     return {
-      existingSeasonPoints: existingBaseSeasonEvent?.points ?? null,
+      existingSeasonPoints: existingSeasonEvent?.points ?? null,
       seasonEventDeleted,
       seasonEventInserted,
       groupEventsDeleted,

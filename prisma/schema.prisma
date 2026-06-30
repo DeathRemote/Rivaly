@@ -217,7 +217,6 @@ model OfficialPublicGroup {
 
 enum SeasonPointsEventType {
   PREDICTION_SCORED
-  PREDICTION_ADVANCES_BONUS
   GROUP_TABLE_BONUS
 }
 
@@ -578,7 +577,6 @@ model MatchResult {
 
 enum PointsEventType {
   PREDICTION_SCORED
-  PREDICTION_ADVANCES_BONUS
   GROUP_TABLE_BONUS
 }
 

@@ -247,11 +247,6 @@ export async function syncAndProcessFinishedMatches(opts?: {
               actual: { home: homeScore, away: awayScore },
             });
 
-        const points = isKnockout ? scored.basePoints + scored.bonusPoints : scored.points;
-        const reason =
-          isKnockout && scored.bonusReason ? `${scored.baseReason}; ${scored.bonusReason}` : isKnockout ? scored.baseReason : scored.reason;
-        const meta = scored.meta;
-
         try {
           const created = await tx.seasonPointsEvent.create({
             data: {
@@ -260,9 +255,9 @@ export async function syncAndProcessFinishedMatches(opts?: {
               userId,
               matchId: m.id,
               type: "PREDICTION_SCORED",
-              points,
-              reason,
-              meta,
+              points: scored.points,
+              reason: scored.reason,
+              meta: scored.meta,
             },
             select: { points: true },
           });
@@ -319,12 +314,6 @@ export async function syncAndProcessFinishedMatches(opts?: {
                 actual: { home: homeScore, away: awayScore },
               });
 
-          const basePoints = isKnockout ? scored.basePoints : scored.points;
-          const bonusPoints = isKnockout ? scored.bonusPoints : 0;
-          const baseReason = isKnockout ? scored.baseReason : scored.reason;
-          const bonusReason = isKnockout ? scored.bonusReason : null;
-          const meta = scored.meta;
-
           try {
             await tx.pointsEvent.create({
               data: {
@@ -332,27 +321,12 @@ export async function syncAndProcessFinishedMatches(opts?: {
                 userId: mbr.userId,
                 matchId: m.id,
                 type: "PREDICTION_SCORED",
-                points: basePoints,
-                reason: baseReason,
-                meta,
+                points: scored.points,
+                reason: scored.reason,
+                meta: scored.meta,
               },
               select: { id: true },
             });
-
-            if (bonusPoints > 0) {
-              await tx.pointsEvent.create({
-                data: {
-                  groupId: mbr.groupId,
-                  userId: mbr.userId,
-                  matchId: m.id,
-                  type: "PREDICTION_ADVANCES_BONUS",
-                  points: bonusPoints,
-                  reason: bonusReason,
-                  meta,
-                },
-                select: { id: true },
-              });
-            }
           } catch (err) {
             if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
               // already exists

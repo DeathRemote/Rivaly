@@ -48,8 +48,6 @@ export function scorePredictionPoints(opts: { predicted: Score; actual: Score })
   };
 }
 
-export const KNOCKOUT_ADVANCES_BONUS_POINTS = 5;
-
 export function scoreKnockoutPredictionPoints(opts: {
   predicted: Score;
   actual: Score;
@@ -58,68 +56,92 @@ export function scoreKnockoutPredictionPoints(opts: {
   predictedAdvancesTeamId?: string | null;
   actualAdvancesTeamId?: string | null;
 }): {
-  basePoints: number;
-  bonusPoints: number;
-  baseReason: string;
-  bonusReason: string | null;
-  awaitingAdvances: boolean;
+  points: number;
+  reason: string;
   meta: {
-    model: "tiered_v1_knockout_v2";
-    base: { winnerCorrect: boolean; error: number };
-    bonus?: { advancesCorrect: boolean };
+    model: "tiered_v1_knockout";
+    winnerCorrect: boolean;
+    error: number;
+    advancesCorrect?: boolean;
   };
 } {
   const { predicted, actual, predictedAdvancesTeamId, actualAdvancesTeamId } = opts;
 
-  // Base points are ALWAYS scored against the 90/120 scoreline (including draws).
-  const base = scorePredictionPoints({ predicted, actual });
-
-  // No bonus unless the match is a draw (after 120) AND we know who advanced.
+  // If the actual match is NOT a draw, use base scoring.
   if (actual.home !== actual.away) {
+    const base = scorePredictionPoints({ predicted, actual });
     return {
-      basePoints: base.points,
-      bonusPoints: 0,
-      baseReason: base.reason,
-      bonusReason: null,
-      awaitingAdvances: false,
+      points: base.points,
+      reason: base.reason,
       meta: {
-        model: "tiered_v1_knockout_v2",
-        base: { winnerCorrect: base.meta.winnerCorrect, error: base.meta.error },
+        model: "tiered_v1_knockout",
+        winnerCorrect: base.meta.winnerCorrect,
+        error: base.meta.error,
       },
     };
   }
 
-  // Draw in knockout: bonus for correctly predicting who advances on pens.
+  // Actual is a draw (after 120). In knockout, the advancing team matters.
+  // If we don't know who advanced yet, we can't fairly score this match.
   if (!actualAdvancesTeamId) {
     return {
-      basePoints: base.points,
-      bonusPoints: 0,
-      baseReason: base.reason,
-      bonusReason: null,
-      awaitingAdvances: true,
+      points: 0,
+      reason: "Awaiting penalty winner",
       meta: {
-        model: "tiered_v1_knockout_v2",
-        base: { winnerCorrect: base.meta.winnerCorrect, error: base.meta.error },
+        model: "tiered_v1_knockout",
+        winnerCorrect: false,
+        error: totalGoalError(predicted, actual),
       },
     };
   }
 
-  const predictedIsDraw = predicted.home === predicted.away;
-  const advancesCorrect =
-    predictedIsDraw && Boolean(predictedAdvancesTeamId) && predictedAdvancesTeamId === actualAdvancesTeamId;
+  // If user didn't predict a draw, it's wrong in knockout terms.
+  if (predicted.home !== predicted.away) {
+    return {
+      points: 0,
+      reason: "Wrong outcome (match went to penalties)",
+      meta: {
+        model: "tiered_v1_knockout",
+        winnerCorrect: false,
+        error: totalGoalError(predicted, actual),
+      },
+    };
+  }
 
-  const bonusPoints = advancesCorrect ? KNOCKOUT_ADVANCES_BONUS_POINTS : 0;
+  const advancesCorrect = Boolean(predictedAdvancesTeamId) && predictedAdvancesTeamId === actualAdvancesTeamId;
+
+  if (!advancesCorrect) {
+    return {
+      points: 0,
+      reason: "Wrong team advanced",
+      meta: {
+        model: "tiered_v1_knockout",
+        winnerCorrect: false,
+        advancesCorrect,
+        error: totalGoalError(predicted, actual),
+      },
+    };
+  }
+
+  // Advances is correct; award tiered points based on score error (draw scoreline).
+  const error = totalGoalError(predicted, actual);
+  if (error === 0) {
+    return {
+      points: 15,
+      reason: "Exact score + correct team advanced",
+      meta: { model: "tiered_v1_knockout", winnerCorrect: true, advancesCorrect, error },
+    };
+  }
+
+  let points = 5;
+  if (error === 1) points = 10;
+  else if (error === 2) points = 8;
+  else if (error === 3) points = 6;
+  else points = 5;
 
   return {
-    basePoints: base.points,
-    bonusPoints,
-    baseReason: base.reason,
-    bonusReason: advancesCorrect ? `Correct team advanced (+${KNOCKOUT_ADVANCES_BONUS_POINTS})` : null,
-    awaitingAdvances: false,
-    meta: {
-      model: "tiered_v1_knockout_v2",
-      base: { winnerCorrect: base.meta.winnerCorrect, error: base.meta.error },
-      bonus: { advancesCorrect },
-    },
+    points,
+    reason: `Correct team advanced (error ${error})`,
+    meta: { model: "tiered_v1_knockout", winnerCorrect: true, advancesCorrect, error },
   };
 }
