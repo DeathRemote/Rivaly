@@ -52,6 +52,11 @@ export function AdminPageClient({
   const [rescoreForce, setRescoreForce] = useState(false);
   const [rescoreResult, setRescoreResult] = useState<string | null>(null);
 
+  const [manualResultMatchId, setManualResultMatchId] = useState("");
+  const [manualResultHome, setManualResultHome] = useState("");
+  const [manualResultAway, setManualResultAway] = useState("");
+  const [manualResultMessage, setManualResultMessage] = useState<string | null>(null);
+
   const [latePredictionUserId, setLatePredictionUserId] = useState("");
   const [latePredictionMatchId, setLatePredictionMatchId] = useState("");
   const [latePredictionHome, setLatePredictionHome] = useState("0");
@@ -862,6 +867,80 @@ export function AdminPageClient({
               </button>
 
               {retryResult ? <div className="text-xs text-white/60">{retryResult}</div> : null}
+            </div>
+          </div>
+
+          {/* Manual match result */}
+          <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+            <div className="text-xs font-black uppercase tracking-[0.22em] text-white/70">Manual match result (override)</div>
+            <div className="mt-1 text-sm text-white/50">
+              Creates/updates MatchResult for a matchId (use when provider sync misses the final score). This does <b>not</b> rescore points automatically.
+            </div>
+
+            <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+              <input
+                value={manualResultMatchId}
+                onChange={(e) => setManualResultMatchId(e.target.value)}
+                placeholder="matchId"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25 md:col-span-2"
+              />
+              <input
+                value={manualResultHome}
+                onChange={(e) => setManualResultHome(e.target.value)}
+                placeholder="home"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+              />
+              <input
+                value={manualResultAway}
+                onChange={(e) => setManualResultAway(e.target.value)}
+                placeholder="away"
+                className="h-11 rounded-xl border border-white/10 bg-black/20 px-4 text-sm text-white placeholder:text-white/25"
+              />
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                disabled={busy || !manualResultMatchId.trim() || manualResultHome.trim() === "" || manualResultAway.trim() === ""}
+                onClick={() => {
+                  startTransition(async () => {
+                    setManualResultMessage(null);
+                    const res = await fetch(`/api/admin/matches/${encodeURIComponent(manualResultMatchId.trim())}/set-result`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        homeScore: Number(manualResultHome),
+                        awayScore: Number(manualResultAway),
+                      }),
+                    });
+                    const json = await res.json().catch(() => null);
+                    if (!res.ok || !json?.ok) {
+                      setManualResultMessage(json?.error ? `Failed: ${json.error}` : "Failed");
+                      return;
+                    }
+
+                    setManualResultMessage(
+                      `Saved result: ${json.result.homeScore}-${json.result.awayScore}. Now run Rescore for this matchId to calculate points.`,
+                    );
+
+                    await refreshStats();
+                  });
+                }}
+                className={cn(
+                  "h-11 rounded-xl px-5",
+                  "border border-white/10 bg-white/5 text-white/70 hover:bg-white/10",
+                  "text-xs font-black uppercase tracking-[0.22em] transition",
+                  "disabled:opacity-40 disabled:cursor-not-allowed",
+                )}
+              >
+                Save result
+              </button>
+
+              {manualResultMessage ? <div className="text-xs text-white/60">{manualResultMessage}</div> : null}
+            </div>
+
+            <div className="mt-2 text-[11px] text-white/35">
+              Tip: if this match went to penalties and ended in a draw, use “Penalty winner override” after saving the score.
             </div>
           </div>
 
