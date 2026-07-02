@@ -6,7 +6,13 @@ export function mapTheSportsDbStatus(strStatus?: string | null): MatchStatus {
 
   if (s.includes("not started") || s.includes("scheduled")) return MatchStatus.SCHEDULED;
   if (s.includes("in progress") || s.includes("live")) return MatchStatus.LIVE;
-  if (s.includes("finished") || s.includes("ft")) return MatchStatus.FINISHED;
+  // TheSportsDB uses a few soccer-specific finish codes:
+  // - FT  = Full Time
+  // - AET = After Extra Time
+  // - PEN / PSO-like strings sometimes appear depending on source
+  if (s.includes("finished") || s === "ft" || s.includes("ft") || s === "aet" || s.includes("aet") || s.includes("pen")) {
+    return MatchStatus.FINISHED;
+  }
   if (s.includes("postpon")) return MatchStatus.POSTPONED;
   if (s.includes("cancel")) return MatchStatus.CANCELED;
 

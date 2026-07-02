@@ -76,7 +76,8 @@ export async function POST(req: Request) {
 
   const eligibleUserIds = Array.from(new Set(eligibleMembers.map((m) => m.userId)));
 
-  const out = await prisma.$transaction(async (tx) => {
+  const out = await prisma.$transaction(
+    async (tx) => {
     if (forceRescore) {
       // Delete existing scored points for this match.
       await tx.pointsEvent.deleteMany({
@@ -217,7 +218,14 @@ export async function POST(req: Request) {
     });
 
     return { seasonEventsInserted, groupEventsInserted, eligibleUsers: eligibleUserIds.length };
-  });
+    },
+    {
+      // Interactive transactions have a default timeout; rescoring can be slow if many users/groups.
+      // Increase to avoid P2028 "Transaction not found" mid-loop.
+      timeout: 120_000,
+      maxWait: 10_000,
+    },
+  );
 
   return NextResponse.json({ ok: true, matchId: match.id, ...out });
 }
