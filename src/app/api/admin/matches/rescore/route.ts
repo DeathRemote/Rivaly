@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { requireAdminApi } from "@/lib/admin/api-auth";
+import { Prisma } from "@prisma/client";
+
 import { prisma } from "@/lib/prisma";
 import { scoreKnockoutPredictionPoints, scorePredictionPoints } from "@/lib/scoring/predictions";
 
@@ -128,8 +130,12 @@ export async function POST(req: Request) {
           select: { id: true },
         });
         seasonEventsInserted++;
-      } catch {
-        // ignore unique violations when not forceRescore
+      } catch (err) {
+        // Only ignore unique violations (already scored) when not forceRescore.
+        // Any other error can abort the transaction and must surface.
+        const isUniqueViolation =
+          err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+        if (!isUniqueViolation) throw err;
       }
 
       // Mirror to group events for this user.
@@ -149,8 +155,10 @@ export async function POST(req: Request) {
             select: { id: true },
           });
           groupEventsInserted++;
-        } catch {
-          // ignore unique violations
+        } catch (err) {
+          const isUniqueViolation =
+            err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+          if (!isUniqueViolation) throw err;
         }
       }
     }
